@@ -487,7 +487,7 @@ def main() -> None:
             {
                 "Seção do PDF": "Seção 3",
                 "Título do Capítulo no Relatório Único": "Inteligência Analítica Cripto On-Chain & DeFi State of the Union",
-                "Conteúdo Analítico & Gráficos Incluídos": "Ciclo On-Chain (MVRV Z, NUPL, aSOPR, Pi Cycle, 200W SMA), Mineração (Hash Ribbon & MMC), Fluxos (Inflow, CDD, Stablecoins, HODL Waves), Tokenomics (NVM, NVT GC, P/F, TVL, Protocol Real Earnings, Real Yield), Bússola de Rotação de Ciclo (BTC -> ETH -> DeFi) com dados DefiLlama ao vivo e Radar de 6 Novas Tecnologias/Narrativas DeFi (Dune, DefiLlama, Messari, Delphi, Kaito).",
+                "Conteúdo Analítico & Gráficos Incluídos": "Ciclo On-Chain (MVRV Z, NUPL, aSOPR, Pi Cycle, 200W SMA), Mineração (Hash Ribbon & MMC), Fluxos (Inflow, CDD, Stablecoins, HODL Waves), Tokenomics (NVM, NVT GC, P/F, TVL, Protocol Real Earnings, Real Yield), Bússola de Rotação de Ciclo (BTC -> ETH -> DeFi) e Radar de Novas Tecnologias & Mudanças Estruturais em Cripto (Síntese Fundamentalista On-Chain).",
             },
             {
                 "Seção do PDF": "Seção 4",

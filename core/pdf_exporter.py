@@ -938,7 +938,7 @@ class InstitutionalPDFExporter:
         </div>
 
         <div class="page-section">
-            <div class="sub-banner">3.2. Onde Estamos no Ciclo Cripto? (Bússola de Rotação BTC &rarr; ETH &rarr; DeFi / Altcoins &amp; Liquidez DefiLlama Ao Vivo)</div>
+            <div class="sub-banner">3.2. Onde Estamos no Ciclo Cripto? (Bússola de Rotação BTC &rarr; ETH &rarr; DeFi / Altcoins &amp; Liquidez On-Chain)</div>
             <table class="inst-table">
                 <thead>
                     <tr>
@@ -952,13 +952,13 @@ class InstitutionalPDFExporter:
                 <tbody>{cycle_html}</tbody>
             </table>
 
-            <div class="sub-banner">3.3. Radar de Mudanças de Narrativa &amp; Novas Tecnologias DeFi (Dune Analytics, DefiLlama, Token Terminal, Messari, Delphi &amp; Kaito)</div>
+            <div class="sub-banner">3.3. Radar de Mudanças de Narrativa &amp; Novas Tecnologias DeFi (Síntese de Pesquisa Fundamentalista On-Chain)</div>
             <table class="inst-table">
                 <thead>
                     <tr>
                         <th style="width:18%;">Narrativa / Tecnologia DeFi</th>
                         <th style="width:12%;">Momentum</th>
-                        <th style="width:22%;">Evidência Empírica (Dune / DefiLlama / Artemis)</th>
+                        <th style="width:22%;">Evidência Empírica &amp; Telemetria On-Chain</th>
                         <th style="width:20%;">Mudança Arquitetural &amp; Tecnológica</th>
                         <th style="width:15%;">Impacto no Portfólio</th>
                         <th style="width:13%;">Risco / Invalidador</th>
