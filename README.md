@@ -130,8 +130,11 @@ Permite gerenciar a sua carteira de forma interativa com gravação permanente e
       w_{\text{novo}, i} = \frac{w_{\text{antigo}, i}}{\sum_{j=1}^{N} w_{\text{antigo}, j}} \times 100\%
       `
    * A soma retorna exatamente a 100.00% com consistência matemática.
-4. **Tabela de Acompanhamento (Ledger):**
-   * Exibe todas as posições ativas, peso-alvo vs peso atual (drift), preço médio versus cotação spot, ganho/perda latente e elegibilidade de colateral.
+4. **Tabela de Acompanhamento (Ledger em Tempo Real):**
+   * Exibe todas as posições ativas, peso-alvo vs peso atual (drift), preço médio versus cotação spot, ganho/perda latente (USD e %) e elegibilidade de colateral para operações estruturadas.
+5. **Decomposição Look-Through Profunda de ETFs (Overlap Analysis):**
+   * Desdobra a custódia de ETFs estruturais (**SPY, QQQ, SMH, ITA e QLD 2x alavancado**) para revelar a exposição indireta real sobreposta a cada corporação.
+   * Por exemplo: se você possui Apple diretamente e também aloca em SPY, QQQ e QLD, o motor calcula a soma ponderada exata considerando o fator de alavancagem 2.0x do QLD, gerando a métrica de **Exposição Bruta Efetiva (Gross Effective Exposure)** da sua carteira.
 
 ---
 
@@ -153,8 +156,14 @@ Permite realizar uma auditoria completa de qualquer ativo específico — seja e
    * Consulta os 3 cenários de Fluxo de Caixa Descontado (Conservador, Base, Otimista) e o Preço Justo com margem de segurança de 10%.
    * Apresenta o crescimento embutido no preço pelo mercado (`g_impl`) contra o crescimento projetado pelos fundamentos (`g_fund`).
    * Exibe a decomposição por partes (SOTP) e múltiplos setoriais.
-4. **Download do Dossiê Individual em PDF:**
-   * Clique em **`📥 BAIXAR DOSSIÊ DEEP DIVE INDIVIDUAL (.PDF)`** para gerar um documento focado exclusivamente no ativo examinado.
+4. **Dissecação Forense SEC 10-K / SOX 404(b) / MD&A:**
+   * Audita a opinião do auditor externo independente (Big 4) e a eficácia de controles internos sob a lei Sarbanes-Oxley 404(b).
+   * Decompõe a receita do MD&A separando o crescimento orgânico de volume, poder de precificação (mix de preços) e impacto cambial (FX).
+   * Mapeia os Top 3 Riscos regulatórios e operacionais do Item 1A do formulário 10-K.
+   * Audita notas explicativas críticas: compensação em ações (SBC), reconhecimento de receita (ASC 606), litígios e passivos contingentes.
+   * Rastreia transações de insiders (Form 4), o Skin in the Game da diretoria executiva e a taxa líquida de recompra de ações em 5 anos (*net share count change*).
+5. **Download do Dossiê Individual em PDF:**
+   * Clique em **`📥 BAIXAR DOSSIÊ DEEP DIVE INDIVIDUAL (.PDF)`** para compilar programaticamente um documento executivo de 2 páginas A4 focado exclusivamente no ativo examinado.
 
 ---
 
@@ -171,8 +180,17 @@ Espaço reservado para o controle de risco sistemático, rebalanceamento por nov
    * Exibe o LTV Global consolidado, o teto regulatório estrito de segurança (**Hard-Cap de 50.0% LTV**) e o *Health Factor* de liquidação.
    * Permite simular choques de mercado: o que aconteceria com a margem de garantia se o Bitcoin caísse 50% e as ações caíssem 30% simultaneamente?
    * O sistema aponta a folga em dólares até a primeira chamada de margem e o custo anual de carregamento da taxa de empréstimo.
-3. **Notificador Passivo Matinal (Scanner de Background):**
-   * Chave mestra que permite ligar ou desligar o monitor de alertas matinais (varredura de fatos relevantes 8-K, desbloqueio de tokens de cripto e extremos de ciclo).
+3. **Notificador Matinal Passivo — Robô Telegram & Discord (Zero Processos Zumbis):**
+   * **Chave Mestra Liga/Desliga (OFF por padrão):** Garante a soberania do usuário. Enquanto desligado, nenhum processo roda em segundo plano e zero memória/CPU é consumida.
+   * **Integração Nativa com o Windows Task Scheduler (`schtasks.exe`):** Ao ativar a chave para "LIGADO (ON)", o terminal agenda silenciosamente uma tarefa diária no Windows para acordar no horário configurado (ex: 08:30), executar a varredura e fechar imediatamente.
+   * **Canais de Envio Suportados:**
+     * **Telegram Bot:** Configuração direta de `Bot Token` e `Chat ID` para envio de mensagens formatadas com emojis institucionais e alertas de prioridade direto no seu smartphone.
+     * **Discord Webhook:** Envio para canais dedicados de servidores privados via URL de webhook.
+   * **Gatilhos de Alerta Auditados no Briefing Matinal:**
+     * *Corporativo & Valuation:* Fatos relevantes SEC Form 8-K, operações de M&A e ativos da carteira entrando na Faixa Ouro de Valuation (PEGY <= 1.2x ou DCF com upside > 20%).
+     * *Tokenomics & Cripto:* Desbloqueio de tokens (Unlocks > 2.5%/mês), votações críticas em DAOs e extremos de ciclo on-chain (MVRV Z-Score > 2.5 ou < 0.5).
+     * *Macro & LTV:* Disparo de recessão pela Regra de Sahm, desinversão da curva 10Y-2Y e estresse no LTV da carteira.
+   * **Botão de Disparo Imediato de Teste:** Permite validar a conexão do bot enviando instantaneamente um briefing executivo de teste para o seu Telegram ou Discord.
 
 ---
 

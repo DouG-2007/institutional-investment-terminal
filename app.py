@@ -398,11 +398,6 @@ def main() -> None:
         f"""
         <div class="inst-banner">
             <h1>🏛️ CENTRAL DO RELATÓRIO MASTER 360° &amp; MÓDULOS DE INTERVENÇÃO ATIVA</h1>
-            <p>
-                <strong>Zero Redundância na Interface:</strong> Todos os dados analíticos, indicadores econômicos, métodos de valuation Forward (NTM),
-                gráficos vetoriais, dossiês SEC 10-K/M&amp;A/Calls/Porter, Whitepapers/Core Devs/Unlocks, DeFi State of the Union e Screener estão
-                consolidados no <strong>Relatório Master Multi-Completo (.PDF)</strong>. A interface do app concentra apenas as ferramentas de intervenção.
-            </p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -419,35 +414,12 @@ def main() -> None:
     # ABA 1: CENTRAL DE EMISSÃO DO RELATÓRIO ÚNICO MULTI-COMPLETO (.PDF)
     # ==========================================================================
     with tabs[0]:
-        k1, k2, k3, k4 = st.columns(4)
-        with k1:
-            render_kpi_card(
-                "Relatório Único Consolidado",
-                "7 Seções Completas",
-                f"PDF Vetorial A4 Paisagem ({len(master_pdf_bytes)/1024:.0f} KB)",
-                tone="emerald",
-            )
-        with k2:
-            render_kpi_card(
-                "Carteira Ativa Monitorada",
-                f"{len(portfolio.positions)} Ativos (100%)",
-                f"{portfolio.total_crypto_pct:.0f}% Cripto | {portfolio.total_hard_assets_pct:.0f}% Hard-Assets",
-                tone="blue",
-            )
-        with k3:
-            render_kpi_card(
-                "Motor de Valuation & DCF",
-                "100% Dados Forward (NTM)",
-                "DCF NTM, Reverse DCF, PEGY Forward & SOTP",
-                tone="purple",
-            )
-        with k4:
-            render_kpi_card(
-                "Tabelas & Gráficos no PDF",
-                "Zero Texto Espremido",
-                "Tabelas divididas em Parte A / Parte B — Densidade Analítica Pura",
-                tone="amber",
-            )
+        render_kpi_card(
+            "Alocação Estrutural da Carteira",
+            f"{portfolio.total_crypto_pct:.0f}% Cripto  |  {portfolio.total_hard_assets_pct:.0f}% Hard-Assets",
+            f"Monitoramento Ativo de {len(portfolio.positions)} Posições da Carteira",
+            tone="blue",
+        )
 
         st.markdown("<div style='height:0.65rem;'></div>", unsafe_allow_html=True)
 
