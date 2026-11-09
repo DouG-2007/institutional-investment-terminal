@@ -76,13 +76,14 @@ flowchart TD
 
 ## 🖥️ Guia Passo a Passo: Como Usar o Aplicativo
 
-Ao abrir o terminal no navegador (`streamlit run app.py`), você encontra **4 abas especializadas**:
+Ao abrir o terminal no navegador (`streamlit run app.py`), a interface disponibiliza **4 abas especializadas**:
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ [ Aba 1: Relatório 360° ] [ Aba 2: Gestor Carteira ] [ Aba 3: Deep Dive ] [ Aba 4: Risco/LTV ] │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
+| Aba | Nome do Módulo | Função Principal |
+| :--- | :--- | :--- |
+| **Aba 1** | **Central de Emissão (Relatório 360°)** | Emissão e download em 1 clique do relatório executivo consolidado em PDF (A4) |
+| **Aba 2** | **Gestor Dinâmico de Portfólio (CRUD)** | Inclusão, edição, remoção e normalização automática para 100% dos pesos da carteira em SQLite |
+| **Aba 3** | **Deep Dive Individual** | Auditoria contábil forense e valuation NTM sob demanda para qualquer ação ou criptoativo |
+| **Aba 4** | **Governança de Risco & LTV** | Rebalanceamento de novos aportes (*Shannon Inflow*) e teste de estresse de colateral/dívida |
 
 ---
 
@@ -150,7 +151,7 @@ Permite realizar uma auditoria completa de qualquer ativo específico — seja e
    * Receba o score de aprovação (ex: `Score 100/100 — Aprovado 5/5 Filtros`) com diagnóstico detalhado.
 3. **Cockpit de Valuation Multi-Método:**
    * Consulta os 3 cenários de Fluxo de Caixa Descontado (Conservador, Base, Otimista) e o Preço Justo com margem de segurança de 10%.
-   * Apresenta o crescimento embutido no preço pelo mercado ($g_{\text{impl}}$) contra o crescimento projetado pelos fundamentos ($g_{\text{fund}}$).
+   * Apresenta o crescimento embutido no preço pelo mercado (`g_impl`) contra o crescimento projetado pelos fundamentos (`g_fund`).
    * Exibe a decomposição por partes (SOTP) e múltiplos setoriais.
 4. **Download do Dossiê Individual em PDF:**
    * Clique em **`📥 BAIXAR DOSSIÊ DEEP DIVE INDIVIDUAL (.PDF)`** para gerar um documento focado exclusivamente no ativo examinado.
@@ -186,13 +187,13 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   ```math
   \text{Sloan Ratio} = \frac{\text{Lucro Líquido} - \text{FCO} - \text{FCI}}{\text{Ativos Totais}}
   ```
-  * $< -10\%$: **Excelente / Qualidade Máxima.** A geração de caixa operacional supera com folga o lucro escriturado. A empresa tem dinheiro vivo entrando no caixa.
-  * $-10\% \text{ a } +5\%$: **Saudável / Accruals Normais.** Lucro condizente com a operação do negócio.
-  * $> +5\% \text{ a } +10\%$: **Atenção.** O lucro contábil está crescendo mais rápido do que a entrada de caixa.
-  * $> +10\%$: **Alerta Vermelho / Reprovação.** Indica maquiagem contábil, estoques encalhados ou receitas a prazo não recebidas.
+  * **Abaixo de -10%:** Excelente / Qualidade Máxima. A geração de caixa operacional supera com folga o lucro contábil. A empresa tem dinheiro vivo entrando no caixa.
+  * **Entre -10% e +5%:** Saudável / Accruals Normais. Lucro condizente com as operações normais do negócio.
+  * **Entre +5% e +10%:** Atenção. O lucro contábil está crescendo descolado da entrada de caixa.
+  * **Acima de +10%:** Alerta Vermelho / Reprovação. Indica acúmulo excessivo de accruals, estoques encalhados ou receitas a prazo não realizadas.
 * **FCO / EBITDA (Conversão Operacional de Caixa):**
-  * $\ge 0.90x$ (idealmente $> 1.0x$): Aprovado. A quase totalidade do resultado operacional antes de juros e impostos vira dinheiro no banco.
-  * $< 0.80x$: Reprovado. Indica descasamento no fluxo de pagamentos ou receitas de papel.
+  * **>= 0.90x (idealmente > 1.0x):** Aprovado. A quase totalidade do resultado operacional antes de juros e impostos vira dinheiro no banco.
+  * **< 0.80x:** Reprovado. Indica descasamento no fluxo de pagamentos ou receitas contábeis sem respaldo financeiro.
 * **Decomposição DuPont em 3 Pilares:**
 
   ```math
@@ -204,7 +205,7 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   ```
   * Permite entender **como** a empresa alcança o retorno sobre o patrimônio:
     * Se o ROE é alto porque a **Margem** e o **Giro** são altos: empresa eficiente, com poder de monopólio e precificação (*Moat*).
-    * Se o ROE é alto apenas porque a **Alavancagem** é de $5x$ ou $8x$: retorno frágil, altamente vulnerável a choques de taxa de juros.
+    * Se o ROE é alto apenas porque a **Alavancagem** é de 5x ou 8x: retorno frágil, altamente vulnerável a choques de taxa de juros.
 * **ROIC vs WACC & EVA (Criação de Valor Econômico):**
 
   ```math
@@ -214,7 +215,7 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   ```math
   \text{EVA} = \text{NOPAT} - (\text{Capital Investido} \times \text{WACC})
   ```
-  * Se o Spread for amplamente positivo (ex: ROIC de $45\%$ contra WACC de $9\%$ = Spread $+36\text{ pp}$), a empresa gera lucro econômico real (*EVA positivo*). Ela destrói os competidores ao longo do tempo.
+  * Se o Spread for amplamente positivo (ex: ROIC de 45% contra WACC de 9% = Spread de +36 pp), a empresa gera lucro econômico real (*EVA positivo*). Ela destrói os competidores ao longo do tempo.
   * Se o Spread for negativo, cada real reinvestido no negócio destrói valor do acionista.
 
 ---
@@ -225,18 +226,18 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   * Projeta os fluxos de caixa livre dos próximos 10 anos descontados pelo custo médio ponderado de capital (WACC).
   * O sistema gera três cenários: **Conservador**, **Base** e **Otimista**.
   * O **Preço Justo** é calculado adotando uma **Margem de Segurança estrita de 10%** sobre a média ponderada, protegendo o investidor contra erros de previsão.
-* **Reverse DCF ($g_{\text{impl}}$ vs $g_{\text{fund}}$):**
-  * Em vez de tentar prever o futuro, o modelo resolve matematicamente: *“Qual taxa de crescimento anual ($g_{\text{impl}}$) o preço atual da ação está exigindo para os próximos 10 anos?”*
-  * Se o mercado exige $g_{\text{impl}} = 12\%$ e os fundamentos da empresa indicam que ela cresce a $g_{\text{fund}} = 18\%$, há uma **Assimetria Positiva** (o ativo está barato para o que entrega).
+* **Reverse DCF (g_impl vs g_fund):**
+  * Em vez de tentar adivinhar o futuro com estimativas subjetivas, o modelo resolve matematicamente: *“Qual taxa de crescimento anual (`g_impl`) o preço atual da ação está exigindo da empresa para os próximos 10 anos?”*
+  * Se o mercado precifica um crescimento implícito de `g_impl = 12% a.a.` e os fundamentos da empresa sustentam uma taxa sustentável de `g_fund = 18% a.a.`, há uma **Assimetria Positiva** (o ativo está sendo negociado com desconto pelo mercado).
 * **Múltiplo Soberano por Setor (Zero Contaminação de Métricas):**
   * **Bancos e Instituições Financeiras (`FINANCIAL_BANK`):**
-    * Bancos trabalham com alavancagem de balanço onde dívida e depósitos são matérias-primas. Múltiplos como $EV/EBITDA$ e $DCF$ são conceitualmente inválidos para bancos.
+    * Bancos trabalham com alavancagem de balanço onde dívida e depósitos são matérias-primas. Múltiplos fabris como EV/EBITDA e DCF tradicional são desabilitados para instituições financeiras.
     * O modelo avalia bancos exclusivamente por:
 
       ```math
       \text{PEGY Financeiro} = \frac{P/E_{\text{NTM}}}{\text{CAGR do EPS} + \text{Dividend Yield}} \quad (\text{Faixa Ouro: } \le 1.00x)
       ```
-      Cruzado com a regressão de **$P/\text{TBV}$ versus $\text{ROE}$** e **trava estrutural obrigatória de $P/B \ge 1.00x$** (bancos negociados abaixo de $1.0x$ valor patrimonial geralmente escondem inadimplência ou ativos podres no balanço).
+      Cruzado com a regressão setorial de **P/TBV versus ROE** e **trava estrutural obrigatória de P/B >= 1.00x** (bancos negociados abaixo de 1.0x o valor patrimonial geralmente escondem inadimplência oculta ou ativos podres no balanço).
   * **Big Tech Cash Cows & Pedágios de Pagamento (`TECH_CASH_COW`, `FINANCIAL_TOLLBOOTH` como Visa e Mastercard):**
     * Avaliadas por **Enterprise PEGY sobre Fluxo de Caixa Livre**:
 
@@ -263,18 +264,18 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   ```math
   \text{NVT Nominal} = \frac{\text{Market Cap (USD)}}{\text{Volume Transacionado On-Chain em 24h (USD)}}
   ```
-  * Análogo ao índice $P/E$ no universo de redes descentralizadas. Mede se a avaliação da rede é suportada pelo volume financeiro que ela movimenta:
-    * $< 30x$: **Subavaliado / Zona de Oportunidade.** Alto volume econômico circulando nos blocos em relação ao valor de mercado.
-    * $30x \text{ a } 75x$: **Justo / Equilíbrio Saudável.** Relação estável entre infraestrutura e uso.
-    * $> 75x$: **Sobreavaliado / Zona de Cautela e Risco de Bolha.** O preço está subindo por pura especulação sem suporte transacional na rede.
+  * Análogo ao múltiplo P/E no universo de redes descentralizadas. Mede se a avaliação da rede é suportada pelo volume financeiro que ela movimenta:
+    * **Abaixo de 30x:** Subavaliado / Zona de Oportunidade. Alto volume econômico circulando nos blocos em relação ao valor de mercado.
+    * **Entre 30x e 75x:** Justo / Equilíbrio Saudável. Relação estável entre infraestrutura e atividade econômica.
+    * **Acima de 75x:** Sobreavaliado / Zona de Cautela e Risco de Bolha. O preço está subindo por pura especulação sem suporte transacional na rede.
 * **MVRV Z-Score:**
   * Mede o desvio padronizado entre o valor de mercado (*Market Cap*) e o valor realizado (*Realized Cap* — o preço no qual cada moeda foi movida pela última vez):
-    * $< 0.5$: **Fundo Histórico de Ciclo (Zona de Acúmulo Máximo).** Historicamente marca os melhores pontos de compra plurianual do Bitcoin.
-    * $0.5 \text{ a } 2.0$: **Meio de Ciclo / Expansão Saudável.**
-    * $> 2.5 \text{ a } 3.0$: **Zona de Euforia Extrema / Topo de Ciclo.** O mercado está assentado sobre lucros não-realizados gigantescos, vulnerável a correções severas.
+    * **Abaixo de 0.5:** Fundo Histórico de Ciclo (Zona de Acúmulo Máximo). Historicamente marca os melhores pontos de compra plurianual do Bitcoin.
+    * **Entre 0.5 e 2.0:** Meio de Ciclo / Expansão Saudável.
+    * **Acima de 2.5 - 3.0:** Zona de Euforia Extrema / Topo de Ciclo. O mercado está assentado sobre lucros não-realizados gigantescos, vulnerável a correções severas.
 * **aSOPR (Adjusted Spent Output Profit Ratio):**
-  * Mede se as moedas movimentadas na rede estão sendo realizadas com lucro ($> 1.0$) ou com prejuízo ($< 1.0$).
-  * Em ciclos de alta (*bull market*), a linha **$1.000$** funciona como **suporte dinâmico**: investidores compram correções assim que as posições atingem o ponto de equilíbrio (*break-even*).
+  * Mede se as moedas movimentadas na rede estão sendo realizadas com lucro (> 1.0) ou com prejuízo (< 1.0).
+  * Em ciclos de alta (*bull market*), a linha **1.000** funciona como **suporte dinâmico**: investidores compram correções assim que as posições atingem o ponto de equilíbrio (*break-even*).
 * **Protocol Real Earnings & Real Yield (Economia Real DeFi):**
 
   ```math
@@ -302,7 +303,7 @@ Para que você possa interpretar os dados como um analista de investimentos prof
 * **Curva de Juros Soberana (Spread 10Y - 2Y):**
   * O perigo real não reside apenas na inversão da curva, mas na sua **desinversão rápida**: quando os juros de 2 anos desabam mais rápido do que os de 10 anos (*Bull Steepening* induzido por cortes de emergência do Fed), a recessão costuma se materializar na economia real.
 * **PMI Services vs Manufacturing (Sweet Spot):**
-  * O regime econômico mais favorável para ações de qualidade ocorre quando o PMI de Serviços está entre $50.0$ e $55.0$ (expansão moderada sem provocar pressão inflacionária que force altas adicionais de juros).
+  * O regime econômico mais favorável para ações de qualidade ocorre quando o PMI de Serviços está entre 50.0 e 55.0 (expansão moderada sem provocar pressão inflacionária que force altas adicionais de juros).
 
 ---
 
