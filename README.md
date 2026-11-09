@@ -40,28 +40,36 @@ O sistema é construído sobre uma **arquitetura orientada a serviços desacopla
 
 ```mermaid
 flowchart TD
-    subgraph INGESTION ["1. Ingestão & Persistência Local"]
-        YF["Cotações ao Vivo & Séries Históricas<br/>(yFinance REST Parallel Engine)"]
-        SQL[("Banco de Dados Relacional Local<br/>(portfolio_store.db - SQLite)")]
-        KB["Base Fundamentalista Curada<br/>(10-Ks SEC, SOX 404b, Tokenomics & Unlocks)"]
+    subgraph INGESTION ["1. Ingestão & Dados Locais"]
+        direction LR
+        KB["Base Fundamentalista<br/>• Dossiês SEC 10-K<br/>• SOX 404(b) & Unlocks"]
+        YF["Cotações em Tempo Real<br/>• yFinance Parallel REST<br/>• Séries Spot & Histórico"]
+        SQL[("Banco de Dados ACID<br/>• SQLite3 Local<br/>• portfolio_store.db")]
     end
 
-    subgraph ENGINES ["2. Motores Especializados (core/)"]
-        PORT["portfolio_engine.py<br/>• CRUD SQLite Persistente<br/>• Normalização 100% Pesos<br/>• Look-Through de ETFs"]
-        EQUITY["equity_engine.py<br/>• Sloan Ratio & DuPont<br/>• Forward DCF & Reverse DCF<br/>• Enterprise PEGY vs PEGY Bancos"]
-        CRYPTO["crypto_engine.py<br/>• NVT Nominal c/ Bandas<br/>• MVRV Z-Score & aSOPR 1.0<br/>• Protocol Real Earnings"]
-        MACRO["macro_engine.py<br/>• Sahm Rule Pareada Tripla<br/>• Curva 10Y-2Y Bull/Bear Steep<br/>• PMI Sweet Spot"]
-        RISK["risk_timing_engine.py<br/>• Shannon Inflow Rebalancing<br/>• Stress-Test LTV Convexo<br/>• Sharpe & Sortino Ratios"]
-        DEEP["deep_dive_engine.py<br/>• Raio-X Individual sob Demanda<br/>• Funil Estrito de 5 Filtros"]
+    subgraph VALUATION ["2. Motores de Valuation & Análise Macro (core/)"]
+        direction LR
+        EQUITY["equity_engine.py<br/>• Sloan Ratio & DuPont<br/>• DCF 3 Cenários & Rev-DCF<br/>• PEGY Operacional vs Bancos"]
+        CRYPTO["crypto_engine.py<br/>• NVT Nominal c/ Bandas<br/>• MVRV Z-Score & aSOPR 1.0<br/>• Real Earnings Protocolar"]
+        MACRO["macro_engine.py<br/>• Sahm Rule Tripla<br/>• Curva 10Y-2Y Steepening<br/>• PMI Sweet Spot"]
     end
 
-    subgraph PRESENTATION ["3. Camadas de Apresentação"]
-        WEB["app.py (Streamlit Web Interface)<br/>• Central de Inteligência & Recálculo<br/>• Gestor de Carteira Interativo<br/>• Deep Dive sob Demanda<br/>• Simuladores Inflow & LTV"]
-        PDF["pdf_exporter.py (Chromium Headless)<br/>• Relatório Master 360° em 7 Seções<br/>• Dossiês Individuais Deep Dive<br/>• Resolução A4 Vetorial sem Cortes"]
+    subgraph PORTFOLIO_MGMT ["3. Gestão de Carteira & Governança de Risco (core/)"]
+        direction LR
+        PORT["portfolio_engine.py<br/>• CRUD SQLite Persistente<br/>• Normalização de Pesos 100%<br/>• Look-Through de ETFs"]
+        RISK["risk_timing_engine.py<br/>• Shannon Inflow Rebalance<br/>• Matriz Stress-Test LTV<br/>• Ratios Sharpe & Sortino"]
+        DEEP["deep_dive_engine.py<br/>• Auditoria sob Demanda<br/>• Funil Estrito de 5 Filtros"]
     end
 
-    INGESTION --> ENGINES
-    ENGINES --> PRESENTATION
+    subgraph PRESENTATION ["4. Camadas de Apresentação & Exportação"]
+        direction LR
+        WEB["app.py (Streamlit Web)<br/>• Central Executiva 360°<br/>• Gestor de Carteira SQLite<br/>• Simuladores Inflow & LTV"]
+        PDF["pdf_exporter.py (Chromium)<br/>• Relatório Master 7 Seções<br/>• Dossiês Deep Dive A4<br/>• Resolução A4 sem Cortes"]
+    end
+
+    INGESTION --> VALUATION
+    VALUATION --> PORTFOLIO_MGMT
+    PORTFOLIO_MGMT --> PRESENTATION
 ```
 
 ### Principais Motores do `core/`:
