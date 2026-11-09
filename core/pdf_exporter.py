@@ -538,7 +538,7 @@ class InstitutionalPDFExporter:
             )
             for_part_b_html += (
                 f"<tr>"
-                f"<td class='mono'><strong>{_esc(e.ticker)}</strong></td>"
+                f"<td class='mono'><strong>{_esc(e.ticker)}</strong><br><span style='font-size:6.8pt;color:#64748b;'>{_esc(getattr(e, 'company_name', getattr(e, 'name', e.ticker)))}</span></td>"
                 f"<td class='mono'><strong>ROE: {fh['roe_dupont_pct']:.1f}%</strong> = Margem {fh['dupont_net_margin_pct']:.1f}% × Giro {fh['dupont_asset_turnover_x']:.2f}x × Alav. {fh['dupont_financial_leverage_x']:.2f}x<br><span style='font-size:6.8pt;color:#334155;'>{_esc(fh['dupont_verdict'])}</span></td>"
                 f"<td>{liq_cell}</td>"
                 f"<td>{debt_cell}</td>"
@@ -650,7 +650,7 @@ class InstitutionalPDFExporter:
             )
             val_b_rows += (
                 f"<tr>"
-                f"<td class='mono'><strong>{_esc(e.ticker)}</strong></td>"
+                f"<td class='mono'><strong>{_esc(e.ticker)}</strong><br><span style='font-size:6.8pt;color:#64748b;'>{_esc(getattr(e, 'company_name', getattr(e, 'name', e.ticker)))}</span></td>"
                 f"<td class='mono'>P/E Spot: {vm['pe_current']:.1f}x | <strong>P/E Forward (NTM): {vm['pe_ntm']:.1f}x</strong><br>Setor: {vm['pe_sector_avg']:.1f}x | Média 5y: {vm['pe_5y_avg']:.1f}x | DCF Impl: {vm['pe_implied_dcf']:.1f}x</td>"
                 f"<td>{mult_sec_cell}</td>"
                 f"<td>{eva_cell}</td>"
@@ -664,7 +664,7 @@ class InstitutionalPDFExporter:
             for seg in e.valuation_methods["sotp_segments"]:
                 sotp_rows_html += (
                     f"<tr>"
-                    f"<td class='mono'><strong>{_esc(e.ticker)}</strong></td>"
+                    f"<td class='mono'><strong>{_esc(e.ticker)}</strong><br><span style='font-size:6.8pt;color:#64748b;'>{_esc(getattr(e, 'company_name', getattr(e, 'name', e.ticker)))}</span></td>"
                     f"<td>{_esc(seg['segment'])}</td>"
                     f"<td class='mono'>{seg['rev_share_pct']:.1f}%</td>"
                     f"<td>{_esc(seg['peer_benchmark'])}</td>"
@@ -986,7 +986,7 @@ class InstitutionalPDFExporter:
 
         qual_rows_html = "".join(
             f"<tr>"
-            f"<td class='mono'><strong>{_esc(e.ticker)}</strong></td>"
+            f"<td class='mono'><strong>{_esc(e.ticker)}</strong><br><span style='font-size:6.8pt;color:#64748b;'>{_esc(getattr(e, 'company_name', getattr(e, 'name', e.ticker)))}</span></td>"
             f"<td>{_esc(e.qualitative_strategy['sector_particularity_lens'])}<br><strong>Pilar ROIC:</strong> {_esc(e.qualitative_strategy['roic_central_pillar'])} ({e.qualitative_strategy['roic_op_margin_pct']:.1f}% × {e.qualitative_strategy['roic_cap_turnover_x']:.2f}x)</td>"
             f"<td>{_esc(e.qualitative_strategy['moat_classification'])}</td>"
             f"<td>{_esc(e.qualitative_strategy['porter_5_forces'])}</td>"
@@ -1642,7 +1642,7 @@ class InstitutionalPDFExporter:
 
                 <table class="inst-table">
                     <thead>
-                        <tr><th>P/E (Spot / Forward NTM / Setor / 5y)</th><th>EV/EBITDA, P/B &amp; P/TBV</th><th>EVA (Lucro Econômico)</th><th>PEGY Fin &amp; Enterprise PEGY Forward</th><th>Magic Formula &amp; SOTP</th></tr>
+                        <tr><th>P/E (Spot / Forward NTM / Setor / 5y)</th><th>EV/EBITDA, P/B &amp; P/TBV</th><th>EVA (Lucro Econômico)</th><th>Múltiplo Soberano (Enterprise PEGY / PEGY Bancos)</th><th>Magic Formula &amp; SOTP</th></tr>
                     </thead>
                     <tbody>
                         <tr>

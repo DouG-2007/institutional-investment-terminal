@@ -31,6 +31,10 @@ class EquityFullAnalysis:
     # 2.3 Qualitativo, Estratégico, Concorrência e Lente Setorial
     qualitative_strategy: Dict[str, Any]
 
+    @property
+    def name(self) -> str:
+        return self.company_name
+
 
 # Banco de dados calibrado de referência fundamentalista e histórica 3y/5y/10y das 10 ações da carteira
 # (Garante completude de 10 anos mesmo quando a API pública gratuita retorna apenas 4 anos de balanço)

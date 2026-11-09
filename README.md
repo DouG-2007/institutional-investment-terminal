@@ -2,250 +2,359 @@
 
 [![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit UI](https://img.shields.io/badge/Streamlit-1.36+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Architecture](https://img.shields.io/badge/Architecture-Modular%20Core%20Engine-10B981?style=for-the-badge)](#-arquitetura-do-sistema)
-[![Valuation Focus](https://img.shields.io/badge/Valuation-Forward%20(NTM)%20%2B%20Forensic-2563EB?style=for-the-badge)](#-pilares-metodológicos-e-fundamentos-quantitativos)
-[![Report Engine](https://img.shields.io/badge/Report%20Engine-Headless%20Chromium%20PDF-F59E0B?style=for-the-badge)](#-motor-de-exportação-do-relatório-master-360-pdf)
+[![Architecture](https://img.shields.io/badge/Architecture-Modular%20Core%20Engine-10B981?style=for-the-badge)](#-como-o-terminal-funciona-por-dentro)
+[![Valuation Focus](https://img.shields.io/badge/Valuation-Forward%20(NTM)%20%2B%20Forensic-2563EB?style=for-the-badge)](#-guia-prático-como-ler-e-interpretar-cada-métrica)
+[![Report Engine](https://img.shields.io/badge/Report%20Engine-Headless%20Chromium%20PDF-F59E0B?style=for-the-badge)](#-aba-1-central-de-emissão--relatório-master-360-pdf)
 [![License](https://img.shields.io/badge/License-MIT-64748B?style=for-the-badge)](LICENSE)
 
-> **Motor de inteligência analítica em Python para gestão patrimonial quantitativa, modelagem de valuation Forward (NTM), contabilidade forense, ciclos macroeconômicos pareados, avaliação de protocolos cripto on-chain e geração programática de relatórios institucionais consolidados em PDF.**
+> **Terminal analítico para gestão patrimonial multi-ativos, contabilidade forense institucional, modelagem de valuation Forward (NTM), auditoria de ciclos macroeconômicos pareados e governança de risco com geração programática de relatórios executivos em PDF.**
 
 ---
 
-## 📌 Sumário Executivo
-
-A maior parte das ferramentas de investimento voltadas ao investidor individual sofre de **três limitações estruturais críticas**:
-1. **Foco exclusivo em múltiplos passados (*Trailing Twelve Months - LTM*):** Avaliam empresas olhando pelo retrovisor, ignorando que os retornos dependem dos lucros dos próximos doze meses (*Next Twelve Months - NTM*).
-2. **Superficialidade contábil:** Tratam o lucro líquido contábil como verdade absoluta, sem auditar a qualidade dos *accruals*, a conversão de caixa operacional (*CFO/EBITDA*), ou a estrutura de capital de giro (*NWC*).
-3. **Miopia setorial e metodológica:** Aplicam métricas como $EV/EBITDA$ e $P/L$ genericamente a bancos, empresas de hipercrescimento e processadoras de pagamento, gerando distorções grosseiras de precificação.
-
-Este **Terminal Institucional** foi arquitetado para trazer o rigor de análise de uma mesa de *Buy-Side Equity Research* e *Asset Management* quantitativa para uma solução autônoma, modular e auditável em Python. 
-
-O sistema consolida **modelos de valuation multi-cenário, contabilidade forense, ciclos macroeconômicos e métricas on-chain de criptoativos**, sintetizando todo o ecossistema em um **Relatório Master Multi-Completo 360° em PDF (.PDF)** gerado em 1 clique via Chromium Headless, mantendo a interface web restrita a módulos que exigem intervenção humana ativa (*CRUD de Portfólio, Deep Dive sob demanda, Simuladores de Aporte e Stress-Test de Alavancagem*).
+## 🧭 Sumário
+1. [Transparência Total & Fontes de Dados](#-transparência-total--fontes-de-dados)
+2. [Como o Terminal Funciona por Dentro (Arquitetura)](#-como-o-terminal-funciona-por-dentro)
+3. [Guia Passo a Passo: Como Usar o Aplicativo (Aba por Aba)](#-guia-passo-a-passo-como-usar-o-aplicativo)
+4. [Guia Prático: Como Ler e Interpretar Cada Métrica](#-guia-prático-como-ler-e-interpretar-cada-métrica)
+5. [Carteira de Demonstração (Sample Portfolio Integrado)](#-carteira-de-demonstração-sample-portfolio)
+6. [Instalação e Execução Passo a Passo](#-instalação-e-execução-passo-a-passo)
+7. [Stack Tecnológica](#-stack-tecnológica)
+8. [Aviso Legal (Disclaimer)](#-aviso-legal-disclaimer)
 
 ---
 
-## 🏗️ Arquitetura do Sistema
+## 🔍 Transparência Total & Fontes de Dados
 
-O projeto é estruturado em uma **arquitetura orientada a serviços no diretório `core/`**, onde cada domínio financeiro possui um motor especializado independente, orquestrado pela interface Streamlit (`app.py`) e pelo motor de compilação PDF (`pdf_exporter.py`).
+Para garantir integridade analítica e auditabilidade profissional, o terminal opera sob **estrita transparência técnica**, sem exageros ou promessas irreais:
+
+* **Cotações e Séries Históricas de Preço em Tempo Real:** Ingestão dinâmica via biblioteca oficial [`yfinance`](https://github.com/ranaroussi/yfinance) conectada aos servidores de mercado do Yahoo Finance, com processamento assíncrono paralelo e fallback automático de tolerância a falhas.
+* **Curva de Juros e Séries Macroeconômicas dos EUA:** Monitoramento ao vivo dos rendimentos de Treasuries de 3 meses a 30 anos (`^IRX`, `^FVX`, `^TNX`, `^TYX`), volatilidade do mercado (`^VIX`), breakeven inflacionário e índices de liquidez global (M2 vs DXY).
+* **Demonstrações Contábeis 10-K, SOX 404(b), Decomposição DuPont e Tokenomics:** Estruturados a partir de uma base fundamentalista de alta precisão devidamente curada (`core/equity_engine.py`, `core/crypto_engine.py`, `core/filings_engine.py`). O sistema **não** faz alegações fantasiosas de web-scraping não-supervisionado da SEC EDGAR; ele extrai e processa dados contábeis auditados reais (accruals, notas explicativas de litígios e diluição, auditorias externas Big 4 e whitepapers técnicos) e os integra de forma reproduzível aos modelos de valuation.
+* **Execução 100% Local e Privada:** Todo o processamento de banco de dados (SQLite), cálculo de matrizes e renderização de relatórios PDF roda na sua própria máquina, sem envio de dados confidenciais de custódia para servidores de terceiros.
+
+---
+
+## 🏗️ Como o Terminal Funciona por Dentro
+
+O sistema é construído sobre uma **arquitetura orientada a serviços desacoplados** sob a pasta `core/`, conectando ingestão de dados, modelagem matemática, persistência local e duas camadas de saída:
 
 ```mermaid
 flowchart TD
-    subgraph INGESTION ["1. Camada de Ingestão & Dados"]
-        API_DATA["APIs de Mercado em Tempo Real<br/>(yFinance / Yahoo Finance REST)"]
-        SQL_STORE[("SQLite Portfolio Store<br/>(portfolio_store.db)")]
-        KB_CURATED["Base de Conhecimento Estruturada<br/>(10-Ks SEC, Whitepapers, Unlocks, Backlogs)"]
+    subgraph INGESTION ["1. Ingestão & Persistência Local"]
+        YF["Cotações ao Vivo & Séries Históricas<br/>(yFinance REST Parallel Engine)"]
+        SQL[("Banco de Dados Relacional Local<br/>(portfolio_store.db - SQLite)")]
+        KB["Base Fundamentalista Curada<br/>(10-Ks SEC, SOX 404b, Tokenomics & Unlocks)"]
     end
 
     subgraph ENGINES ["2. Motores Especializados (core/)"]
-        MACRO["macro_engine.py<br/>• Sahm Rule Pareada<br/>• Curva 10Y-2Y & Pontas<br/>• PMI Sweet Spot<br/>• Liquidez M2 vs DXY"]
-        EQUITY["equity_engine.py<br/>• Sloan Ratio & DuPont<br/>• Forward DCF & Reverse DCF<br/>• PEGY Setorial Estrito<br/>• SOTP & EVA"]
-        CRYPTO["crypto_engine.py<br/>• NVT Nominal & NVT GC<br/>• MVRV Z-Score & NUPL<br/>• aSOPR c/ Suporte 1.0<br/>• Protocol Real Earnings"]
-        FILINGS["filings_engine.py<br/>• Extração SEC EDGAR 10-K<br/>• Riscos Item 1A & SOX 404b<br/>• GitHub Velocity & DeepDAO"]
-        GEO["geopolitics_micro_engine.py<br/>• Matriz Geopolítica 10-K<br/>• Calls Q&A & Fatos 8-K<br/>• M&A & Goodwill Risk"]
-        SCREENER["screener_engine.py<br/>• Funil Estrito Ações (5 Filtros)<br/>• Funil Estrito Cripto (5 Filtros)"]
-        RISK["risk_timing_engine.py<br/>• Sharpe, Sortino & Calmar<br/>• Painel LTV Convexo<br/>• Shannon Inflow Rebalancing"]
+        PORT["portfolio_engine.py<br/>• CRUD SQLite Persistente<br/>• Normalização 100% Pesos<br/>• Look-Through de ETFs"]
+        EQUITY["equity_engine.py<br/>• Sloan Ratio & DuPont<br/>• Forward DCF & Reverse DCF<br/>• Enterprise PEGY vs PEGY Bancos"]
+        CRYPTO["crypto_engine.py<br/>• NVT Nominal c/ Bandas<br/>• MVRV Z-Score & aSOPR 1.0<br/>• Protocol Real Earnings"]
+        MACRO["macro_engine.py<br/>• Sahm Rule Pareada Tripla<br/>• Curva 10Y-2Y Bull/Bear Steep<br/>• PMI Sweet Spot"]
+        RISK["risk_timing_engine.py<br/>• Shannon Inflow Rebalancing<br/>• Stress-Test LTV Convexo<br/>• Sharpe & Sortino Ratios"]
+        DEEP["deep_dive_engine.py<br/>• Raio-X Individual sob Demanda<br/>• Funil Estrito de 5 Filtros"]
     end
 
-    subgraph OUTPUT ["3. Camadas de Apresentação & Saída"]
-        TERMINAL["app.py (Streamlit Web Terminal)<br/>• Central de Download Master PDF<br/>• Gestor de Carteira CRUD SQLite<br/>• Deep Dive Interativo (Stock/Crypto)<br/>• Simuladores Inflow & Stress-Test LTV"]
-        PDF_ENGINE["pdf_exporter.py (Chromium Headless)<br/>• Relatório Master Multi-Completo 360° (7 Seções A4)<br/>• Dossiê Executivo Deep Dive Individual<br/>• Tipografia Suíça, Zero Overflow & Densidade Pura"]
+    subgraph PRESENTATION ["3. Camadas de Apresentação"]
+        WEB["app.py (Streamlit Web Interface)<br/>• Central de Inteligência & Recálculo<br/>• Gestor de Carteira Interativo<br/>• Deep Dive sob Demanda<br/>• Simuladores Inflow & LTV"]
+        PDF["pdf_exporter.py (Chromium Headless)<br/>• Relatório Master 360° em 7 Seções<br/>• Dossiês Individuais Deep Dive<br/>• Resolução A4 Vetorial sem Cortes"]
     end
 
     INGESTION --> ENGINES
-    ENGINES --> OUTPUT
+    ENGINES --> PRESENTATION
+```
+
+### Principais Motores do `core/`:
+* **`portfolio_engine.py`:** Administra o banco relacional SQLite (`portfolio_store.db`) e o espelho JSON (`portfolio_config.json`). Realiza a decomposição *Look-Through* profunda de ETFs (SPY, QQQ, SMH, ITA e QLD 2x alavancado), revelando a exposição indireta real a cada empresa.
+* **`equity_engine.py`:** Motor de auditoria contábil e valuation de ações. Calcula métricas forenses (Sloan Ratio, FCO/EBITDA, NWC) e métodos de precificação NTM (Forward DCF, Reverse DCF, SOTP, EVA, Magic Formula e PEGY Setorial Estrito).
+* **`crypto_engine.py`:** Motor de inteligência on-chain e tokenomics. Avalia a saúde da rede do Bitcoin e de protocolos de finanças descentralizadas (DeFi), diferenciando economia real de inflação predatória.
+* **`macro_engine.py`:** Motor macroeconômico com checagem de regimes de recessão, dinâmica das pontas da curva soberana americana e liquidez monetária.
+* **`risk_timing_engine.py`:** Modela o algoritmo de *Shannon's Demon* para aportes sem turnover tributário e o cockpit de alavancagem anti-cíclica em colateral cripto/equity.
+* **`pdf_exporter.py`:** Orquestrador de compilação gráfica que automatiza o motor Chromium/Edge headless (`--headless=new --print-to-pdf`) para produzir relatórios vetoriais de padrão institucional.
+
+---
+
+## 🖥️ Guia Passo a Passo: Como Usar o Aplicativo
+
+Ao abrir o terminal no navegador (`streamlit run app.py`), você encontra **4 abas especializadas**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ [ Aba 1: Relatório 360° ] [ Aba 2: Gestor Carteira ] [ Aba 3: Deep Dive ] [ Aba 4: Risco/LTV ] │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🔬 Pilares Metodológicos e Fundamentos Quantitativos
+### 📄 Aba 1: Central de Emissão & Relatório Master 360° (.PDF)
 
-### 1. Contabilidade Forense & Qualidade dos Lucros
-O motor forense ([`equity_engine.py`](file:///c:/Users/ladou/Desktop/Agente%20de%20Investimentos/core/equity_engine.py)) audita a veracidade das demonstrações financeiras antes de qualquer cálculo de valuation:
+Esta aba é o centro de comando executivo. Ela consolida as principais métricas do portfólio e sintetiza toda a inteligência do sistema no relatório oficial em PDF.
 
-* **Sloan Ratio (Auditoria de Accruals):**
-  $$\text{Sloan Ratio} = \frac{\text{Lucro Líquido} - \text{Fluxo de Caixa Operacional (FCO)} - \text{Fluxo de Caixa de Investimentos (FCI)}}{\text{Ativos Totais}}$$
-  * $< -10\%$: **Ótimo** — Caixa supera substancialmente o lucro contábil.
-  * $-10\% \text{ a } +10\%$: **Accruals Normais**.
-  * $> +10\%$: **Alerta Vermelho** — Lucro inflado por accruals não-caixa (*contabilidade agressiva*).
-* **Identidade DuPont de 3 Pilares:**
-  $$\text{ROE} = \underbrace{\frac{\text{Lucro Líquido}}{\text{Receita}}}_{\text{Margem Líquida}} \times \underbrace{\frac{\text{Receita}}{\text{Ativos Totais}}}_{\text{Giro de Ativos}} \times \underbrace{\frac{\text{Ativos Totais}}{\text{Patrimônio Líquido}}}_{\text{Alavancagem Financeira}}$$
-  * Diagnostica se o retorno sobre o patrimônio é gerado por **eficiência operacional** (margem e giro) ou por **alavancagem de risco**.
-* **Capital de Giro (NWC) Contextualizado:**
-  Cruza a necessidade de capital de giro com o Desvio Padrão ($\sigma$) e o Coeficiente de Variação ($CV$) histórico do FCO em 5 anos. Valida se NWC negativo é fruto de poder de barganha sobre fornecedores (ex: *Apple*) ou estresse de caixa.
-* **Métricas Específicas para Bancos (`FINANCIAL_BANK`):**
-  Balanços bancários são regidos pelo índice de solvência de **Basileia III (CET1)** e Liquidez de Curto Prazo (**LCR $> 100\%$**). Métricas fabris como $EV/EBITDA$, $ROIC/WACC$ e $NWC$ são **automaticamente desativadas** para instituições financeiras, substituídas por $P/\text{TBV}$ vs. $\text{ROE}$ e custo de capital próprio ($K_e$ via CAPM).
+1. **KPIs de Topo:**
+   * **Patrimônio Total:** Valor em USD consolidado a partir das cotações correntes.
+   * **P&L Total:** Rentabilidade acumulada em porcentagem e em dólares em relação aos preços médios de compra.
+   * **Alocação Macro:** Divisão entre Ativos Reais/Ações, Criptoativos e Colateral Elegível para LTV.
+   * **Validação dos Pesos:** Status da soma dos pesos no banco de dados (confirma se totaliza 100.00%).
+2. **Gerar e Baixar o Relatório Master:**
+   * Clique no botão **`📥 BAIXAR RELATÓRIO MASTER MULTI-COMPLETO 360° (.PDF)`**.
+   * O terminal compila instantaneamente o documento executivo em 7 seções A4 paisagem, diagramado com tipografia suíça e tabelas completas.
+   * O arquivo gerado fica disponível no navegador para download e salvamento.
+3. **Botão de Atualização de Cotações:**
+   * O botão `🔄 Recalcular Cotações & Limpar Cache` força uma nova consulta às APIs de mercado, recalculando todos os múltiplos de valuation e P&L em tempo real.
 
 ---
 
-### 2. Motor de Valuation Multi-Métodos Forward (NTM)
-Todos os métodos são ancorados em consenso projetado dos **próximos doze meses (*Next Twelve Months - NTM*)**:
+### 💼 Aba 2: Gestor Dinâmico de Portfólio (CRUD SQLite Persistente)
 
-| Método de Valuation | Formulação Matemática / Lógica Fundamental | Aplicação e Particularidade Setorial |
-| :--- | :--- | :--- |
-| **1. Forward DCF (CAPM)** | $PV = \sum_{t=1}^{5}\frac{FCF_t}{(1+WACC)^t} + \sum_{t=6}^{10}\frac{FCF_t}{(1+WACC_{fade})^t} + \frac{FCF_{10}(1+g)}{(WACC-g)(1+WACC)^{10}}$ | 3 Cenários (Conservador, Base, Otimista) calibrados com **Margem de Segurança estrita de 10%** sobre a média. |
-| **2. Reverse DCF Pareado** | Resolve numericamente para $g_{\text{impl}}$ tal que $DCF(g_{\text{impl}}) = \text{Preço Spot}$. | Compara o crescimento embutido no preço com a taxa fundamentalista sustentável ($g_{\text{fund}}$). Se $g_{\text{impl}} \le g_{\text{fund}} \rightarrow$ **Assimetria Positiva**. |
-| **3. Owner Earnings Yield** | $\text{Owner Earnings} = \text{Lucro Líq.} + \text{D\&A} - \text{CapEx Manutenção} \pm \Delta\text{NWC}$ | Método Charlie Munger: compara o Yield de Lucro Real do Dono com a Taxa Livre de Risco dos EUA (*US 10Y Treasury*). |
-| **4. PEGY Setorial Estrito** | • **Bancos:** $\text{PEGY}_{\text{Fin}} = \frac{P/E_{\text{NTM}}}{g_{\text{EPS}} + \text{DY}}$<br>• **Tech / Semis:** $\text{Enterprise PEGY} = \frac{EV/\text{EBIT}_{\text{NTM}}}{g_{\text{EBIT}} + \text{DY} + \text{Buyback}}$<br>• **Cash Cows:** $\text{Enterprise PEGY} = \frac{EV/\text{FCF}_{\text{NTM}}}{g_{\text{FCF}} + \text{DY} + \text{Buyback}}$ | **Zero contaminação:** bancos não recebem Enterprise PEGY e empresas industriais/tech não recebem PEGY Financeiro. |
-| **5. Sum-of-the-Parts (SOTP)** | $\text{Preço Justo} = \sum (\text{EBIT Segmento}_i \times \text{Múltiplo Peer}_i) - \text{Dívida Líquida}$ | Desagrega monopólios por unidade de negócio (ex: nós avançados vs packaging na TSMC; sistemas EUV vs serviços na ASML). |
-| **6. EVA (Lucro Econômico)** | $\text{EVA} = \text{NOPAT} - (\text{Capital Investido} \times WACC)$ | Mede a verdadeira geração de riqueza líquida anual acima do custo de oportunidade do capital. |
-| **7. Magic Formula** | $\text{Rank} = \text{Rank}(\text{ROIC}) + \text{Rank}(\text{Earnings Yield } EBIT/EV)$ | Joel Greenblatt institucional, validado por índice de solvência e cobertura de juros. |
+Permite gerenciar a sua carteira de forma interativa com gravação permanente em banco de dados local ACID.
 
----
-
-### 3. Ciclos Macroeconômicos Globais & Indicadores Pareados
-O motor macro ([`macro_engine.py`](file:///c:/Users/ladou/Desktop/Agente%20de%20Investimentos/core/macro_engine.py)) implementa validações cruzadas obrigatórias para evitar sinais falsos:
-
-* **Regra de Sahm Pareada (Validação Tripla de Recessão):**
-  $$\text{Gatilho de Sahm} = MA_{3m}(\text{UNRATE}) - \min_{12m}(\text{UNRATE}) \ge +0.50\%$$
-  * Uma quebra de $0.50\%$ só é classificada como **Recessão Confirmada** se for **estritamente validada** por:
-    1. *Nonfarm Payrolls (`PAYEMS`):* Variação mensal negativa ou nula ($MoM \le 0$).
-    2. *Initial Jobless Claims (`ICSA`):* Aceleração da média de 4 semanas sobre 12 semanas ($MA_{4w} > MA_{12w} \times 1.03$).
-    3. *SOS Indicator (Scavette-O'Trakoun-Sahm):* Desemprego segurado ($> 0.20$).
-* **Curva de Juros US Treasuries (3M a 30Y) & Dinâmica das Pontas:**
-  * Monitoramento contínuo do spread $10Y - 2Y$.
-  * **Alerta de Desinversão:** A transição de inclinação negativa para positiva após inversão prolongada é o evento que historicamente precede recessões.
-  * **Dinâmica das Pontas (60 dias):** Distingue *Bull Steepening* saudável ($\Delta 2Y$ caindo mais rápido que $\Delta 10Y$ — alívio monetário) de *Bear Steepening* de estresse fiscal ($\Delta 10Y$ disparando).
-* **PMI Services vs. Manufacturing & Sweet Spot:**
-  * Limiar de expansão ($>50.0$) e teto de risco inflacionário ($>60.0$).
-  * **Sweet Spot Ativo:** Setor de serviços desacelerando recentemente, mas ainda confortavelmente acima de 50.0 (sem recessão e sem repique de inflação).
-* **Liquidez Global (M2 vs. DXY):**
-  * Cenário Positivo Ativo: Oferta Monetária Global $M2$ em expansão concomitante ao enfraquecimento do Índice Dólar ($DXY$).
+1. **Adicionar ou Editar um Ativo:**
+   * No painel esquerdo da aba, preencha o formulário:
+     * **Ticker Oficial:** Ex: `NVDA`, `AAPL`, `V`, `JPM`, `BTC-USD`, `ETH-USD`, `SPY`.
+     * **Nome da Empresa / Protocolo:** Ex: *Visa Inc.*, *Nvidia Corp*, *Bitcoin*.
+     * **Classe do Ativo:** Escolha entre *Ação*, *ETF Estrutural*, *Cripto Soberana (BTC)* ou *Cripto Altcoin/DeFi*.
+     * **Vertical Setorial:** Selecione a vertical exata (ex: *Bancos*, *Big Tech Cash Cow*, *High-Growth Tech/Semis*, *Varejo/Consumo*, *DeFi Yield*). O sistema utiliza essa seleção para aplicar o método correto de valuation.
+     * **Peso-Alvo (%):** A fatia teórica desejada na carteira (ex: `10.00%`).
+     * **Preço Médio de Compra (USD):** Seu preço de entrada contábil para cálculo exato de P&L.
+     * **Elegível para LTV Turbo:** Marque se o ativo pode ser usado como colateral em operações de crédito (ex: Ações blue chips e Bitcoin).
+   * Clique em **`➕ Salvar / Atualizar Ativo no SQLite`**. A carteira é atualizada e o banco sincronizado imediatamente.
+2. **Excluir um Ativo:**
+   * Selecione o ativo na lista suspensa do painel direito e clique em **`🗑️ Confirmar Exclusão do Ativo`**.
+3. **Normalização Automática de Pesos para 100.00%:**
+   * Caso a soma dos pesos-alvo resulte em um valor diferente de 100% (por exemplo, após adicionar novos ativos), a barra de validação ficará amarela.
+   * Clique no botão **`⚖️ Normalizar Pesos Automaticamente para 100.00%`**.
+   * O motor reescala proporcionalmente cada ativo usando a fórmula:
+     $$w_{\text{novo}, i} = \frac{w_{\text{antigo}, i}}{\sum_{j=1}^{N} w_{\text{antigo}, j}} \times 100\%$$
+   * A soma retorna exatamente a 100.00% com consistência matemática.
+4. **Tabela de Acompanhamento (Ledger):**
+   * Exibe todas as posições ativas, peso-alvo vs peso atual (drift), preço médio versus cotação spot, ganho/perda latente e elegibilidade de colateral.
 
 ---
 
-### 4. Inteligência On-Chain & Avaliação de Protocolos Cripto
-O motor de criptoativos ([`crypto_engine.py`](file:///c:/Users/ladou/Desktop/Agente%20de%20Investimentos/core/crypto_engine.py)) avalia tanto a reserva monetária soberana (*Bitcoin*) quanto os fundamentos de protocolos de infraestrutura e DeFi:
+### 🔬 Aba 3: Deep Dive Individual (Stock & Crypto Picker sob Demanda)
+
+Permite realizar uma auditoria completa de qualquer ativo específico — seja ele pertencente à sua carteira ou um ativo externo de interesse.
+
+1. **Selecionar ou Digitar o Ativo:**
+   * Utilize os botões de seleção rápida (ex: `NVDA`, `AAPL`, `MSFT`, `V`, `JPM`, `BTC-USD`, `ETH-USD`, `AAVE-USD`, etc.) ou digite qualquer ticker oficial na caixa de texto (ex: `TSM`, `ASML`, `AMZN`, `GOOGL`, `WMT`, `SOL-USD`, `MKR-USD`, `PENDLE-USD`).
+2. **Execução do Funil Estrito de 5 Filtros:**
+   * O sistema submete o ativo selecionado aos 5 testes quantitativos do framework:
+     * *Teste 1 (Accruals/Sloan):* Qualidade do lucro contábil vs fluxo de caixa.
+     * *Teste 2 (Conversão FCO/EBITDA):* Eficiência de conversão operacional.
+     * *Teste 3 (Spread ROIC vs WACC):* Geração real de valor econômico acima do custo de capital.
+     * *Teste 4 (Liquidez & Solvência):* Teste de estresse de liquidez corrente e cobertura de juros.
+     * *Teste 5 (Valuation Soberano):* Reverse DCF e Margem de Segurança no múltiplo setorial.
+   * Receba o score de aprovação (ex: `Score 100/100 — Aprovado 5/5 Filtros`) com diagnóstico detalhado.
+3. **Cockpit de Valuation Multi-Método:**
+   * Consulta os 3 cenários de Fluxo de Caixa Descontado (Conservador, Base, Otimista) e o Preço Justo com margem de segurança de 10%.
+   * Apresenta o crescimento embutido no preço pelo mercado ($g_{\text{impl}}$) contra o crescimento projetado pelos fundamentos ($g_{\text{fund}}$).
+   * Exibe a decomposição por partes (SOTP) e múltiplos setoriais.
+4. **Download do Dossiê Individual em PDF:**
+   * Clique em **`📥 BAIXAR DOSSIÊ DEEP DIVE INDIVIDUAL (.PDF)`** para gerar um documento focado exclusivamente no ativo examinado.
+
+---
+
+### 🛡️ Aba 4: Governança de Risco, Alavancagem Convexa LTV & Shannon Inflow
+
+Espaço reservado para o controle de risco sistemático, rebalanceamento por novos aportes e simulação de cenários de estresse de dívida.
+
+1. **Simulador de Aportes — Shannon's Demon Inflow:**
+   * Digite o montante de dinheiro novo disponível para aporte (ex: `USD 5,000.00`).
+   * O algoritmo calcula a distribuição matemática ótima do capital novo:
+     * Direciona recursos exclusivamente para ativos que estão **abaixo do peso-alvo** ou com **assimetria de preço favorável**.
+     * **Zero Turnover Tributário:** Rebalanceia a carteira sem vender os ativos vencedores, eliminando o pagamento desnecessário de impostos sobre ganho de capital (*Tax-Drag*).
+2. **Cockpit de Alavancagem Convexa Anti-Cíclica:**
+   * Exibe o LTV Global consolidado, o teto regulatório estrito de segurança (**Hard-Cap de 50.0% LTV**) e o *Health Factor* de liquidação.
+   * Permite simular choques de mercado: o que aconteceria com a margem de garantia se o Bitcoin caísse 50% e as ações caíssem 30% simultaneamente?
+   * O sistema aponta a folga em dólares até a primeira chamada de margem e o custo anual de carregamento da taxa de empréstimo.
+3. **Notificador Passivo Matinal (Scanner de Background):**
+   * Chave mestra que permite ligar ou desligar o monitor de alertas matinais (varredura de fatos relevantes 8-K, desbloqueio de tokens de cripto e extremos de ciclo).
+
+---
+
+## 📊 Guia Prático: Como Ler e Interpretar Cada Métrica
+
+Para que você possa interpretar os dados como um analista de investimentos profissional, este guia resume os fundamentos de cada indicador:
+
+### 1. Indicadores Forenses e Contábeis (Ações)
+
+* **Sloan Ratio (Auditoria da Qualidade dos Lucros):**
+  $$\text{Sloan Ratio} = \frac{\text{Lucro Líquido} - \text{FCO} - \text{FCI}}{\text{Ativos Totais}}$$
+  * $< -10\%$: **Excelente / Qualidade Máxima.** A geração de caixa operacional supera com folga o lucro escriturado. A empresa tem dinheiro vivo entrando no caixa.
+  * $-10\% \text{ a } +5\%$: **Saudável / Accruals Normais.** Lucro condizente com a operação do negócio.
+  * $> +5\% \text{ a } +10\%$: **Atenção.** O lucro contábil está crescendo mais rápido do que a entrada de caixa.
+  * $> +10\%$: **Alerta Vermelho / Reprovação.** Indica maquiagem contábil, estoques encalhados ou receitas a prazo não recebidas.
+* **FCO / EBITDA (Conversão Operacional de Caixa):**
+  * $\ge 0.90x$ (idealmente $> 1.0x$): Aprovado. A quase totalidade do resultado operacional antes de juros e impostos vira dinheiro no banco.
+  * $< 0.80x$: Reprovado. Indica descasamento no fluxo de pagamentos ou receitas de papel.
+* **Decomposição DuPont em 3 Pilares:**
+  $$\text{ROE} = \underbrace{\left(\frac{\text{Lucro Líquido}}{\text{Receita}}\right)}_{\text{Margem Líquida}} \times \underbrace{\left(\frac{\text{Receita}}{\text{Ativos}}\right)}_{\text{Giro do Ativo}} \times \underbrace{\left(\frac{\text{Ativos}}{\text{Patrimônio Líquido}}\right)}_{\text{Alavancagem Financeira}}$$
+  * Permite entender **como** a empresa alcança o retorno sobre o patrimônio:
+    * Se o ROE é alto porque a **Margem** e o **Giro** são altos: empresa eficiente, com poder de monopólio e precificação (*Moat*).
+    * Se o ROE é alto apenas porque a **Alavancagem** é de $5x$ ou $8x$: retorno frágil, altamente vulnerável a choques de taxa de juros.
+* **ROIC vs WACC & EVA (Criação de Valor Econômico):**
+  $$\text{Spread} = \text{ROIC (com Goodwill)} - \text{WACC}$$
+  $$\text{EVA} = \text{NOPAT} - (\text{Capital Investido} \times \text{WACC})$$
+  * Se o Spread for amplamente positivo (ex: ROIC de $45\%$ contra WACC de $9\%$ = Spread $+36\text{ pp}$), a empresa gera lucro econômico real (*EVA positivo*). Ela destrói os competidores ao longo do tempo.
+  * Se o Spread for negativo, cada real reinvestido no negócio destrói valor do acionista.
+
+---
+
+### 2. Múltiplos de Valuation e Precificação NTM (Forward)
+
+* **Forward DCF (Fluxo de Caixa Descontado em 3 Cenários) com 10% MoS:**
+  * Projeta os fluxos de caixa livre dos próximos 10 anos descontados pelo custo médio ponderado de capital (WACC).
+  * O sistema gera três cenários: **Conservador**, **Base** e **Otimista**.
+  * O **Preço Justo** é calculado adotando uma **Margem de Segurança estrita de 10%** sobre a média ponderada, protegendo o investidor contra erros de previsão.
+* **Reverse DCF ($g_{\text{impl}}$ vs $g_{\text{fund}}$):**
+  * Em vez de tentar prever o futuro, o modelo resolve matematicamente: *“Qual taxa de crescimento anual ($g_{\text{impl}}$) o preço atual da ação está exigindo para os próximos 10 anos?”*
+  * Se o mercado exige $g_{\text{impl}} = 12\%$ e os fundamentos da empresa indicam que ela cresce a $g_{\text{fund}} = 18\%$, há uma **Assimetria Positiva** (o ativo está barato para o que entrega).
+* **Múltiplo Soberano por Setor (Zero Contaminação de Métricas):**
+  * **Bancos e Instituições Financeiras (`FINANCIAL_BANK`):**
+    * Bancos trabalham com alavancagem de balanço onde dívida e depósitos são matérias-primas. Múltiplos como $EV/EBITDA$ e $DCF$ são conceitualmente inválidos para bancos.
+    * O modelo avalia bancos exclusivamente por:
+      $$\text{PEGY Financeiro} = \frac{P/E_{\text{NTM}}}{\text{CAGR do EPS} + \text{Dividend Yield}} \quad (\text{Faixa Ouro: } \le 1.00x)$$
+      Cruzado com a regressão de **$P/\text{TBV}$ versus $\text{ROE}$** e **trava estrutural obrigatória de $P/B \ge 1.00x$** (bancos negociados abaixo de $1.0x$ valor patrimonial geralmente escondem inadimplência ou ativos podres no balanço).
+  * **Big Tech Cash Cows & Pedágios de Pagamento (`TECH_CASH_COW`, `FINANCIAL_TOLLBOOTH` como Visa e Mastercard):**
+    * Avaliadas por **Enterprise PEGY sobre Fluxo de Caixa Livre**:
+      $$\text{Enterprise PEGY} = \frac{EV/\text{FCF}_{\text{NTM}}}{\text{CAGR do FCF} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Faixa Ouro: } \le 1.20x)$$
+      Mede o retorno total ao acionista (crescimento + dividendos + recompra massiva de ações) sobre a geração de caixa livre.
+  * **High-Growth Tech & Semicondutores (`TECH_HIGH_GROWTH` como Nvidia e Broadcom):**
+    * Avaliadas por **Enterprise PEGY sobre EBIT**:
+      $$\text{Enterprise PEGY} = \frac{EV/\text{EBIT}_{\text{NTM}}}{\text{CAGR do EBIT} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Faixa Ouro: } \le 1.20x)$$
+      O uso do EBIT evita penalizar distorções pontuais de capex agressivo em fábricas de chips (*fabs*) e data centers.
+  * **Varejo e Defensivas (`RETAIL` como Walmart):**
+    * Enterprise PEGY calibrado com crescimento de vendas em mesmas lojas (*Same-Store Sales - SSS*).
+
+---
+
+### 3. Inteligência On-Chain e Criptoativos
 
 * **NVT Nominal (Network Value to Transactions):**
   $$\text{NVT Nominal} = \frac{\text{Market Cap (USD)}}{\text{Volume Transacionado On-Chain em 24h (USD)}}$$
-  * `< 30x`: **Subavaliado / Desconto Fundamentalista** — Alto volume econômico transacionado na rede suportando o valor de mercado.
-  * `30x a 75x`: **Equilíbrio Justo / Neutro** — Relação saudável entre preço e atividade transacional.
-  * `> 75x`: **Sobreavaliado / Risco de Bolha** — Market Cap descolado do uso real da rede.
-  * *Métrica Complementar:* **NVT Golden Cross** ($Z\text{-Score}$ de 30d vs 90d: $<-1.60$ Compra / $>+2.00$ Venda).
-* **Ciclo On-Chain:** **MVRV Z-Score** ($<0.5$ acumulação, $>3.0$ euforia), **NUPL** (*Net Unrealized Profit/Loss*) e **aSOPR** (com a linha $1.000$ atuando como suporte dinâmico em *bull markets*).
-* **Pisos Estruturais:** **Pi Cycle Top** ($111d \text{ vs } 2\times 350d$), **200W SMA** (Piso secular) e **Minimum Mining Cost (MMC)**.
-* **Economia Real dos Protocolos (*Tokenomics*):**
-  $$\text{Protocol Real Earnings} = \text{Taxas Anuais Geradas (Fees)} - \text{Emissão Inflacionária de Tokens}$$
-  $$\text{Real Yield} = \text{Staking APR} - \text{Inflação do Token}$$
-* **Monitoramento Forense de Unlocks:** Impacto de diluição em 30/60/90 dias e cálculo do **Preço Teórico Pós-Unlock**.
+  * Análogo ao índice $P/E$ no universo de redes descentralizadas. Mede se a avaliação da rede é suportada pelo volume financeiro que ela movimenta:
+    * $< 30x$: **Subavaliado / Zona de Oportunidade.** Alto volume econômico circulando nos blocos em relação ao valor de mercado.
+    * $30x \text{ a } 75x$: **Justo / Equilíbrio Saudável.** Relação estável entre infraestrutura e uso.
+    * $> 75x$: **Sobreavaliado / Zona de Cautela e Risco de Bolha.** O preço está subindo por pura especulação sem suporte transacional na rede.
+* **MVRV Z-Score:**
+  * Mede o desvio padronizado entre o valor de mercado (*Market Cap*) e o valor realizado (*Realized Cap* — o preço no qual cada moeda foi movida pela última vez):
+    * $< 0.5$: **Fundo Histórico de Ciclo (Zona de Acúmulo Máximo).** Historicamente marca os melhores pontos de compra plurianual do Bitcoin.
+    * $0.5 \text{ a } 2.0$: **Meio de Ciclo / Expansão Saudável.**
+    * $> 2.5 \text{ a } 3.0$: **Zona de Euforia Extrema / Topo de Ciclo.** O mercado está assentado sobre lucros não-realizados gigantescos, vulnerável a correções severas.
+* **aSOPR (Adjusted Spent Output Profit Ratio):**
+  * Mede se as moedas movimentadas na rede estão sendo realizadas com lucro ($> 1.0$) ou com prejuízo ($< 1.0$).
+  * Em ciclos de alta (*bull market*), a linha **$1.000$** funciona como **suporte dinâmico**: investidores compram correções assim que as posições atingem o ponto de equilíbrio (*break-even*).
+* **Protocol Real Earnings & Real Yield (Economia Real DeFi):**
+  $$\text{Protocol Real Earnings} = \text{Taxas Anuais Geradas (Protocol Fees)} - \text{Emissão Inflacionária de Tokens}$$
+  $$\text{Real Yield} = \text{Staking APR} - \text{Taxa de Inflação do Token}$$
+  * Separa projetos sustentáveis de esquemas inflacionários:
+    * **Real Earnings Positivo (ex: Aave, Maker):** O protocolo fatura mais em taxas de empréstimo do que emite tokens de incentivo. Os stakers recebem rendimento real.
+    * **Real Earnings Negativo:** O protocolo oferece "rendimentos" artificiais emitindo novos tokens, diluindo os detentores silenciosamente.
 
 ---
 
-## 📑 O Relatório Master Multi-Completo 360° (.PDF)
+### 4. Ciclos Macroeconômicos Globais
 
-Toda a densidade quantitativa do terminal é compilada programaticamente em um **documento executivo A4 Paisagem** via headless Chromium ([`pdf_exporter.py`](file:///c:/Users/ladou/Desktop/Agente%20de%20Investimentos/core/pdf_exporter.py)), estruturado em 7 capítulos integrados:
-
-1. **Seção 1: Macroeconomia Global, Ciclos & Geopolítica**
-   * Indicadores Lagging e Leading, Regra de Sahm Pareada, Curva de Juros e Matriz de Sensibilidade Individual por Ativo (Juros 10Y, DXY, Tarifas, Energia/IA).
-2. **Seção 2: Dados Analíticos da Carteira, Look-Through, Forense & Valuation Forward**
-   * Tabela direta das 20 posições ativas, Decomposição Look-Through fiel dos ETFs, Contabilidade Forense (Sloan, FCO/EBITDA, NWC, ROIC vs WACC, DuPont 3-Way), Matriz CAGR de 12 KPIs e Valuation Multi-Métodos Forward NTM.
-3. **Seção 3: Inteligência Analítica Cripto & DeFi State of the Union**
-   * Matriz de Ciclo On-Chain, Mineração e Fluxos, Tokenomics com NVT Nominal e Referências, Protocol Real Earnings, Termômetro de Rotação de Ciclo (BTC $\rightarrow$ ETH $\rightarrow$ DeFi) e Radar de Tecnologias/Narrativas DeFi.
-4. **Seção 4: Dossiê Forense Corporativo (SEC EDGAR 10-K/10-Q & Porter)**
-   * Parecer de auditoria SOX 404(b), Dissecação do MD&A (Volume, Preço, FX, Backlog, CapEx), Riscos Item 1A, Notas Explicativas Forenses (SBC, ASC 606, Litígios), 5 Forças de Porter e Dossiê de M&As e Goodwill.
-5. **Seção 5: Dossiê Técnico de Protocolos Cripto**
-   * Síntese de White Papers, Arquitetura de Consenso, Engenharia no GitHub (commits e active devs), Governança DeepDAO e Cronograma de Unlocks 30/60/90d.
-6. **Seção 6: Radar Executivo de Oportunidades (Screeners)**
-   * Funil de 5 Filtros Estritos para Ações Globais e Funil de 5 Filtros Estritos para Criptoativos.
-7. **Seção 7: Governança de Risco, Alavancagem Convexa LTV & Timing Consultivo**
-   * Ratios de Sharpe, Sortino e Calmar, Painel de Alavancagem Convexa Anti-Cíclica, Stress-Test de Custos de Carregamento Aave V3, Posicionamento Consultivo e Tax-Drag Hurdle Rate.
+* **Regra de Sahm Pareada (Validação Tripla de Recessão):**
+  $$\text{Gatilho de Sahm} = MA_{3m}(\text{Desemprego}) - \min_{12m}(\text{Desemprego}) \ge +0.50\%$$
+  * Um aumento de meio ponto percentual no desemprego historicamente sinaliza o início de uma recessão nos EUA.
+  * O terminal exige **validação pareada obrigatória** com o saldo de folhas de pagamento (*Nonfarm Payrolls*) e pedidos de seguro-desemprego (*Jobless Claims*) para evitar sinais falsos.
+* **Curva de Juros Soberana (Spread 10Y - 2Y):**
+  * O perigo real não reside apenas na inversão da curva, mas na sua **desinversão rápida**: quando os juros de 2 anos desabam mais rápido do que os de 10 anos (*Bull Steepening* induzido por cortes de emergência do Fed), a recessão costuma se materializar na economia real.
+* **PMI Services vs Manufacturing (Sweet Spot):**
+  * O regime econômico mais favorável para ações de qualidade ocorre quando o PMI de Serviços está entre $50.0$ e $55.0$ (expansão moderada sem provocar pressão inflacionária que force altas adicionais de juros).
 
 ---
 
-## 💻 Módulos Interativos no Terminal Web (`app.py`)
+## 💼 Carteira de Demonstração (Sample Portfolio)
 
-A interface Streamlit é reservada estritamente para ferramentas que exigem intervenção humana:
-* **Central de Emissão:** Download imediato do PDF Consolidado em 1 clique + botão de recálculo com cotações ao vivo.
-* **Gestor de Carteira (CRUD SQLite):** Adição, edição e remoção de ativos em banco de dados local com **validação e normalização matemática instantânea para 100.00%**.
-* **Deep Dive Analyzer Individual:** Mecanismo sob demanda para auditar qualquer ação, banco ou criptoativo (da carteira ou de fora), gerando um dossiê individual completo em PDF.
-* **Simulador Shannon's Demon Inflow:** Cálculo de alocação de aportes em caixa novo exclusivamente nos ativos em faixa de acúmulo, sem vender posições vencedoras.
-* **Stress-Test Interativo de LTV:** Simulação de choques de mercado no colateral (Ações e BTC) contra o *Hard-Cap de 50% LTV* e auditoria do *Health Factor*.
-* **Notificador Passivo Matinal (Chave Mestra ON/OFF):** Controle de execução do scanner de segundo plano via Telegram ou Discord.
+O terminal é fornecido com uma carteira balanceada de **20 posições ativas** configurada em `portfolio_store.db` e `portfolio_config.json`, pronta para simulação:
 
----
+| Ativo / Ticker | Nome Completo | Categoria | Vertical Setorial | Peso-Alvo | Papel Estrutural na Carteira |
+| :--- | :--- | :--- | :--- | :---: | :--- |
+| **AAPL** | Apple Inc. | Ação Global | Tech Cash Cow | 5.00% | Monopólio de ecossistema de consumo e recompra de ações |
+| **MSFT** | Microsoft Corp. | Ação Global | Tech Cash Cow | 5.00% | Software corporativo em nuvem (Azure) e IA Enterprise |
+| **GOOGL** | Alphabet Inc. | Ação Global | Tech Cash Cow | 5.00% | Monopólio de busca (Google Search), YouTube e Nuvem GCP |
+| **AMZN** | Amazon.com Inc. | Ação Global | Tech Cash Cow | 5.00% | Infraestrutura de nuvem (AWS) e marketplace global |
+| **NVDA** | NVIDIA Corp. | Ação Global | Tech High-Growth | 5.00% | Plataforma dominante de aceleração de computação e chips de IA |
+| **META** | Meta Platforms Inc. | Ação Global | Tech Cash Cow | 5.00% | Redes sociais (Instagram/WhatsApp) e conversão de anúncios por IA |
+| **V** | Visa Inc. | Ação Global | Financial Tollbooth | 5.00% | Pedágio puro de pagamentos globais (margem operacional > 65%) |
+| **JPM** | JPMorgan Chase & Co. | Ação Global | Financial Bank | 5.00% | Maior banco comercial e de investimentos dos EUA (CET1 > 15%) |
+| **WMT** | Walmart Inc. | Ação Global | Retail / Defensive | 5.00% | Varejo alimentar anticíclico com escala imbatível e e-commerce |
+| **DBSDY** | DBS Group Holdings | Ação Global | Financial Bank | 5.00% | Hub bancário líder no Sudeste Asiático com dividendos crescentes |
+| **SPY** | SPDR S&P 500 ETF | ETF Estrutural | Hard-Asset Index | 10.00% | Núcleo de mercado amplo americano (500 maiores corporações) |
+| **QQQ** | Invesco QQQ Trust | ETF Estrutural | Hard-Asset Index | 10.00% | Exposição às 100 maiores empresas não-financeiras da Nasdaq |
+| **SMH** | VanEck Semiconductor | ETF Estrutural | Hard-Asset Index | 5.00% | Cadeia de valor de semicondutores (TSMC, ASML, Nvidia, Broadcom) |
+| **ITA** | iShares Aerospace & Defense | ETF Estrutural | Hard-Asset Index | 5.00% | Indústria bélica e aeroespacial da OTAN (Lockheed, RTX, Boeing) |
+| **BTC-USD** | Bitcoin | Cripto Soberana | Store of Value | 10.00% | Ouro digital com política monetária estritamente escassa (21M) |
+| **ETH-USD** | Ethereum | Cripto Altcoin | L1 Smart Contracts | 3.00% | Camada de liquidação descentralizada e ativos tokenizados |
+| **SOL-USD** | Solana | Cripto Altcoin | L1 High-Throughput | 2.50% | Infraestrutura de execução de altíssima velocidade e baixo custo |
+| **AAVE-USD** | Aave Protocol | Cripto Altcoin | DeFi Yield Engine | 1.50% | Mercado monetário e de empréstimos on-chain (Real Earnings líder) |
+| **MKR-USD** | Maker / Sky Protocol | Cripto Altcoin | DeFi Stablecoin/RWA | 1.50% | Emissor descentralizado da DAI/USDS com colateral em títulos do Tesouro |
+| **PENDLE-USD**| Pendle Finance | Cripto Altcoin | DeFi Yield Tokenization | 1.50% | Negociação e tokenização de rendimentos futuros de DeFi |
 
-## 📂 Estrutura do Repositório
-
-```text
-├── app.py                             # Interface Web Streamlit (Terminal Interativo)
-├── portfolio_store.db                 # Banco de dados SQLite de persistência da carteira
-├── portfolio_config.json              # Configurações de pesos-alvo e limites de risco
-├── Iniciar_Terminal_Investimentos.bat  # Script de inicialização em 1 clique para Windows
-├── requirements.txt                   # Dependências Python estritas do projeto
-├── .gitignore                         # Exclusão de caches, temporários e credenciais
-│
-├── core/                              # Motores Especializados de Inteligência
-│   ├── macro_engine.py                # Agregação macroeconômica, Sahm Rule, Curva 10Y-2Y
-│   ├── portfolio_engine.py            # Gestão de portfólio SQLite, look-through de ETFs
-│   ├── equity_engine.py               # Contabilidade forense, Sloan, DuPont e Valuation Forward
-│   ├── crypto_engine.py               # Métricas on-chain, NVT nominal, MVRV Z, Real Yield
-│   ├── filings_engine.py              # Dossiês SEC EDGAR 10-K/10-Q e Whitepapers técnicos
-│   ├── geopolitics_micro_engine.py    # Matriz geopolítica, fatos 8-K e chamadas de resultados
-│   ├── screener_engine.py             # Funis de 5 filtros quantitativos para Ações e Cripto
-│   ├── risk_timing_engine.py          # Governança de risco, LTV convexo e regras de timing
-│   ├── deep_dive_engine.py            # Motor de análise individual sob demanda (Deep Dive)
-│   ├── intelligence_reports_engine.py # Matriz de sensibilidade e monitoramento DeFi
-│   ├── pdf_exporter.py                # Compilador Headless Chromium para PDF executivo
-│   ├── background_notifier.py         # Scanner de background e automação de alertas
-│   └── market_data.py                 # Resiliência de requisições paralelas yFinance
-│
-└── backtest/                          # Simulação histórica e modelos de alavancagem estática
-    ├── backtest_engine.py             # Motor de backtest quantitativo
-    └── simulate_static_leveraged.py   # Simulação de alavancagem convexa com rebalanceamento
-```
+*Nota: Você pode adicionar, editar ou remover qualquer ativo da lista a qualquer momento na Aba 2 (Gestor de Carteira).*
 
 ---
 
-## 🚀 Como Executar Localmente
+## 🚀 Instalação e Execução Passo a Passo
 
 ### Pré-requisitos
-* **Python 3.11 ou 3.12** instalado no sistema.
-* **Google Chrome** ou **Microsoft Edge** instalado (necessário para a compilação do relatório PDF via *Headless Chromium*).
+* **Python 3.11 ou 3.12** instalado no sistema ([download oficial](https://www.python.org/downloads/)).
+* **Google Chrome** ou **Microsoft Edge** instalado (necessário para a renderização automatizada dos relatórios PDF em alta resolução via Chromium Headless).
+* **Git** instalado (opcional, para clonar o repositório).
 
-### Passo a Passo
+### 1. Clonar o Repositório
+```bash
+git clone https://github.com/DouG-2007/institutional-investment-terminal.git
+cd institutional-investment-terminal
+```
 
-1. **Clone o repositório:**
-   ```bash
-   git clone https://github.com/DouG-2007/institutional-investment-terminal.git
-   cd institutional-investment-terminal
-   ```
+### 2. Criar e Ativar o Ambiente Virtual
 
-2. **Crie e ative um ambiente virtual:**
-   ```bash
-   python -m venv .venv
-   # No Windows:
-   .venv\Scripts\activate
-   # No Linux/macOS:
-   source .venv/bin/activate
-   ```
+* **No Windows (PowerShell):**
+  ```powershell
+  python -m venv .venv
+  .venv\Scripts\Activate.ps1
+  ```
+* **No Windows (Prompt de Comando):**
+  ```cmd
+  python -m venv .venv
+  .venv\Scripts\activate.bat
+  ```
+* **No Linux / macOS:**
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  ```
 
-3. **Instale as dependências:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 3. Instalar as Dependências
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-4. **Inicie o Terminal:**
-   ```bash
-   streamlit run app.py
-   ```
-   *No Windows, você também pode simplesmente clicar duas vezes em `Iniciar_Terminal_Investimentos.bat`.*
+### 4. Iniciar o Terminal Web
+```bash
+streamlit run app.py
+```
+*No Windows, você também pode simplesmente dar um duplo clique no atalho `Iniciar_Terminal_Investimentos.bat` na raiz do projeto.*
 
-5. **Acesse no navegador:**
-   O terminal abrirá automaticamente no endereço `http://localhost:8501`.
+O navegador abrirá automaticamente no endereço: `http://localhost:8501`.
 
 ---
 
 ## 🛠️ Stack Tecnológica
 
-* **Linguagem Principal:** Python 3.12 (Tipagem estática via `typing` / `dataclasses`).
-* **Interface & Terminal:** [Streamlit](https://streamlit.io/) com CSS injetado e componentes dinâmicos.
-* **Estruturação & Análise de Dados:** [Pandas](https://pandas.pydata.org/) e [NumPy](https://numpy.org/).
-* **Ingestão de Mercado:** [yFinance](https://github.com/ranaroussi/yfinance) com pooling paralelo e fallback de resiliência.
-* **Persistência de Dados:** [SQLite3](https://www.sqlite.org/) relacional ACID.
-* **Motor de Renderização PDF:** Headless Chromium (`msedge` / `chrome --headless=new --print-to-pdf`).
+* **Linguagem Principal:** Python 3.12 com tipagem estática rigorosa (`typing`, `dataclasses`).
+* **Frontend & Interface Reativa:** [Streamlit](https://streamlit.io/) com injeção de CSS personalizado e componentes HTML auditados.
+* **Manipulação de Dados & Álgebra Vetorial:** [Pandas](https://pandas.pydata.org/) e [NumPy](https://numpy.org/).
+* **Ingestão de Mercado:** [yFinance](https://github.com/ranaroussi/yfinance) com pooling assíncrono paralelo e fallback dinâmico.
+* **Persistência de Dados:** [SQLite3](https://www.sqlite.org/) relacional ACID local com sincronização JSON.
+* **Motor de Renderização PDF:** Headless Chromium Engine (`msedge.exe` / `chrome.exe --headless=new --print-to-pdf`).
 
 ---
 
-## ⚖️ Disclaimer Profissional
+## ⚖️ Aviso Legal (Disclaimer)
 
-> **Aviso Legal & Regulatório:** Este software foi concebido e implementado exclusivamente para fins de **pesquisa financeira, modelagem quantitativa, análise forense e suporte analítico pessoal**. Nenhuma das métricas, múltiplos de valuation (*DCF, SOTP, PEGY*), scores de screener ou diagnósticos gerados pelo sistema constitui recomendação vinculante de compra, venda ou alocação em quaisquer ativos mobiliários ou criptoativos nos termos da Instrução CVM nº 20/2021 ou de regulamentos da SEC/FINRA. O usuário é integralmente responsável pelas suas próprias decisões patrimoniais e de gerenciamento de risco.
+> **Finalidade Exclusivamente Analítica e Educacional:** Este terminal foi concebido, arquitetado e programado como uma ferramenta de software aberta para pesquisa quantitativa, modelagem financeira pessoal, contabilidade forense e estudo de alocação de ativos. Os relatórios gerados, múltiplos calculados (DCF, SOTP, PEGY) e diagnósticos automatizados **não constituem e não devem ser interpretados como consultoria de investimentos, recomendação vinculante de compra, venda ou alocação patrimonial** nos termos da Resolução CVM nº 20/2021 ou de quaisquer normas emitidas pela SEC, FINRA ou órgãos reguladores internacionais. O usuário é o único responsável pela gestão do seu patrimônio e por qualquer decisão financeira executada.

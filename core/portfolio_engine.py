@@ -73,10 +73,10 @@ class PortfolioOverviewBundle:
     positions: List[PortfolioPosition]
     lookthrough_holdings: List[LookThroughHolding]
     sector_exposure_summary: List[Dict[str, Any]]
+    weight_sum_is_valid_100: bool = True
 
-    @property
-    def weight_sum_is_valid_100(self) -> bool:
-        return self.is_weight_valid_100
+    def __post_init__(self) -> None:
+        self.weight_sum_is_valid_100 = bool(self.is_weight_valid_100)
 
 
 # Preços médios de compra padrão (para cálculo realista de P&L quando não informado)
