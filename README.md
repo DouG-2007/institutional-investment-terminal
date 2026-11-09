@@ -206,8 +206,8 @@ A interface Streamlit é reservada estritamente para ferramentas que exigem inte
 
 1. **Clone o repositório:**
    ```bash
-   git clone https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git
-   cd "SEU_REPOSITORIO"
+   git clone https://github.com/DouG-2007/institutional-investment-terminal.git
+   cd institutional-investment-terminal
    ```
 
 2. **Crie e ative um ambiente virtual:**
