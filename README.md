@@ -124,7 +124,10 @@ Permite gerenciar a sua carteira de forma interativa com gravação permanente e
    * Caso a soma dos pesos-alvo resulte em um valor diferente de 100% (por exemplo, após adicionar novos ativos), a barra de validação ficará amarela.
    * Clique no botão **`⚖️ Normalizar Pesos Automaticamente para 100.00%`**.
    * O motor reescala proporcionalmente cada ativo usando a fórmula:
-     $$w_{\text{novo}, i} = \frac{w_{\text{antigo}, i}}{\sum_{j=1}^{N} w_{\text{antigo}, j}} \times 100\%$$
+
+      `math
+      w_{\text{novo}, i} = \frac{w_{\text{antigo}, i}}{\sum_{j=1}^{N} w_{\text{antigo}, j}} \times 100\%
+      `
    * A soma retorna exatamente a 100.00% com consistência matemática.
 4. **Tabela de Acompanhamento (Ledger):**
    * Exibe todas as posições ativas, peso-alvo vs peso atual (drift), preço médio versus cotação spot, ganho/perda latente e elegibilidade de colateral.
@@ -179,7 +182,10 @@ Para que você possa interpretar os dados como um analista de investimentos prof
 ### 1. Indicadores Forenses e Contábeis (Ações)
 
 * **Sloan Ratio (Auditoria da Qualidade dos Lucros):**
-  $$\text{Sloan Ratio} = \frac{\text{Lucro Líquido} - \text{FCO} - \text{FCI}}{\text{Ativos Totais}}$$
+
+  ```math
+  \text{Sloan Ratio} = \frac{\text{Lucro Líquido} - \text{FCO} - \text{FCI}}{\text{Ativos Totais}}
+  ```
   * $< -10\%$: **Excelente / Qualidade Máxima.** A geração de caixa operacional supera com folga o lucro escriturado. A empresa tem dinheiro vivo entrando no caixa.
   * $-10\% \text{ a } +5\%$: **Saudável / Accruals Normais.** Lucro condizente com a operação do negócio.
   * $> +5\% \text{ a } +10\%$: **Atenção.** O lucro contábil está crescendo mais rápido do que a entrada de caixa.
@@ -188,13 +194,26 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   * $\ge 0.90x$ (idealmente $> 1.0x$): Aprovado. A quase totalidade do resultado operacional antes de juros e impostos vira dinheiro no banco.
   * $< 0.80x$: Reprovado. Indica descasamento no fluxo de pagamentos ou receitas de papel.
 * **Decomposição DuPont em 3 Pilares:**
-  $$\text{ROE} = \underbrace{\left(\frac{\text{Lucro Líquido}}{\text{Receita}}\right)}_{\text{Margem Líquida}} \times \underbrace{\left(\frac{\text{Receita}}{\text{Ativos}}\right)}_{\text{Giro do Ativo}} \times \underbrace{\left(\frac{\text{Ativos}}{\text{Patrimônio Líquido}}\right)}_{\text{Alavancagem Financeira}}$$
+
+  ```math
+  \text{ROE} = \left(\frac{\text{Lucro Líquido}}{\text{Receita}}\right) \times \left(\frac{\text{Receita}}{\text{Ativos Totais}}\right) \times \left(\frac{\text{Ativos Totais}}{\text{Patrimônio Líquido}}\right)
+  ```
+
+  ```math
+  \text{ROE} = \text{Margem Líquida} \times \text{Giro do Ativo} \times \text{Alavancagem Financeira}
+  ```
   * Permite entender **como** a empresa alcança o retorno sobre o patrimônio:
     * Se o ROE é alto porque a **Margem** e o **Giro** são altos: empresa eficiente, com poder de monopólio e precificação (*Moat*).
     * Se o ROE é alto apenas porque a **Alavancagem** é de $5x$ ou $8x$: retorno frágil, altamente vulnerável a choques de taxa de juros.
 * **ROIC vs WACC & EVA (Criação de Valor Econômico):**
-  $$\text{Spread} = \text{ROIC (com Goodwill)} - \text{WACC}$$
-  $$\text{EVA} = \text{NOPAT} - (\text{Capital Investido} \times \text{WACC})$$
+
+  ```math
+  \text{Spread} = \text{ROIC (com Goodwill)} - \text{WACC}
+  ```
+
+  ```math
+  \text{EVA} = \text{NOPAT} - (\text{Capital Investido} \times \text{WACC})
+  ```
   * Se o Spread for amplamente positivo (ex: ROIC de $45\%$ contra WACC de $9\%$ = Spread $+36\text{ pp}$), a empresa gera lucro econômico real (*EVA positivo*). Ela destrói os competidores ao longo do tempo.
   * Se o Spread for negativo, cada real reinvestido no negócio destrói valor do acionista.
 
@@ -213,15 +232,24 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   * **Bancos e Instituições Financeiras (`FINANCIAL_BANK`):**
     * Bancos trabalham com alavancagem de balanço onde dívida e depósitos são matérias-primas. Múltiplos como $EV/EBITDA$ e $DCF$ são conceitualmente inválidos para bancos.
     * O modelo avalia bancos exclusivamente por:
-      $$\text{PEGY Financeiro} = \frac{P/E_{\text{NTM}}}{\text{CAGR do EPS} + \text{Dividend Yield}} \quad (\text{Faixa Ouro: } \le 1.00x)$$
+
+      ```math
+      \text{PEGY Financeiro} = \frac{P/E_{\text{NTM}}}{\text{CAGR do EPS} + \text{Dividend Yield}} \quad (\text{Faixa Ouro: } \le 1.00x)
+      ```
       Cruzado com a regressão de **$P/\text{TBV}$ versus $\text{ROE}$** e **trava estrutural obrigatória de $P/B \ge 1.00x$** (bancos negociados abaixo de $1.0x$ valor patrimonial geralmente escondem inadimplência ou ativos podres no balanço).
   * **Big Tech Cash Cows & Pedágios de Pagamento (`TECH_CASH_COW`, `FINANCIAL_TOLLBOOTH` como Visa e Mastercard):**
     * Avaliadas por **Enterprise PEGY sobre Fluxo de Caixa Livre**:
-      $$\text{Enterprise PEGY} = \frac{EV/\text{FCF}_{\text{NTM}}}{\text{CAGR do FCF} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Faixa Ouro: } \le 1.20x)$$
+
+      ```math
+      \text{Enterprise PEGY} = \frac{EV/\text{FCF}_{\text{NTM}}}{\text{CAGR do FCF} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Faixa Ouro: } \le 1.20x)
+      ```
       Mede o retorno total ao acionista (crescimento + dividendos + recompra massiva de ações) sobre a geração de caixa livre.
   * **High-Growth Tech & Semicondutores (`TECH_HIGH_GROWTH` como Nvidia e Broadcom):**
     * Avaliadas por **Enterprise PEGY sobre EBIT**:
-      $$\text{Enterprise PEGY} = \frac{EV/\text{EBIT}_{\text{NTM}}}{\text{CAGR do EBIT} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Faixa Ouro: } \le 1.20x)$$
+
+      ```math
+      \text{Enterprise PEGY} = \frac{EV/\text{EBIT}_{\text{NTM}}}{\text{CAGR do EBIT} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Faixa Ouro: } \le 1.20x)
+      ```
       O uso do EBIT evita penalizar distorções pontuais de capex agressivo em fábricas de chips (*fabs*) e data centers.
   * **Varejo e Defensivas (`RETAIL` como Walmart):**
     * Enterprise PEGY calibrado com crescimento de vendas em mesmas lojas (*Same-Store Sales - SSS*).
@@ -231,7 +259,10 @@ Para que você possa interpretar os dados como um analista de investimentos prof
 ### 3. Inteligência On-Chain e Criptoativos
 
 * **NVT Nominal (Network Value to Transactions):**
-  $$\text{NVT Nominal} = \frac{\text{Market Cap (USD)}}{\text{Volume Transacionado On-Chain em 24h (USD)}}$$
+
+  ```math
+  \text{NVT Nominal} = \frac{\text{Market Cap (USD)}}{\text{Volume Transacionado On-Chain em 24h (USD)}}
+  ```
   * Análogo ao índice $P/E$ no universo de redes descentralizadas. Mede se a avaliação da rede é suportada pelo volume financeiro que ela movimenta:
     * $< 30x$: **Subavaliado / Zona de Oportunidade.** Alto volume econômico circulando nos blocos em relação ao valor de mercado.
     * $30x \text{ a } 75x$: **Justo / Equilíbrio Saudável.** Relação estável entre infraestrutura e uso.
@@ -245,8 +276,14 @@ Para que você possa interpretar os dados como um analista de investimentos prof
   * Mede se as moedas movimentadas na rede estão sendo realizadas com lucro ($> 1.0$) ou com prejuízo ($< 1.0$).
   * Em ciclos de alta (*bull market*), a linha **$1.000$** funciona como **suporte dinâmico**: investidores compram correções assim que as posições atingem o ponto de equilíbrio (*break-even*).
 * **Protocol Real Earnings & Real Yield (Economia Real DeFi):**
-  $$\text{Protocol Real Earnings} = \text{Taxas Anuais Geradas (Protocol Fees)} - \text{Emissão Inflacionária de Tokens}$$
-  $$\text{Real Yield} = \text{Staking APR} - \text{Taxa de Inflação do Token}$$
+
+  ```math
+  \text{Protocol Real Earnings} = \text{Taxas Anuais Geradas (Protocol Fees)} - \text{Emissão Inflacionária de Tokens}
+  ```
+
+  ```math
+  \text{Real Yield} = \text{Staking APR} - \text{Taxa de Inflação do Token}
+  ```
   * Separa projetos sustentáveis de esquemas inflacionários:
     * **Real Earnings Positivo (ex: Aave, Maker):** O protocolo fatura mais em taxas de empréstimo do que emite tokens de incentivo. Os stakers recebem rendimento real.
     * **Real Earnings Negativo:** O protocolo oferece "rendimentos" artificiais emitindo novos tokens, diluindo os detentores silenciosamente.
@@ -256,7 +293,10 @@ Para que você possa interpretar os dados como um analista de investimentos prof
 ### 4. Ciclos Macroeconômicos Globais
 
 * **Regra de Sahm Pareada (Validação Tripla de Recessão):**
-  $$\text{Gatilho de Sahm} = MA_{3m}(\text{Desemprego}) - \min_{12m}(\text{Desemprego}) \ge +0.50\%$$
+
+  ```math
+  \text{Gatilho de Sahm} = MA_{3m}(\text{Desemprego}) - \min_{12m}(\text{Desemprego}) \ge +0.50\%
+  ```
   * Um aumento de meio ponto percentual no desemprego historicamente sinaliza o início de uma recessão nos EUA.
   * O terminal exige **validação pareada obrigatória** com o saldo de folhas de pagamento (*Nonfarm Payrolls*) e pedidos de seguro-desemprego (*Jobless Claims*) para evitar sinais falsos.
 * **Curva de Juros Soberana (Spread 10Y - 2Y):**
