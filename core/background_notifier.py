@@ -192,18 +192,18 @@ class BackgroundNotifierEngine:
                 f"🌍 [Macro & LTV] Sahm's Rule: {sp['sahm_current_pct']:+.2f}% ({sp['paired_verdict']}) | Spread 10Y-2Y: {yc['spread_10y_2y_bps']:+.1f} bps | LTV Global: {ltv['ltv_global_current_pct']:.1f}% ({ltv['turbo_trigger_status']})"
             )
 
-        now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         lines = [
-            f"🏛️ *BRIEFING EXECUTIVO MATINAL — TERMINAL QUANT 360°* ({now_str})",
-            f"💰 *Patrimônio Monitorado:* USD {portfolio.capital_usd:,.0f} ({len(portfolio.positions)} Ativos | P&L: {portfolio.total_portfolio_pnl_pct:+.2f}%)",
+            f"🏛️ *INSTITUTIONAL MORNING BRIEFING — QUANT TERMINAL 360°* ({now_str})",
+            f"💰 *Monitored Portfolio:* USD {portfolio.capital_usd:,.0f} ({len(portfolio.positions)} Holdings | P&L: {portfolio.total_portfolio_pnl_pct:+.2f}%)",
             "",
-            "🔎 *SINAIS FILTRADOS (ZERO RUÍDO):*",
+            "🔎 *FILTERED SIGNALS (ZERO NOISE):*",
         ]
         for item in critical_alerts[:8]:
             lines.append(f"• {item}")
 
         lines.append("")
-        lines.append("📄 _Os 5 Dossiês Executivos em PDF estão atualizados na Central de Inteligência (M5)._")
+        lines.append("📄 _The Consolidated 360° Master PDF Report is available in the Intelligence Hub._")
         full_text = "\n".join(lines)
 
         return {

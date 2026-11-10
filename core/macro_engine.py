@@ -161,39 +161,39 @@ class MacroEngine:
 
         basic_metrics = [
             {
-                "Indicador": "GDP (PIB Nominal EUA)",
+                "Indicador": "GDP (U.S. Nominal GDP)",
                 "Valor Atual": f"USD {curr_gdp_t:.2f}T",
                 "Variação / Taxa": f"{gdp_yoy:+.2f}% YoY",
-                "Referência": "> +2.0% YoY (Crescimento Saudável)",
-                "Leitura": "Expansão Resiliente" if gdp_yoy >= 1.5 else ("Desaceleração" if gdp_yoy >= 0 else "Contração / Recessão"),
+                "Referência": "> +2.0% YoY (Healthy Growth)",
+                "Leitura": "Resilient Expansion" if gdp_yoy >= 1.5 else ("Deceleration" if gdp_yoy >= 0 else "Contraction / Recession"),
             },
             {
-                "Indicador": "CPI (Inflação ao Consumidor)",
+                "Indicador": "CPI (Consumer Price Inflation)",
                 "Valor Atual": f"{curr_cpi:.1f} pts ({cpi_yoy:.2f}% YoY)",
                 "Variação / Taxa": f"{cpi_yoy:+.2f}% YoY",
-                "Referência": "Meta FED 2.0% | Alerta > 3.5%",
-                "Leitura": "Desinflação Gradual" if cpi_yoy <= 3.2 else "Pressão Inflacionária Persistente",
+                "Referência": "FED Target 2.0% | Warning > 3.5%",
+                "Leitura": "Gradual Disinflation" if cpi_yoy <= 3.2 else "Persistent Inflationary Pressure",
             },
             {
                 "Indicador": "Interest Rate (Fed Funds Rate)",
-                "Valor Atual": f"{curr_ff:.2f}% a.a.",
+                "Valor Atual": f"{curr_ff:.2f}% p.a.",
                 "Variação / Taxa": f"{ff_1y_chg:+.2f} pp (12m)",
-                "Referência": "Neutro ~3.00% | Restritivo > 4.50%",
-                "Leitura": "Restritivo em Ciclo de Corte" if curr_ff > 3.5 and ff_1y_chg <= 0 else ("Aperto Monetário" if ff_1y_chg > 0 else "Acomodativo"),
+                "Referência": "Neutral ~3.00% | Restrictive > 4.50%",
+                "Leitura": "Restrictive in Cutting Cycle" if curr_ff > 3.5 and ff_1y_chg <= 0 else ("Monetary Tightening" if ff_1y_chg > 0 else "Accommodative"),
             },
             {
-                "Indicador": "Primary Debt (Dívida Pública Federal)",
-                "Valor Atual": f"USD {curr_debt_t:.2f}T ({debt_to_gdp:.1f}% PIB)",
+                "Indicador": "Primary Debt (U.S. Federal Public Debt)",
+                "Valor Atual": f"USD {curr_debt_t:.2f}T ({debt_to_gdp:.1f}% GDP)",
                 "Variação / Taxa": f"{debt_yoy:+.2f}% YoY",
-                "Referência": "< 100% PIB Saudável | > 120% Risco Fiscal",
-                "Leitura": "Dominância Fiscal Estrutural (Positivo para Hard Assets & BTC)",
+                "Referência": "< 100% GDP Healthy | > 120% Fiscal Risk",
+                "Leitura": "Structural Fiscal Dominance (Bullish for Hard Assets & BTC)",
             },
             {
-                "Indicador": "Unemployment Rate (Taxa de Desemprego U3)",
+                "Indicador": "Unemployment Rate (U3 Headline Unemployment)",
                 "Valor Atual": f"{curr_unrate:.2f}%",
                 "Variação / Taxa": f"{unrate_1y_chg:+.2f} pp (12m)",
-                "Referência": "Pleno Emprego < 4.5% | Recessão > 5.0%",
-                "Leitura": "Mercado de Trabalho Sólido com Arrefecimento Moderado" if curr_unrate < 4.6 else "Deterioração Laboral",
+                "Referência": "Full Employment < 4.5% | Recession > 5.0%",
+                "Leitura": "Solid Labor Market with Moderate Cooling" if curr_unrate < 4.6 else "Labor Deterioration",
             },
         ]
 
@@ -214,27 +214,27 @@ class MacroEngine:
 
         sahm_confirmed = sahm_triggered and payroll_neg_or_zero and icsa_growing
         if sahm_confirmed:
-            sahm_verdict = "RECESSÃO CONFIRMADA (Sahm >= 0.50% + Payroll <= 0 + ICSA Crescendo)"
+            sahm_verdict = "CONFIRMED RECESSION (Sahm >= 0.50% + Payroll <= 0 + ICSA Rising)"
         elif sahm_triggered:
-            sahm_verdict = "FALSO POSITIVO / OFERTA DE TRABALHO (Sahm >= 0.50%, mas Payroll Positivo e ICSA Controlado)"
+            sahm_verdict = "FALSE POSITIVE / LABOR EXPANSION (Sahm >= 0.50%, but Positive Payroll & Contained ICSA)"
         else:
-            sahm_verdict = f"SEM SINAL DE RECESSÃO (Sahm {sahm_val:+.2f}% < +0.50% | Payroll +{payroll_mom_k:.0f}k)"
+            sahm_verdict = f"NO RECESSION SIGNAL (Sahm {sahm_val:+.2f}% < +0.50% | Payroll +{payroll_mom_k:.0f}k)"
 
         sahm_paired = {
             "sahm_current_pct": sahm_val,
             "unrate_3m_ma_pct": round(unrate_ma3, 2),
             "unrate_12m_min_pct": round(unrate_12m_min, 2),
-            "sahm_reference": ">= +0.50% (Gatilho de Recessão)",
+            "sahm_reference": ">= +0.50% (Recession Trigger)",
             "sahm_triggered": sahm_triggered,
             "payroll_mom_thousands": round(payroll_mom_k, 1),
             "payroll_3m_avg_thousands": round(payroll_3m_avg_k, 1),
-            "payroll_status": "NEGATIVO/ZERO (Confirma Recessão)" if payroll_neg_or_zero else f"POSITIVO (+{payroll_mom_k:.0f}k vagas — Nega Recessão)",
+            "payroll_status": "NEGATIVE/ZERO (Confirms Recession)" if payroll_neg_or_zero else f"POSITIVE (+{payroll_mom_k:.0f}k jobs — Denies Recession)",
             "payroll_negative_or_zero": payroll_neg_or_zero,
             "icsa_current": int(icsa_curr),
             "icsa_4w_ma": int(icsa_ma4),
             "icsa_12w_ma": int(icsa_ma12),
             "icsa_growing": icsa_growing,
-            "icsa_trend_status": "CRESCENDO (Aceleração de Demissões)" if icsa_growing else "ESTÁVEL / CONTIDO (< 250k — Sem Demissões em Massa)",
+            "icsa_trend_status": "RISING (Accelerating Layoffs)" if icsa_growing else "STABLE / CONTAINED (< 250k — No Mass Layoffs)",
             "paired_verdict": sahm_verdict,
         }
 
@@ -247,7 +247,7 @@ class MacroEngine:
             "sos_current": sos_val,
             "insured_unemp_13w_ma": round(ins_ma13, 3),
             "insured_unemp_52w_min": round(ins_52w_min, 3),
-            "reference_limit": "> 0.20 = Recessão",
+            "reference_limit": "> 0.20 = Recession",
             "is_recession": sos_recession,
             "status": "RECESSÃO SINALIZADA (> 0.20)" if sos_recession else f"ZONA SEGURA ({sos_val:.3f} <= 0.20)",
         }
@@ -276,13 +276,13 @@ class MacroEngine:
         is_sweet_spot = (curr_pmi_serv > 50.0) and (curr_pmi_serv < 60.0) and pmi_falling_recently
 
         if is_sweet_spot:
-            pmi_insight = "SWEET SPOT ATIVO: PMI em desaceleração recente mas > 50 (Ótimo: sem recessão e sem pressão inflacionária)"
+            pmi_insight = "ACTIVE SWEET SPOT: PMI moderating recently but > 50 (Optimal: no recession and no inflationary overheating)"
         elif curr_pmi_serv > 60.0:
-            pmi_insight = "RISCO DE INFLAÇÃO (> 60): Economia superaquecida, risco de aperto do Fed"
+            pmi_insight = "INFLATION RISK (> 60): Overheating economy, risk of Fed hawkish response"
         elif curr_pmi_serv > 50.0:
-            pmi_insight = "EXPANSÃO (> 50): Bom para o mercado; setor de serviços liderando a economia"
+            pmi_insight = "EXPANSION (> 50): Positive for equities; services sector leading macroeconomic growth"
         else:
-            pmi_insight = "CONTRAÇÃO (< 50): Alerta de desaceleração cíclica / recessão"
+            pmi_insight = "CONTRACTION (< 50): Cyclical slowdown / recession alert"
 
         pmi_analysis = {
             "pmi_services_current": curr_pmi_serv,
@@ -315,11 +315,11 @@ class MacroEngine:
         spread_bps = round(curr_spread * 100.0, 1)
 
         if curr_spread > 0.15:
-            curve_class = "Inclinada / Upwards (Normal: Juro longo > Juro curto)"
+            curve_class = "Upward Sloping (Normal: Long-term yield > Short-term yield)"
         elif curr_spread < -0.05:
-            curve_class = "Invertida / Downwards (Crise iminente)"
+            curve_class = "Inverted / Downward (Imminent cyclical crisis signal)"
         else:
-            curve_class = "Flat (Incerteza)"
+            curve_class = "Flat (Macro uncertainty)"
 
         min_spread_2y = float(spread_series.min()) if not spread_series.empty else -0.90
         uninversion_occurred = (min_spread_2y < -0.15) and (curr_spread >= 0.0)
@@ -330,17 +330,17 @@ class MacroEngine:
         delta_10y_bps = round(float(dgs10.iloc[-1] - dgs10.iloc[-lookback_days]) * 100.0, 1) if lookback_days > 5 else -10.0
 
         if delta_2y_bps < 0 and delta_2y_bps < (delta_10y_bps - 5.0):
-            ends_insight = "Dinâmica BOA: Yield de 2 anos caindo mais rápido que o de 10 anos (Alívio monetário saudável / Bull Steepening)"
-            ends_quality = "Dinâmica BOA"
+            ends_insight = "HEALTHY DYNAMICS: 2Y yield falling faster than 10Y (Healthy monetary easing / Bull Steepening)"
+            ends_quality = "Bull Steepening (Positive)"
         elif delta_10y_bps > 15.0 and abs(delta_2y_bps) <= 10.0:
-            ends_insight = "Dinâmica RUIM: Yield de 10 anos subindo rápido enquanto o de 2 anos fica estático (Estresse fiscal/inflacionário / Bear Steepening)"
-            ends_quality = "Dinâmica RUIM"
+            ends_insight = "ADVERSE DYNAMICS: 10Y yield surging while 2Y remains static (Fiscal/inflation stress / Bear Steepening)"
+            ends_quality = "Bear Steepening (Caution)"
         elif delta_2y_bps < delta_10y_bps:
-            ends_insight = "Dinâmica BOA (Moderada): Curto prazo aliviando mais que o longo prazo"
-            ends_quality = "Dinâmica BOA"
+            ends_insight = "POSITIVE DYNAMICS (Moderate): Short end easing more than long end"
+            ends_quality = "Moderate Easing (Positive)"
         else:
-            ends_insight = "Dinâmica MISTA / NEUTRA: Movimento paralelo ou achatamento da curva"
-            ends_quality = "Neutra / Monitorar"
+            ends_insight = "MIXED / NEUTRAL DYNAMICS: Parallel shift or curve flattening"
+            ends_quality = "Neutral / Monitor"
 
         yield_curve = {
             "vertices": {
@@ -358,9 +358,9 @@ class MacroEngine:
             "curve_classification": curve_class,
             "uninversion_alert": uninversion_occurred,
             "uninversion_note": (
-                "ALERTA DE DESINVERSÃO ATIVO: A curva cruzou acima de zero após inversão profunda (Historicamente precede volatilidade/recessões)"
+                "ACTIVE UNINVERSION ALERT: Curve crossed above zero after deep inversion (Historically precedes volatility/recessions)"
                 if uninversion_occurred
-                else "Sem cruzamento de desinversão recente"
+                else "No recent curve uninversion trigger"
             ),
             "delta_60d_2y_bps": delta_2y_bps,
             "delta_60d_10y_bps": delta_10y_bps,
@@ -376,11 +376,11 @@ class MacroEngine:
         fed_bs_yoy_chg = round(float((walcl.iloc[-1] / walcl.iloc[-52] - 1.0) * 100.0), 2) if len(walcl) >= 52 else -6.4
 
         if fed_bs_3m_chg < -0.25:
-            qe_qt_status = "QT (Quantitative Tightening — Redução gradual de liquidez)"
+            qe_qt_status = "QT (Quantitative Tightening — Gradual liquidity drain)"
         elif fed_bs_3m_chg > 0.25:
-            qe_qt_status = "QE (Quantitative Easing — Expansão de liquidez no sistema)"
+            qe_qt_status = "QE (Quantitative Easing — Systematic liquidity expansion)"
         else:
-            qe_qt_status = "Transição / Pausa do QT (Estabilização de reservas bancárias)"
+            qe_qt_status = "QT Transition / Pause (Stabilization of bank reserves)"
 
         m2_t = round(float(wm2.iloc[-1]) / 1000.0, 2)
         m2_3m_chg = round(float((wm2.iloc[-1] / wm2.iloc[-13] - 1.0) * 100.0), 2) if len(wm2) >= 13 else +1.35
@@ -406,20 +406,20 @@ class MacroEngine:
 
         positive_scenario_m2_dxy = m2_rising and dxy_falling
         if positive_scenario_m2_dxy:
-            scenario_label = "CENÁRIO POSITIVO ATIVO: Oferta Monetária M2 Subindo + Dólar (DXY) Caindo (Vento de cauda global para Ações e Cripto)"
+            scenario_label = "ACTIVE POSITIVE SCENARIO: Money Supply M2 Rising + Dollar (DXY) Falling (Global tailwind for Equities & Crypto)"
         elif m2_rising and not dxy_falling:
-            scenario_label = "CENÁRIO MISTO (Liquidez M2 em alta, mas DXY resiliente/subindo)"
+            scenario_label = "MIXED SCENARIO (M2 liquidity expanding, but DXY remains resilient/rising)"
         elif not m2_rising and dxy_falling:
-            scenario_label = "CENÁRIO MISTO (Dólar enfraquecendo, mas M2 lateralizado)"
+            scenario_label = "MIXED SCENARIO (Dollar weakening, but M2 growth flatlined)"
         else:
-            scenario_label = "CENÁRIO DEFENSIVO: M2 em contração e DXY subindo (Aperto de liquidez global)"
+            scenario_label = "DEFENSIVE SCENARIO: M2 contracting and DXY rising (Global liquidity tightening)"
 
         monetary_aggregates = {
             "fed_balance_sheet_trillions": fed_bs_t,
             "fed_bs_3m_chg_pct": fed_bs_3m_chg,
             "fed_bs_yoy_chg_pct": fed_bs_yoy_chg,
             "qe_qt_status": qe_qt_status,
-            "forward_guidance": "Data-Dependent / Calibragem Gradual rumo à Taxa Neutra (~3.25% - 3.50%)",
+            "forward_guidance": "Data-Dependent / Gradual calibration toward Neutral Rate (~3.25% - 3.50%)",
             "m2_trillions": m2_t,
             "m2_3m_chg_pct": m2_3m_chg,
             "m2_yoy_chg_pct": m2_yoy_chg,
@@ -438,7 +438,7 @@ class MacroEngine:
             "scenario_verdict": scenario_label,
         }
 
-        cycle_phase = "Expansão Moderada Pós-Desinversão • Liquidez Global M2 em Recuperação"
+        cycle_phase = "Moderate Post-Uninversion Expansion • Global M2 Liquidity Recovering"
 
         return MacroDataBundle(
             timestamp=datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),

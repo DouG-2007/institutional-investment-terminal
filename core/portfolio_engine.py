@@ -556,11 +556,11 @@ class PortfolioEngine:
         diff_100 = round(target_weight_sum - 100.0, 3)
         is_valid_100 = abs(diff_100) <= 0.05
         if is_valid_100:
-            weight_msg = f"✅ CARTEIRA BALANCEADA: Soma dos Pesos Alvo em {target_weight_sum:.2f}% (100% Alocado)"
+            weight_msg = f"✅ BALANCED PORTFOLIO: Target Weight Sum at {target_weight_sum:.2f}% (100.00% Fully Allocated)"
         elif diff_100 > 0:
-            weight_msg = f"⚠️ ALERTA DE EXCESSO: Soma dos Pesos Alvo em {target_weight_sum:.2f}% (+{diff_100:.2f}% acima de 100%)"
+            weight_msg = f"⚠️ OVER-ALLOCATION WARNING: Target Weight Sum at {target_weight_sum:.2f}% (+{diff_100:.2f}% over 100%)"
         else:
-            weight_msg = f"⚠️ ALERTA DE SUB-ALOCAÇÃO: Soma dos Pesos Alvo em {target_weight_sum:.2f}% (Faltam {abs(diff_100):.2f}% para 100%)"
+            weight_msg = f"⚠️ UNDER-ALLOCATION WARNING: Target Weight Sum at {target_weight_sum:.2f}% ({abs(diff_100):.2f}% short of 100%)"
 
         ltv_eligible_stocks_w = 0.0
         ltv_eligible_btc_w = 0.0
@@ -689,7 +689,7 @@ class PortfolioEngine:
 
             sources = []
             if direct_w > 0:
-                sources.append(f"Direta ({direct_w:.2f}%)")
+                sources.append(f"Direct ({direct_w:.2f}%)")
             if spy_ind > 0:
                 sources.append(f"SPY ({spy_ind:.2f}%)")
             if qqq_ind > 0:
@@ -737,14 +737,14 @@ class PortfolioEngine:
             if rem_smh > 0:
                 rem_sources.append(f"SMH Residual ({rem_smh:.2f}%)")
             if rem_ita > 0:
-                rem_sources.append(f"ITA Defesa ({rem_ita:.2f}%)")
+                rem_sources.append(f"ITA Defense ({rem_ita:.2f}%)")
             if rem_qld > 0:
                 rem_sources.append(f"QLD 2x Residual ({rem_qld:.2f}%)")
             lookthrough_list.append(
                 LookThroughHolding(
-                    ticker="CESTA-ETFs",
-                    company_name="Cesta Diversificada dos ETFs (Demais Constituintes dos Índices fora das Ações Diretas)",
-                    sector="Diversificação Índices (SPY/QQQ/QLD/ITA)",
+                    ticker="ETF-BASKET",
+                    company_name="Diversified ETF Residual Basket (Index Constituents Outside Direct Holdings)",
+                    sector="Index Diversification (SPY/QQQ/QLD/ITA)",
                     direct_weight_pct=0.0,
                     spy_indirect_pct=rem_spy,
                     qqq_indirect_pct=rem_qqq,
@@ -767,39 +767,39 @@ class PortfolioEngine:
         # Consolidação Setorial Look-Through dinâmica
         sector_summary = [
             {
-                "Bloco / Setor Look-Through": "Bitcoin (Reserva Monetária Soberana PoW)",
+                "Bloco / Setor Look-Through": "Bitcoin (Sovereign Monetary Reserve PoW)",
                 "Peso Nominal (%)": btc_w,
                 "Exposição Efetiva Look-Through (%)": btc_w,
                 "Exposição Financeira (USD)": round(capital_usd * (btc_w / 100.0), 2),
-                "Principais Ativos Contribuintes": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto BTC") or "Nenhum",
+                "Principais Ativos Contribuintes": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto BTC") or "None",
             },
             {
-                "Bloco / Setor Look-Through": "Infraestrutura Web3, Smart Contracts & DeFi",
+                "Bloco / Setor Look-Through": "Web3 Infrastructure, Smart Contracts & DeFi",
                 "Peso Nominal (%)": alt_w,
                 "Exposição Efetiva Look-Through (%)": alt_w,
                 "Exposição Financeira (USD)": round(capital_usd * (alt_w / 100.0), 2),
-                "Principais Ativos Contribuintes": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto Altcoin") or "Nenhum",
+                "Principais Ativos Contribuintes": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto Altcoin") or "None",
             },
             {
-                "Bloco / Setor Look-Through": "Big Tech, Cloud, Semicondutores & IA",
+                "Bloco / Setor Look-Through": "Big Tech, Cloud, Semiconductors & AI",
                 "Peso Nominal (%)": round(sum(p.target_weight_pct for p in positions if p.sector_vertical in ("TECH_CASH_COW", "TECH_HIGH_GROWTH")) + w_qqq + w_smh + w_qld, 2),
                 "Exposição Efetiva Look-Through (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads"))), 2),
                 "Exposição Financeira (USD)": round(sum(h.effective_exposure_usd for h in lookthrough_list if any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads"))), 2),
                 "Principais Ativos Contribuintes": ", ".join(f"{h.ticker} ({h.total_effective_lookthrough_pct:.2f}%)" for h in lookthrough_list[:6]),
             },
             {
-                "Bloco / Setor Look-Through": "Setor Financeiro, Bancos Globais & Pagamentos",
+                "Bloco / Setor Look-Through": "Financial Sector, Global Banks & Payments",
                 "Peso Nominal (%)": round(sum(p.target_weight_pct for p in positions if p.sector_vertical in ("FINANCIAL_BANK", "FINANCIAL_TOLLBOOTH")), 2),
                 "Exposição Efetiva Look-Through (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if "Financial" in h.sector), 2),
                 "Exposição Financeira (USD)": round(sum(h.effective_exposure_usd for h in lookthrough_list if "Financial" in h.sector), 2),
                 "Principais Ativos Contribuintes": ", ".join(f"{h.ticker} ({h.total_effective_lookthrough_pct:.2f}%)" for h in lookthrough_list if "Financial" in h.sector),
             },
             {
-                "Bloco / Setor Look-Through": "Aeroespacial, Defesa OTAN, Varejo & Demais S&P",
+                "Bloco / Setor Look-Through": "Aerospace, NATO Defense, Retail & Broad S&P",
                 "Peso Nominal (%)": round(w_ita + w_spy + sum(p.target_weight_pct for p in positions if p.sector_vertical in ("RETAIL", "CYCLICAL", "OTHER") and p.category == "Hard-Asset Stock"), 2),
                 "Exposição Efetiva Look-Through (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if not any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads", "Financial"))), 2),
                 "Exposição Financeira (USD)": round(sum(h.effective_exposure_usd for h in lookthrough_list if not any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads", "Financial"))), 2),
-                "Principais Ativos Contribuintes": "ITA (Defesa), WMT, SPY Core & Diversificados",
+                "Principais Ativos Contribuintes": "ITA (Defense), WMT, SPY Core & Diversified",
             },
         ]
 

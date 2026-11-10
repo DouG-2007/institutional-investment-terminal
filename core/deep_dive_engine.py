@@ -800,19 +800,19 @@ class DeepDiveEngine:
             steps = [
                 ScreenerFilterStep(
                     step_number=1,
-                    filter_name="1. Baixa Diluição Futura (Circulating / Total Supply)",
-                    calculated_value=f"{c_prof.circulating_pct:.1f}% em circulação (FDV/MCap {c_prof.supply_structure['fdv_to_mcap_x']:.2f}x)",
-                    strict_criterion="Circulating Supply >= 65.0% do Total Supply",
+                    filter_name="1. Low Future Dilution (Circulating / Total Supply)",
+                    calculated_value=f"{c_prof.circulating_pct:.1f}% circulating (FDV/MCap {c_prof.supply_structure['fdv_to_mcap_x']:.2f}x)",
+                    strict_criterion="Circulating Supply >= 65.0% of Total Supply",
                     passed=f1_pass,
                     score_points=20 if f1_pass else max(5, int(c_prof.circulating_pct / 4)),
                     max_points=20,
-                    diagnostic_note="Baixo overhang de emissões futuras" if f1_pass else "Atenção: Diluição futura relevante (FDV elevado frente ao MCap)",
+                    diagnostic_note="Low future emission overhang" if f1_pass else "Warning: Substantial future dilution (High FDV relative to MCap)",
                 ),
                 ScreenerFilterStep(
                     step_number=2,
-                    filter_name="2. Controle de Unlocks Programados (30 Dias)",
-                    calculated_value=f"{c_prof.supply_structure['unlock_pct_of_circ']:.2f}% do Circ. Supply/mês (Px Pós-Diluição: ${c_prof.supply_structure['theoretical_post_unlock_price_usd']:,.2f})",
-                    strict_criterion="Unlocks <= 2.50% do Circulating Supply / mês (< 1.0% Ótimo)",
+                    filter_name="2. Scheduled Unlocks Control (30 Days)",
+                    calculated_value=f"{c_prof.supply_structure['unlock_pct_of_circ']:.2f}% of Circ. Supply/mo (Post-Dilution Price: ${c_prof.supply_structure['theoretical_post_unlock_price_usd']:,.2f})",
+                    strict_criterion="Unlocks <= 2.50% of Circulating Supply / month (< 1.0% Optimal)",
                     passed=f2_pass,
                     score_points=20 if f2_pass else 6,
                     max_points=20,
@@ -820,9 +820,9 @@ class DeepDiveEngine:
                 ),
                 ScreenerFilterStep(
                     step_number=3,
-                    filter_name="3. Segurança de Contratos & Auditorias (Token Sniffer)",
+                    filter_name="3. Contract Security & Audits (Token Sniffer)",
                     calculated_value=f"Score {c_doc.token_sniffer_score}/100 | {c_doc.audit_firms}",
-                    strict_criterion="Token Sniffer >= 85/100 + Auditorias de 1ª Linha sem Exploits abertos",
+                    strict_criterion="Token Sniffer >= 85/100 + Tier-1 Audits with no unpatched exploits",
                     passed=f3_pass,
                     score_points=20 if f3_pass else 5,
                     max_points=20,
@@ -830,19 +830,19 @@ class DeepDiveEngine:
                 ),
                 ScreenerFilterStep(
                     step_number=4,
-                    filter_name="4. Tração de Engenharia (GitHub) & Economia Real (Real Earnings / Real Yield)",
-                    calculated_value=f"{c_doc.github_active_devs_monthly} Devs Ativos | Real Earnings USD {annual_re_m:+.1f}M/ano | Real Yield {c_prof.tokenomics_valuation['real_yield_pct']:+.2f}%",
-                    strict_criterion=">= 40 Active Devs no GitHub E (Protocol Real Earnings > 0 ou Reserva PoW Soberana)",
+                    filter_name="4. Engineering Traction (GitHub) & Real Economics (Real Earnings / Real Yield)",
+                    calculated_value=f"{c_doc.github_active_devs_monthly} Active Devs | Real Earnings USD {annual_re_m:+.1f}M/yr | Real Yield {c_prof.tokenomics_valuation['real_yield_pct']:+.2f}%",
+                    strict_criterion=">= 40 Active Devs on GitHub AND (Protocol Real Earnings > 0 or Sovereign PoW Reserve)",
                     passed=f4_pass,
                     score_points=20 if f4_pass else 10,
                     max_points=20,
-                    diagnostic_note="Protocolo lucrativo acima das emissões de incentivos" if f4_pass else "Emissão de tokens supera taxas retidas pelo protocolo",
+                    diagnostic_note="Profitable protocol exceeding incentive emissions" if f4_pass else "Token emissions exceed net protocol fees retained",
                 ),
                 ScreenerFilterStep(
                     step_number=5,
-                    filter_name="5. Assimetria de Ciclo On-Chain (MVRV Z-Score & NUPL)",
+                    filter_name="5. On-Chain Cycle Asymmetry (MVRV Z-Score & NUPL)",
                     calculated_value=f"MVRV Z: {c_prof.onchain_metrics['mvrv_z_score']:.2f} | NUPL: {c_prof.onchain_metrics['nupl']:.2f} | aSOPR: {c_prof.onchain_metrics['asopr']:.3f}",
-                    strict_criterion="MVRV Z-Score <= 2.20 e NUPL < 0.65 (Fora de Euforia)",
+                    strict_criterion="MVRV Z-Score <= 2.20 and NUPL < 0.65 (Outside Euphoria Zone)",
                     passed=f5_pass,
                     score_points=20 if f5_pass else 8,
                     max_points=20,
@@ -853,33 +853,33 @@ class DeepDiveEngine:
             passed_cnt = sum(1 for s in steps if s.passed)
 
             if passed_cnt == 5:
-                regime = "REGIME 1 — APROVADO COM ASSIMETRIA (Sinalização Consultiva de Acumulação / Compra)"
+                regime = "REGIME 1 — APPROVED WITH ASYMMETRY (Consultative Accumulation / Buy Signal)"
                 verdict = (
-                    f"Ativo Aprovado nos 5/5 Filtros Forenses e On-Chain (Score {total_score}/100): "
-                    f"{norm_ticker} combina segurança de contratos ({c_doc.token_sniffer_score}/100), baixa pressão de unlocks "
-                    f"({c_prof.supply_structure['unlock_pct_of_circ']:.2f}%/mês), economia real positiva e MVRV Z em {c_prof.onchain_metrics['mvrv_z_score']:.2f} "
-                    f"— Sugestão Consultiva: Elegível para Acumulação / Shannon Inflow (Regime 1)."
+                    f"Asset Approved across 5/5 Forensic and On-Chain Filters (Score {total_score}/100): "
+                    f"{norm_ticker} combines contract security ({c_doc.token_sniffer_score}/100), low unlock pressure "
+                    f"({c_prof.supply_structure['unlock_pct_of_circ']:.2f}%/mo), positive real economics and MVRV Z at {c_prof.onchain_metrics['mvrv_z_score']:.2f} "
+                    f"— Advisory Signal: Eligible for Accumulation / Shannon Inflow (Regime 1)."
                 )
             elif f3_pass and f4_pass and not f5_pass:
-                regime = "REGIME 3 — RADAR DE QUALIDADE (Fundamentos Aprovados, mas Ciclo On-Chain Esticado)"
+                regime = "REGIME 3 — QUALITY RADAR (Fundamentals Approved, but Stretched On-Chain Cycle)"
                 verdict = (
-                    f"Ativo passa com folga nos critérios de Engenharia, Segurança e Tokenomics ({passed_cnt}/5 filtros, Score {total_score}/100), "
-                    f"mas encontra-se esticado no ciclo On-Chain (MVRV Z {c_prof.onchain_metrics['mvrv_z_score']:.2f}) "
-                    f"— Sugestão Consultiva: Manter no Radar e aguardar retração on-chain (Regime 3)."
+                    f"Asset safely clears Engineering, Security and Tokenomics criteria ({passed_cnt}/5 filters, Score {total_score}/100), "
+                    f"but is currently stretched in its On-Chain cycle (MVRV Z {c_prof.onchain_metrics['mvrv_z_score']:.2f}) "
+                    f"— Advisory Signal: Keep on Watchlist and await on-chain pullback (Regime 3)."
                 )
             elif passed_cnt >= 4:
-                regime = "REGIME 2 — MONITORAMENTO QUALIFICADO (4/5 Filtros Aprovados)"
+                regime = "REGIME 2 — QUALIFIED MONITORING (4/5 Filters Approved)"
                 failed_names = [s.filter_name for s in steps if not s.passed]
                 verdict = (
-                    f"Ativo de Alta Qualidade ({passed_cnt}/5 filtros, Score {total_score}/100), com ressalva puntual em: "
-                    f"{', '.join(failed_names)} — Sugestão Consultiva: Monitorar em Watchlist / Dimensionar posição com cautela (Regime 2)."
+                    f"High-Quality Asset ({passed_cnt}/5 filters, Score {total_score}/100), with minor caveats in: "
+                    f"{', '.join(failed_names)} — Advisory Signal: Monitor on Watchlist / Size position with caution (Regime 2)."
                 )
             else:
-                regime = "REGIME 4 — REPROVADO PELOS FILTROS DE DILUIÇÃO / ECONOMIA REAL"
+                regime = "REGIME 4 — REJECTED BY DILUTION / REAL ECONOMICS FILTERS"
                 failed_names = [s.filter_name for s in steps if not s.passed]
                 verdict = (
-                    f"Ativo Reprovado ({passed_cnt}/5 filtros, Score {total_score}/100) devido a falhas em: "
-                    f"{'; '.join(failed_names)} — Sugestão Consultiva: Evitar alocação sob o Value Investing Framework (Regime 4)."
+                    f"Asset Rejected ({passed_cnt}/5 filters, Score {total_score}/100) due to failures in: "
+                    f"{'; '.join(failed_names)} — Advisory Signal: Avoid allocation under Value Investing Framework (Regime 4)."
                 )
 
             rel_geo = [g for g in all_geo if any(k in g.affected_portfolio_assets for k in (norm_ticker.replace("-USD", ""), "BTC", "ETH", "SOL", "AAVE"))] or all_geo[-2:]
@@ -1119,9 +1119,9 @@ class DeepDiveEngine:
         steps_eq = [
             ScreenerFilterStep(
                 step_number=1,
-                filter_name="1. Qualidade Forense do Lucro (Sloan Ratio & Conversão FCO/EBITDA)",
-                calculated_value=f"Sloan: {fh['sloan_ratio_pct']:+.1f}% | FCO/EBITDA: {fh['fco_to_ebitda']:.2f}x",
-                strict_criterion="Sloan Ratio <= +5.0% (< -10% Ótimo) E FCO/EBITDA >= 0.85x (> 1.0x Ótimo)",
+                filter_name="1. Forensic Earnings Quality (Sloan Ratio & CFO/EBITDA Conversion)",
+                calculated_value=f"Sloan: {fh['sloan_ratio_pct']:+.1f}% | CFO/EBITDA: {fh['fco_to_ebitda']:.2f}x",
+                strict_criterion="Sloan Ratio <= +5.0% (< -10% Optimal) AND CFO/EBITDA >= 0.85x (> 1.0x Optimal)",
                 passed=f1_pass,
                 score_points=20 if f1_pass else 8,
                 max_points=20,
@@ -1129,9 +1129,9 @@ class DeepDiveEngine:
             ),
             ScreenerFilterStep(
                 step_number=2,
-                filter_name="2. Criação Econômica de Valor (ROIC via NOPAT c/ Goodwill vs. WACC)",
+                filter_name="2. Economic Value Creation (ROIC via NOPAT w/ Goodwill vs. WACC)",
                 calculated_value=f"ROIC: {fh['roic_goodwill_pct']:.1f}% vs WACC: {fh['wacc_pct']:.2f}% (Spread {fh['roic_minus_wacc_spread_pp']:+.1f} pp | EVA USD {vm['eva_usd_b']:+.1f}B)",
-                strict_criterion="ROIC > WACC com Spread positivo robusto (ROIC >= 15% para não-financeiras)",
+                strict_criterion="ROIC > WACC with robust positive spread (ROIC >= 15% for non-financials)",
                 passed=f2_pass,
                 score_points=20 if f2_pass else 7,
                 max_points=20,
@@ -1139,23 +1139,23 @@ class DeepDiveEngine:
             ),
             ScreenerFilterStep(
                 step_number=3,
-                filter_name="3. Fortaleza de Balanço & Solvência (Liquidez Corrente, Cobertura de Juros & Filtro Bancário P/B >= 1.0x)",
+                filter_name="3. Balance Sheet Strength & Solvency (Current Ratio, Int. Coverage & Bank Filter P/B >= 1.0x)",
                 calculated_value=(
                     f"P/B: {vm['pb_current']:.2f}x | P/TBV: {vm['ptbv_current']:.2f}x | ROE: {fh['roe_dupont_pct']:.1f}%"
                     if is_bank
-                    else f"Liq. Corrente: {fh['current_ratio']:.2f}x | Int. Coverage: {fh['interest_coverage_x']:.1f}x | Debt/EBITDA: {fh['debt_to_ebitda']:.2f}x"
+                    else f"Current Ratio: {fh['current_ratio']:.2f}x | Int. Coverage: {fh['interest_coverage_x']:.1f}x | Debt/EBITDA: {fh['debt_to_ebitda']:.2f}x"
                 ),
-                strict_criterion="Liquidez Corrente Saudável + Caixa Pós-OpEx Positivo e Cobertura Juros > 3.0x (ou P/B >= 1.0x para Bancos)",
+                strict_criterion="Healthy Current Ratio + Positive Post-OpEx Cash and Int. Coverage > 3.0x (or P/B >= 1.0x for Banks)",
                 passed=f3_pass,
                 score_points=20 if f3_pass else 6,
                 max_points=20,
-                diagnostic_note="Solvência Institucional Blindada" if f3_pass else "Alerta de Solvência ou Risco Estrutural (P/B < 1.0x)",
+                diagnostic_note="Shielded Institutional Solvency" if f3_pass else "Solvency Alert or Structural Bank Risk (P/B < 1.0x)",
             ),
             ScreenerFilterStep(
                 step_number=4,
-                filter_name="4. Assimetria no Reverse DCF (Crescimento Implícito g_impl vs. Sustentável g_fund)",
+                filter_name="4. Reverse DCF Asymmetry (Market-Implied Growth g_impl vs. Sustainable g_fund)",
                 calculated_value=f"g_impl: {vm['reverse_dcf_g_impl_pct']:.1f}% vs g_fund: {vm['g_fund_projected_pct']:.1f}% (Spread {vm['reverse_dcf_spread_pp']:+.1f} pp)",
-                strict_criterion="g_impl <= g_fund (Preço atual não exige crescimento irrealista)",
+                strict_criterion="g_impl <= g_fund (Current price does not price in unrealistic growth)",
                 passed=f4_pass,
                 score_points=20 if f4_pass else 11,
                 max_points=20,
@@ -1163,13 +1163,13 @@ class DeepDiveEngine:
             ),
             ScreenerFilterStep(
                 step_number=5,
-                filter_name="5. Múltiplo Soberano (PEGY Setorial) & Margem de Segurança SOTP / DCF",
+                filter_name="5. Sovereign Multiple (Sector PEGY) & Margin of Safety SOTP / DCF",
                 calculated_value=f"{vm['primary_pegy_label']} ({vm['primary_pegy_status']}) | DCF (10% MoS): ${vm['dcf_fair_mos10_usd']:,.2f} | SOTP: ${vm['sotp_fair_price_usd']:,.2f}",
-                strict_criterion="PEGY na Faixa Ouro/Saudável (<= 1.35x) OU Upside Positivo no SOTP / DCF (10% MoS)",
+                strict_criterion="PEGY in Gold/Healthy Range (<= 1.35x) OR Positive Upside in SOTP / DCF (10% MoS)",
                 passed=f5_pass,
                 score_points=20 if f5_pass else 10,
                 max_points=20,
-                diagnostic_note=f"Preço Justo PEGY Ouro: ${vm['pegy_gold_fair_price_usd']:,.2f} | SOTP Upside: {vm['sotp_upside_pct']:+.1f}%",
+                diagnostic_note=f"PEGY Gold Fair Price: ${vm['pegy_gold_fair_price_usd']:,.2f} | SOTP Upside: {vm['sotp_upside_pct']:+.1f}%",
             ),
         ]
 
@@ -1177,32 +1177,36 @@ class DeepDiveEngine:
         passed_cnt = sum(1 for s in steps_eq if s.passed)
 
         if passed_cnt == 5:
-            regime = "REGIME 1 — APROVADO COM DESCONTO (Sinalização Consultiva de Compra / Acumulação)"
+            regime = "REGIME 1 — APPROVED WITH ASYMMETRY (Consultative Accumulation / Buy Signal)"
             verdict = (
-                f"Ativo Aprovado nos 5/5 Filtros Quantitativos e Forenses (Score {total_score}/100): "
-                f"{norm_ticker} apresenta qualidade contábil exemplar (Sloan {fh['sloan_ratio_pct']:+.1f}%, FCO/EBITDA {fh['fco_to_ebitda']:.2f}x), "
-                f"ROIC ({fh['roic_goodwill_pct']:.1f}%) muito acima do WACC ({fh['wacc_pct']:.2f}%) e assimetria favorável no Reverse DCF "
+                f"Asset Approved across 5/5 Quantitative and Forensic Filters (Score {total_score}/100): "
+                f"{norm_ticker} displays exemplary accounting quality (Sloan {fh['sloan_ratio_pct']:+.1f}%, CFO/EBITDA {fh['fco_to_ebitda']:.2f}x), "
+                f"ROIC ({fh['roic_goodwill_pct']:.1f}%) well above WACC ({fh['wacc_pct']:.2f}%) and favorable asymmetry in Reverse DCF "
                 f"(g_impl {vm['reverse_dcf_g_impl_pct']:.1f}% <= g_fund {vm['g_fund_projected_pct']:.1f}%) — "
-                f"Sugestão Consultiva: Sinalização de Compra / Elegível para Shannon Inflow (Regime 1)."
+                f"Advisory Signal: Buy Signal / Eligible for Shannon Inflow (Regime 1)."
             )
         elif f1_pass and f2_pass and f3_pass and (not f4_pass or not f5_pass):
-            regime = "REGIME 3 — ADICIONAR AO RADAR / MANTER (Qualidade Aprovada, mas Múltiplo Esticado)"
+            regime = "REGIME 3 — QUALITY RADAR / HOLD (Approved Fundamentals, Stretched Multiples)"
             verdict = (
-                f"Ativo passa com folga nos critérios de Qualidade Forense (Sloan {fh['sloan_ratio_pct']:+.1f}% e Conversão {fh['fco_to_ebitda']:.2f}x), "
-                f"ROIC ({fh['roic_goodwill_pct']:.1f}%) e Solvência ({passed_cnt}/5 filtros, Score {total_score}/100), "
-                f"mas falha no Reverse DCF / Valuation (g_impl {vm['reverse_dcf_g_impl_pct']:.1f}% vs g_fund {vm['g_fund_projected_pct']:.1f}% | {vm['primary_pegy_label']}) — "
-                f"Sugestão Consultiva: Adicionar ao Radar / Manter posição existente aguardando compressão de múltiplo (Regime 3)."
+                f"Asset safely clears Forensic Quality (Sloan {fh['sloan_ratio_pct']:+.1f}% and Cash Conversion {fh['fco_to_ebitda']:.2f}x), "
+                f"ROIC ({fh['roic_goodwill_pct']:.1f}%) and Solvency ({passed_cnt}/5 filters, Score {total_score}/100), "
+                f"but misses on Reverse DCF / Valuation (g_impl {vm['reverse_dcf_g_impl_pct']:.1f}% vs g_fund {vm['g_fund_projected_pct']:.1f}% | {vm['primary_pegy_label']}) — "
+                f"Advisory Signal: Add to Watchlist / Hold existing position awaiting multiple compression (Regime 3)."
             )
         elif passed_cnt >= 3:
-            regime = "REGIME 2 — MONITORAMENTO SELETIVO (Qualidade Moderada / Ajustes Necessários)"
+            regime = "REGIME 2 — SELECTIVE MONITORING (Moderate Quality / Adjustments Required)"
             failed_names = [s.filter_name for s in steps_eq if not s.passed]
             verdict = (
-                f"Ativo com {passed_cnt}/5 filtros aprovados (Score {total_score}/100). Requer atenção analítica nos pontos: "
-                f"{'; '.join(failed_names)} — Sugestão Consultiva: Monitorar evolução nos próximos trimestres (10-Q) antes de alocar (Regime 2)."
+                f"Asset clears {passed_cnt}/5 filters (Score {total_score}/100). Requires analytical tracking on: "
+                f"{'; '.join(failed_names)} — Advisory Signal: Monitor quarterly filings (10-Q) prior to capital deployment (Regime 2)."
             )
         else:
-            regime = "REGIME 4 — REPROVADO NO FUNIL FORENSE (Evitar Alocação)"
+            regime = "REGIME 4 — REJECTED IN FORENSIC FUNNEL (Avoid Allocation)"
             failed_names = [s.filter_name for s in steps_eq if not s.passed]
+            verdict = (
+                f"Asset Rejected ({passed_cnt}/5 filters, Score {total_score}/100) due to severe failures in: "
+                f"{'; '.join(failed_names)} — Advisory Signal: Strictly avoid allocation under Value Investing Framework (Regime 4)."
+            )
             verdict = (
                 f"Ativo Reprovado ({passed_cnt}/5 filtros, Score {total_score}/100) por violar critérios fundamentais do Framework: "
                 f"{'; '.join(failed_names)} — Sugestão Consultiva: Ficar de fora / Preservar capital (Regime 4)."

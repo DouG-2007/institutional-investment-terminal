@@ -34,7 +34,7 @@ from core.background_notifier import BackgroundNotifierEngine
 
 
 st.set_page_config(
-    page_title="Hub de Relatório Master 360° & Intervenção Ativa — Value Investing Framework",
+    page_title="360° Master Report Hub & Active Intervention — Value Investing Framework",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -209,11 +209,11 @@ def inject_clean_css() -> None:
 
 def _classify_badge(val_str: str) -> str:
     s = val_str.lower()
-    if any(k in s for k in ["ótimo", "ouro", "aprovado", "positivo", "boa", "segura", "sim", "sweet spot", "baixo", "100%", "blindada"]):
+    if any(k in s for k in ["ótimo", "ouro", "aprovado", "positivo", "boa", "segura", "sim", "sweet spot", "baixo", "100%", "blindada", "great", "optimal", "gold", "approved", "positive", "safe", "yes", "low", "shielded"]):
         return "green"
-    if any(k in s for k in ["ruim", "reprovado", "alerta", "crise", "recessão", "negativo", "cuidado", "veto", "alto risco"]):
+    if any(k in s for k in ["ruim", "reprovado", "alerta", "crise", "recessão", "negativo", "cuidado", "veto", "alto risco", "bad", "rejected", "warning", "crisis", "recession", "negative", "caution", "high risk", "no", "não"]):
         return "red"
-    if any(k in s for k in ["neutro", "ok", "misto", "moderado", "aguardar"]):
+    if any(k in s for k in ["neutro", "ok", "misto", "moderado", "aguardar", "neutral", "mixed", "moderate", "hold", "monitor"]):
         return "amber"
     return "blue"
 
@@ -350,23 +350,23 @@ def main() -> None:
         for a in db_assets_live
     )
 
-    # Sidebar enxuta: Patrimônio Base, Refresh Ao Vivo e Download Rápido do Relatório Único
+    # Lean sidebar: Base capital, Live Refresh & 1-Click Master PDF Download
     with st.sidebar:
-        st.markdown("### 🏛️ Controle do Relatório Master")
+        st.markdown("### 🏛️ Master Report Controls")
         capital_usd = st.number_input(
-            "Patrimônio Base para Cálculo (USD)",
+            "Base Calculation Capital (USD)",
             min_value=10_000.0,
             max_value=100_000_000.0,
             value=100_000.0,
             step=10_000.0,
             format="%.0f",
         )
-        if st.button("🔄 Atualizar Cotações Ao Vivo & Recalcular PDF", use_container_width=True, type="primary"):
+        if st.button("🔄 Refresh Live Quotes & Recalculate PDF", use_container_width=True, type="primary"):
             st.cache_data.clear()
             st.session_state["refresh_token"] += 1
             st.rerun()
 
-    with st.spinner("Compilando Relatório Master Multi-Completo 360° (7 Seções + Gráficos Vetoriais)..."):
+    with st.spinner("Compiling 360° Master Institutional Report (7 Sections + Vector Charts)..."):
         bundle = load_full_intelligence_bundle(
             capital_usd=capital_usd,
             db_sig=db_sig,
@@ -382,42 +382,42 @@ def main() -> None:
 
     with st.sidebar:
         st.download_button(
-            label="📥 BAIXAR RELATÓRIO MASTER 360° (.PDF)",
+            label="📥 DOWNLOAD 360° MASTER REPORT (.PDF)",
             data=master_pdf_bytes,
-            file_name="Relatorio_Master_Multi_Completo_360.pdf",
+            file_name="Master_Institutional_Report_360.pdf",
             mime="application/pdf",
             use_container_width=True,
             type="primary",
         )
         st.caption(
-            f"Última sincronização: **{macro.timestamp}** | "
-            f"**{len(portfolio.positions)} Ativos** na Carteira SQLite."
+            f"Last synchronization: **{macro.timestamp}** | "
+            f"**{len(portfolio.positions)} Holdings** in SQLite Portfolio."
         )
 
     st.markdown(
         f"""
         <div class="inst-banner">
-            <h1>🏛️ CENTRAL DO RELATÓRIO MASTER 360° &amp; MÓDULOS DE INTERVENÇÃO ATIVA</h1>
+            <h1>🏛️ 360° MASTER REPORT HUB &amp; ACTIVE INTERVENTION MODULES</h1>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     tabs = st.tabs([
-        "📄 1. Relatório Master Multi-Completo (.PDF)",
-        "⚙️ 2. Gestor da Carteira (CRUD SQLite)",
-        "🔎 3. Deep Dive Individual (Stock & Crypto Picker)",
-        "🎛️ 4. Simuladores (Inflow & LTV) & Notificador (ON/OFF)",
+        "📄 1. Master Consolidated Report (.PDF)",
+        "⚙️ 2. Portfolio Manager (SQLite CRUD)",
+        "🔎 3. Single-Asset Deep Dive (Stock & Crypto Picker)",
+        "🎛️ 4. Simulators (Inflow & LTV) & Notifier (ON/OFF)",
     ])
 
     # ==========================================================================
-    # ABA 1: CENTRAL DE EMISSÃO DO RELATÓRIO ÚNICO MULTI-COMPLETO (.PDF)
+    # TAB 1: MASTER CONSOLIDATED REPORT CENTRAL EMISSION (.PDF)
     # ==========================================================================
     with tabs[0]:
         render_kpi_card(
-            "Alocação Estrutural da Carteira",
-            f"{portfolio.total_crypto_pct:.0f}% Cripto  |  {portfolio.total_hard_assets_pct:.0f}% Hard-Assets",
-            f"Monitoramento Ativo de {len(portfolio.positions)} Posições da Carteira",
+            "Portfolio Structural Allocation",
+            f"{portfolio.total_crypto_pct:.0f}% Crypto  |  {portfolio.total_hard_assets_pct:.0f}% Hard-Assets",
+            f"Active Monitoring of {len(portfolio.positions)} Portfolio Positions",
             tone="blue",
         )
 
@@ -426,71 +426,71 @@ def main() -> None:
         c_dl1, c_dl2 = st.columns([2, 1])
         with c_dl1:
             st.download_button(
-                label="📥 BAIXAR RELATÓRIO MASTER MULTI-COMPLETO 360° (.PDF — TODAS AS 7 SEÇÕES)",
+                label="📥 DOWNLOAD 360° MASTER REPORT (.PDF — ALL 7 SECTIONS)",
                 data=master_pdf_bytes,
-                file_name="Relatorio_Master_Multi_Completo_360.pdf",
+                file_name="Master_Institutional_Report_360.pdf",
                 mime="application/pdf",
                 use_container_width=True,
                 type="primary",
                 key="btn_main_master_pdf",
             )
         with c_dl2:
-            if st.button("🔄 Recalcular com Cotações Ao Vivo Agora", use_container_width=True, key="btn_main_refresh"):
+            if st.button("🔄 Recalculate with Live Market Quotes", use_container_width=True, key="btn_main_refresh"):
                 st.cache_data.clear()
                 st.session_state["refresh_token"] += 1
                 st.rerun()
 
         render_section_header(
-            "Estrutura Interna do Relatório Master Multi-Completo 360° (.PDF)",
-            "Um único arquivo PDF dividido em 7 capítulos de alta densidade, sem perda de nenhum indicador ou método",
+            "Internal Architecture of the 360° Master Report (.PDF)",
+            "Single high-density PDF file structured across 7 chapters without losing any metric, methodology, or vector graph",
         )
 
         df_sections = pd.DataFrame([
             {
-                "Seção do PDF": "Seção 1",
-                "Título do Capítulo no Relatório Único": "Macroeconomia Global, Ciclos, Disrupções Tecnológicas & Geopolítica",
-                "Conteúdo Analítico & Gráficos Incluídos": "Indicadores Lagging (GDP, CPI, Fed Funds, Dívida/PIB, U3), Regra de Sahm pareada c/ Payroll & ICSA, SOS Indicator, PMI Services vs Mfg, Curva 10Y-2Y, M2 vs DXY, Matriz Geopolítica (10-K), Disrupções Tecnológicas nas Indústrias e Matriz de Sensibilidade Macro por Hard-Asset.",
+                "PDF Section": "Section 1",
+                "Chapter Title in Master Report": "Global Macroeconomics, Cycles, Tech Disruptions & Geopolitics",
+                "Analytical Content & Included Charts": "Lagging Indicators (GDP, CPI, Fed Funds, Debt/GDP, U3), Sahm's Rule paired with Payroll & ICSA, SOS Indicator, Services vs Mfg PMI, 10Y-2Y Yield Curve, M2 vs DXY, Geopolitical Impact Matrix (10-K), Industry Tech Disruptions & Macro Sensitivity Matrix by Hard-Asset.",
             },
             {
-                "Seção do PDF": "Seção 2",
-                "Título do Capítulo no Relatório Único": "Dados Analíticos da Carteira, Look-Through Fiel, Forense & Valuation Forward",
-                "Conteúdo Analítico & Gráficos Incluídos": "Posições da Carteira, Look-Through estrito das ações que você possui + Cesta Residual dos ETFs, Contabilidade Forense sem Altman Z (dividida em Parte A e Parte B de 5 colunas), Matriz CAGR 12 KPIs (dividida em Parte A e Parte B), Todos os 8 Métodos de Valuation Forward NTM (DCF NTM, Reverse DCF, Owner Earnings, Múltiplos Forward, EVA, PEGY Forward, Magic Formula e SOTP), Bancos da Carteira (JPM e NU).",
+                "PDF Section": "Section 2",
+                "Chapter Title in Master Report": "Portfolio Analytics, Faithful Look-Through, Forensics & Forward Valuation",
+                "Analytical Content & Included Charts": "Portfolio Positions, Strict Look-Through of owned equities + ETF Residual Basket, Forensic Accounting without Altman Z (Part A & Part B 5-column split), 12-KPI CAGR Matrix (Part A & B), All 8 Forward (NTM) Valuation Methods (NTM DCF, Reverse DCF, Owner Earnings, Forward Multiples, EVA, Forward PEGY, Magic Formula & SOTP), Portfolio Banks (JPM & NU).",
             },
             {
-                "Seção do PDF": "Seção 3",
-                "Título do Capítulo no Relatório Único": "Inteligência Analítica Cripto On-Chain & DeFi State of the Union",
-                "Conteúdo Analítico & Gráficos Incluídos": "Ciclo On-Chain (MVRV Z, NUPL, aSOPR, Pi Cycle, 200W SMA), Mineração (Hash Ribbon & MMC), Fluxos (Inflow, CDD, Stablecoins, HODL Waves), Tokenomics (NVM, NVT GC, P/F, TVL, Protocol Real Earnings, Real Yield), Bússola de Rotação de Ciclo (BTC -> ETH -> DeFi) e Radar de Novas Tecnologias & Mudanças Estruturais em Cripto (Síntese Fundamentalista On-Chain).",
+                "PDF Section": "Section 3",
+                "Chapter Title in Master Report": "Crypto On-Chain Analytics & DeFi State of the Union",
+                "Analytical Content & Included Charts": "On-Chain Cycle (MVRV Z, NUPL, aSOPR, Pi Cycle, 200W SMA), Mining Health (Hash Ribbon & MMC), Exchange Flows (Inflow, CDD, Stablecoins, HODL Waves), Tokenomics (NVM, NVT GC, P/F, TVL, Protocol Real Earnings, Real Yield), Cycle Rotation Compass (BTC -> ETH -> DeFi) & Tech Narrative Shifts (On-Chain Fundamental Synthesis).",
             },
             {
-                "Seção do PDF": "Seção 4",
-                "Título do Capítulo no Relatório Único": "Dossiê Forense Corporativo (SEC 10-K/10-Q/20-F, Porter, Calls Q&A & M&As)",
-                "Conteúdo Analítico & Gráficos Incluídos": "Auditoria Big Four & SOX 404(b), Decomposição MD&A (Volume, Preço, FX, Backlog, CAPEX), Riscos Item 1A, Footnotes Forenses (Litígios, SBC, ASC 606, Dívida), Moats (4 Pilares), 5 Forças de Porter, Common Size vs Pares, Filtro de Sinal vs Ruído em Earnings Calls (Falas de CEO/CFO e Confrontos no Q&A), Dossiê Completo de M&As, Diluição, Goodwill e Antitruste + Fatos Relevantes 8-K/Form 4.",
+                "PDF Section": "Section 4",
+                "Chapter Title in Master Report": "In-Depth Corporate Forensic Dossier (SEC 10-K/10-Q/20-F, Porter, Calls Q&A & M&As)",
+                "Analytical Content & Included Charts": "Big Four Audit & SOX 404(b), MD&A Breakdown (Volume, Price, FX, Backlog, CAPEX), Item 1A Risks, Forensic Footnotes (Litigation, SBC, ASC 606, Debt), Moats (4 Pillars), Porter's 5 Forces, Common Size vs Peers, Signal vs Noise Filter in Earnings Calls (CEO/CFO statements and Q&A clashes), Full M&A Dossier, Dilution, Goodwill & Antitrust + Form 8-K/Form 4 Insider Trading.",
             },
             {
-                "Seção do PDF": "Seção 5",
-                "Título do Capítulo no Relatório Único": "Dossiê Técnico de Protocolos Cripto (Whitepapers, Core Devs & Unlocks 30/60/90d)",
-                "Conteúdo Analítico & Gráficos Incluídos": "Síntese Técnica de White Papers, Consenso e Value Accrual, Engenharia GitHub (Commits 4w e Active Devs), Governança DeepDAO, Token Sniffer e Auditorias, Sinais Internos de Core Devs/Founders, Upgrades de Rede (EIPs/PIPs) e Cronograma Forense de Unlocks (30/60/90 dias) com Preço Teórico Pós-Diluição e Concentração de Baleias/VCs.",
+                "PDF Section": "Section 5",
+                "Chapter Title in Master Report": "Crypto Protocols Technical Dossier (Whitepapers, Core Devs & Unlocks 30/60/90d)",
+                "Analytical Content & Included Charts": "Technical Synthesis of White Papers, Consensus Architecture and Value Accrual, GitHub Engineering (4w Commits & Active Devs), DeepDAO Governance, Token Sniffer & Audit Reports, Insider Core Dev/Founder Signals, Network Upgrades (EIPs/PIPs) & Forensic Unlock Schedule (30/60/90 days) with Theoretical Post-Dilution Price.",
             },
             {
-                "Seção do PDF": "Seção 6",
-                "Título do Capítulo no Relatório Único": "Radar Executivo de Oportunidades — Screener Quantitativo e Forense",
-                "Conteúdo Analítico & Gráficos Incluídos": "Funil 1 de Ações Globais (5 Filtros Estritos: Sloan, FCO/EBITDA, ROIC vs WACC, Solvência CR & Cobertura de Juros, Reverse DCF & PEGY Forward) e Funil 2 de Criptoativos (Supply >= 65%, Unlocks <= 2.5%/mês, Sniffer >= 85, Active Devs >= 40 & Real Earnings > 0, MVRV Z <= 2.0).",
+                "PDF Section": "Section 6",
+                "Chapter Title in Master Report": "Executive Opportunity Radar — Quantitative & Forensic Screener",
+                "Analytical Content & Included Charts": "Global Stocks Funnel (5 Strict Filters: Sloan, CFO/EBITDA, ROIC vs WACC, Solvency CR & Interest Coverage, Reverse DCF & Forward PEGY) and Crypto Funnel (Supply >= 65%, Unlocks <= 2.5%/mo, Sniffer >= 85, Active Devs >= 40 & Real Earnings > 0, MVRV Z <= 2.0).",
             },
             {
-                "Seção do PDF": "Seção 7",
-                "Título do Capítulo no Relatório Único": "Governança de Risco, Alavancagem Convexa LTV, Liquidez ADTV & Timing Consultivo",
-                "Conteúdo Analítico & Gráficos Incluídos": "Sharpe, Sortino, Calmar Ratio, VIX, Liquidez ADTV (<1%), Painel LTV Convexo (IBKR Box Spreads + Stress-Test Aave V3), As 7 Regras Consultivas de Timing por Classe de Ativo, Posicionamento Consultivo dos 20 Ativos da Carteira, Qualificação Shannon Inflow e Tax-Drag Hurdle Rate.",
+                "PDF Section": "Section 7",
+                "Chapter Title in Master Report": "Risk Governance, Convex LTV Leverage, ADTV Liquidity & Advisory Timing",
+                "Analytical Content & Included Charts": "Sharpe, Sortino, Calmar Ratio, VIX, ADTV Liquidity (<1%), Convex LTV Panel (IBKR Box Spreads + Aave V3 Stress-Test), The 7 Advisory Timing Rules by Asset Class, Advisory Positioning of Portfolio Holdings, Shannon Inflow Rebalancing Qualification & Tax-Drag Hurdle Rate.",
             },
         ])
         render_clean_table(df_sections)
 
     # ==========================================================================
-    # ABA 2: GESTOR DINÂMICO DE PORTFÓLIO (CRUD SQLITE)
+    # TAB 2: DYNAMIC PORTFOLIO MANAGER (SQLITE CRUD)
     # ==========================================================================
     with tabs[1]:
         render_section_header(
-            "Gestor Dinâmico de Portfólio (CRUD Persistente em SQLite)",
-            "Adicione, edite ou remova ativos da carteira; toda alteração recalcula automaticamente o Relatório Master 360° (.PDF)",
+            "Dynamic Portfolio Manager (Persistent SQLite CRUD)",
+            "Add, edit, or remove portfolio assets; every change automatically recalculates the 360° Master Report (.PDF)",
         )
 
         total_w = portfolio.target_weight_sum_pct
@@ -499,7 +499,7 @@ def main() -> None:
         st.markdown(
             f"""
             <div class="insight-callout" style="border-left-color:{bar_col};">
-                <strong>Soma Atual dos Pesos-Alvo no SQLite: {total_w:.2f}%</strong> — {html.escape(portfolio.weight_validation_message)}
+                <strong>Current SQLite Target Weight Sum: {total_w:.2f}%</strong> — {html.escape(portfolio.weight_validation_message)}
                 <div style="width:100%; background:#1E293B; height:10px; border-radius:5px; margin-top:6px; overflow:hidden;">
                     <div style="width:{min(100.0, total_w):.1f}%; background:{bar_col}; height:100%;"></div>
                 </div>
@@ -511,39 +511,39 @@ def main() -> None:
         col_crud1, col_crud2 = st.columns([2, 1])
         with col_crud1:
             with st.form("form_upsert_asset", clear_on_submit=False):
-                st.markdown("##### ➕ Adicionar Novo Ativo ou Editar Ativo Existente")
+                st.markdown("##### ➕ Add New Asset or Edit Existing Asset")
                 f1, f2, f3 = st.columns(3)
                 with f1:
-                    in_ticker = st.text_input("Ticker Oficial (ex: NVDA, COST, BTC-USD)", value="NVDA")
-                    in_name = st.text_input("Nome da Empresa / Protocolo / ETF", value="NVIDIA Corporation")
+                    in_ticker = st.text_input("Official Ticker (e.g., NVDA, COST, BTC-USD)", value="NVDA")
+                    in_name = st.text_input("Company / Protocol / ETF Name", value="NVIDIA Corporation")
                 with f2:
-                    in_class = st.selectbox("Classe do Ativo", ["Ação", "ETF", "Cripto", "Altcoin"])
+                    in_class = st.selectbox("Asset Class", ["Stock", "ETF", "Crypto", "Altcoin"])
                     in_sector = st.selectbox(
-                        "Vertical Setorial do Framework",
+                        "Framework Sector Vertical",
                         [
-                            "High-Growth Tech & Infra IA",
-                            "Big Tech Cash Cow / Monopólio",
-                            "Banco Global / Instituição Financeira",
-                            "Varejo Defensivo (SSS)",
-                            "Cíclica / Defesa / Indústria",
-                            "ETF Índice Base (S&P 500 / Nasdaq / Setorial)",
-                            "ETF Alavancado 2x (QLD)",
-                            "Bitcoin Reserva Soberana PoW",
+                            "High-Growth Tech & AI Infra",
+                            "Big Tech Cash Cow / Monopoly",
+                            "Global Bank / Financial Institution",
+                            "Defensive Retail (SSS)",
+                            "Cyclical / Defense / Industrial",
+                            "Index ETF (S&P 500 / Nasdaq / Sector)",
+                            "2x Leveraged ETF (QLD)",
+                            "Bitcoin Sovereign PoW Reserve",
                             "Smart Contract Layer-1 (ETH/SOL)",
                             "DeFi Blue-Chip / Real Yield (PENDLE/MKR/UNI)",
-                            "Oráculo / Interoperabilidade (LINK)",
+                            "Oracle / Interoperability (LINK)",
                         ],
                     )
                 with f3:
-                    in_weight = st.number_input("Peso-Alvo na Carteira (%)", min_value=0.10, max_value=50.0, value=5.0, step=0.25)
-                    in_avg_px = st.number_input("Preço Médio de Compra (USD)", min_value=0.0, max_value=500_000.0, value=88.0, step=1.0)
-                    in_ltv = st.checkbox("Elegível como Colateral LTV Turbo?", value=True)
+                    in_weight = st.number_input("Target Portfolio Weight (%)", min_value=0.10, max_value=50.0, value=5.0, step=0.25)
+                    in_avg_px = st.number_input("Average Purchase Price (USD)", min_value=0.0, max_value=500_000.0, value=88.0, step=1.0)
+                    in_ltv = st.checkbox("Eligible as LTV Turbo Collateral?", value=True)
 
                 in_role = st.text_input(
-                    "Papel Estrutural na Carteira",
-                    value="Monopólio de GPUs de IA e infraestrutura de computação acelerada CUDA.",
+                    "Structural Portfolio Role",
+                    value="AI GPU computing monopoly and CUDA accelerated computing infrastructure.",
                 )
-                if st.form_submit_button("💾 Salvar / Atualizar Ativo no SQLite", use_container_width=True, type="primary"):
+                if st.form_submit_button("💾 Save / Update Asset in SQLite", use_container_width=True, type="primary"):
                     port_eng_live.upsert_asset(
                         ticker=in_ticker,
                         name=in_name,
@@ -556,65 +556,65 @@ def main() -> None:
                     )
                     st.cache_data.clear()
                     st.session_state["refresh_token"] += 1
-                    st.success(f"Ativo {in_ticker.upper()} salvo com sucesso no SQLite!")
+                    st.success(f"Asset {in_ticker.upper()} successfully saved in SQLite!")
                     st.rerun()
 
         with col_crud2:
-            st.markdown("##### 🗑️ Remover Ativo ou Normalizar 100%")
+            st.markdown("##### 🗑️ Remove Asset or Normalize to 100%")
             all_tks = [p.ticker for p in portfolio.positions]
-            del_tk = st.selectbox("Selecionar Ativo para Remover", options=all_tks)
-            if st.button("🗑️ Remover Ativo Selecionado", use_container_width=True):
+            del_tk = st.selectbox("Select Asset to Remove", options=all_tks)
+            if st.button("🗑️ Remove Selected Asset", use_container_width=True):
                 port_eng_live.delete_asset(del_tk)
                 st.cache_data.clear()
                 st.session_state["refresh_token"] += 1
-                st.warning(f"Ativo {del_tk} removido da carteira.")
+                st.warning(f"Asset {del_tk} removed from portfolio.")
                 st.rerun()
 
             st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
-            st.caption("Caso a soma dos pesos-alvo esteja diferente de 100.00%, clique abaixo para reescalonar proporcionalmente:")
-            if st.button("⚖️ Normalizar Pesos Automaticamente para 100.00%", use_container_width=True):
+            st.caption("If the sum of target weights differs from 100.00%, click below to rescale proportionally:")
+            if st.button("⚖️ Normalize Weights Automatically to 100.00%", use_container_width=True):
                 port_eng_live.normalize_weights_to_100()
                 st.cache_data.clear()
                 st.session_state["refresh_token"] += 1
-                st.success("Pesos normalizados exatamente para 100.00%!")
+                st.success("Weights normalized exactly to 100.00%!")
                 st.rerun()
 
         render_section_header(
-            f" Quadro de Posições Ativas na Carteira ({len(portfolio.positions)} Ativos no SQLite)",
-            "Tabela enxuta de 7 colunas para conferência rápida de Pesos, Preço Médio, Spot, P&L e Colateral LTV",
+            f"Active Portfolio Holdings Ledger ({len(portfolio.positions)} Assets in SQLite)",
+            "Concise 7-column table for monitoring Weights, Cost Basis, Spot Quotes, P&L, and LTV Collateral",
         )
         df_ledger = pd.DataFrame([
             {
                 "Ticker": p.ticker,
-                "Ativo": p.name,
-                "Categoria": p.category,
-                "Peso Alvo vs. Atual": f"{p.target_weight_pct:.2f}% (Atual {p.current_weight_pct:.2f}% | Drift {p.weight_drift_pp:+.2f}pp)",
-                "PM -> Preço Spot (USD)": f"${p.avg_buy_price_usd:,.2f} -> ${p.current_price_usd:,.2f} (${p.allocated_usd:,.0f})",
-                "P&L Latente": f"{p.pnl_pct:+.1f}% (USD {p.pnl_usd:+,.0f})",
-                "Colateral LTV": "SIM" if p.ltv_turbo_eligible else "NÃO",
+                "Asset": p.name,
+                "Category": p.category,
+                "Target vs. Current Weight": f"{p.target_weight_pct:.2f}% (Current {p.current_weight_pct:.2f}% | Drift {p.weight_drift_pp:+.2f}pp)",
+                "Avg Buy -> Spot Price (USD)": f"${p.avg_buy_price_usd:,.2f} -> ${p.current_price_usd:,.2f} (${p.allocated_usd:,.0f})",
+                "Unrealized P&L": f"{p.pnl_pct:+.1f}% (USD {p.pnl_usd:+,.0f})",
+                "LTV Collateral": "YES" if p.ltv_turbo_eligible else "NO",
             }
             for p in portfolio.positions
         ])
-        render_clean_table(df_ledger, badge_cols=["Colateral LTV"])
+        render_clean_table(df_ledger, badge_cols=["LTV Collateral"])
 
     # ==========================================================================
-    # ABA 3: DEEP DIVE INDIVIDUAL (STOCK & CRYPTO PICKER SOB DEMANDA)
+    # TAB 3: SINGLE-ASSET DEEP DIVE (ON-DEMAND STOCK & CRYPTO PICKER)
     # ==========================================================================
     with tabs[2]:
         render_section_header(
-            "Deep Dive Analyzer Individual (Stock, ETF & Crypto Picker)",
-            "Pesquise qualquer ativo do mercado ou da sua carteira para gerar um diagnóstico completo + PDF Individual em 1 clique",
+            "Single-Asset Deep Dive Analyzer (Stock, ETF & Crypto Picker)",
+            "Search any market asset or portfolio holding to generate an instant institutional audit + 1-Click Individual PDF Dossier",
         )
 
         col_s1, col_s2, col_s3 = st.columns([2, 2, 1])
         with col_s1:
             typed_tk = st.text_input(
-                "Digite qualquer Ticker (Ex: NVDA, ASML, TSM, MELI, COST, LLY, JPM, NU, BTC, ETH, PENDLE, LINK, SOL)",
+                "Enter any Ticker (e.g., NVDA, ASML, TSM, MELI, COST, LLY, JPM, NU, BTC, ETH, PENDLE, LINK, SOL)",
                 value=st.session_state["deep_dive_ticker"],
             )
         with col_s2:
             quick_pick = st.selectbox(
-                "Ou selecione rapidamente um Ativo da Carteira / Radar:",
+                "Or quickly pick a Portfolio / Watchlist Asset:",
                 options=[
                     "NVDA", "AAPL", "MSFT", "ASML", "TSM", "JPM", "MELI", "AVGO", "MA", "NU",
                     "BTC-USD", "ETH-USD", "PENDLE-USD", "LINK-USD", "MKR-USD", "UNI-USD",
@@ -624,7 +624,7 @@ def main() -> None:
             )
         with col_s3:
             st.markdown("<div style='height:1.72rem;'></div>", unsafe_allow_html=True)
-            if st.button("🔎 Executar Deep Dive", use_container_width=True, type="primary"):
+            if st.button("🔎 Run Deep Dive", use_container_width=True, type="primary"):
                 st.session_state["deep_dive_ticker"] = typed_tk.strip().upper() or quick_pick
 
         active_dd_tk = typed_tk.strip().upper() if typed_tk.strip() else quick_pick
@@ -639,44 +639,44 @@ def main() -> None:
         d1, d2, d3, d4 = st.columns(4)
         with d1:
             render_kpi_card(
-                f"Ativo Analisado ({dd_res.asset_class})",
+                f"Analyzed Asset ({dd_res.asset_class})",
                 dd_res.normalized_ticker,
                 dd_res.framework_category_label,
                 tone="blue",
             )
         with d2:
             render_kpi_card(
-                "Múltiplo Soberano Forward",
+                "Forward Sovereign Multiple",
                 dd_res.sovereign_multiple_value,
                 dd_res.sovereign_multiple_status,
                 tone="emerald",
             )
         with d3:
             render_kpi_card(
-                "Score no Funil de 5 Filtros",
+                "5-Filter Funnel Score",
                 f"{dd_res.screener_score_0_100} / 100 pts",
                 dd_res.regime_classification.split("—")[0].strip(),
                 tone="purple",
             )
         with d4:
-            port_status_str = "NA CARTEIRA ATUAL" if dd_res.in_current_portfolio else "ATIVO EXTERNO (RADAR)"
+            port_status_str = "IN CURRENT PORTFOLIO" if dd_res.in_current_portfolio else "WATCHLIST (EXTERNAL)"
             render_kpi_card(
-                "Status no Portfólio",
+                "Portfolio Status",
                 port_status_str,
-                "Dossiê Individual PDF Pronto",
+                "Individual PDF Dossier Ready",
                 tone="amber",
             )
 
         st.markdown(
-            f'<div class="insight-callout"><strong>Veredito Consultivo Automatizado ({html.escape(dd_res.normalized_ticker)}):</strong> '
+            f'<div class="insight-callout"><strong>Automated Advisory Verdict ({html.escape(dd_res.normalized_ticker)}):</strong> '
             f'{html.escape(dd_res.automated_consultative_verdict)}</div>',
             unsafe_allow_html=True,
         )
 
         st.download_button(
-            label=f"📥 BAIXAR DOSSIÊ DEEP DIVE INDIVIDUAL DE {dd_res.normalized_ticker} (.PDF)",
+            label=f"📥 DOWNLOAD INDIVIDUAL DEEP DIVE DOSSIER FOR {dd_res.normalized_ticker} (.PDF)",
             data=dd_pdf_bytes,
-            file_name=f"Dossie_Deep_Dive_{dd_res.normalized_ticker}.pdf",
+            file_name=f"Deep_Dive_Dossier_{dd_res.normalized_ticker}.pdf",
             mime="application/pdf",
             use_container_width=True,
             type="primary",
@@ -684,17 +684,17 @@ def main() -> None:
         )
 
         render_section_header(
-            f"Funil Estrito de 5 Filtros — {dd_res.normalized_ticker} (Score {dd_res.screener_score_0_100}/100)",
-            "Avaliação passo a passo sem texto espremido e sem Altman Z-Score",
+            f"Strict 5-Filter Funnel — {dd_res.normalized_ticker} (Score {dd_res.screener_score_0_100}/100)",
+            "Step-by-step rigorous evaluation without text truncation and without Altman Z-Score",
         )
         df_funnel = pd.DataFrame([
             {
-                "Etapa": f"Filtro {s.step_number}",
-                "Critério Avaliado": s.filter_name,
-                "Valor Calculado": s.calculated_value,
-                "Regra Estrita do Framework": s.strict_criterion,
-                "Status": "APROVADO" if s.passed else "REPROVADO",
-                " Diagnóstico": f"{s.score_points}/{s.max_points} pts — {s.diagnostic_note}",
+                "Step": f"Filter {s.step_number}",
+                "Evaluated Metric": s.filter_name,
+                "Calculated Value": s.calculated_value,
+                "Strict Framework Rule": s.strict_criterion,
+                "Status": "APPROVED" if s.passed else "REJECTED",
+                "Diagnostic": f"{s.score_points}/{s.max_points} pts — {s.diagnostic_note}",
             }
             for s in dd_res.screener_filters_breakdown
         ])
@@ -705,32 +705,32 @@ def main() -> None:
             fh_i = eq_i.forensic_health
             vm_i = eq_i.valuation_methods
             render_section_header(
-                f"Resumo de Valuation Multi-Métodos Forward (NTM) & Saúde Forense — {dd_res.normalized_ticker}",
-                "Tabelas amplas de 5 colunas para leitura imediata",
+                f"Forward (NTM) Multi-Method Valuation & Forensic Health Summary — {dd_res.normalized_ticker}",
+                "Spacious 5-column table for immediate executive reading",
             )
             df_dd_val = pd.DataFrame([
                 {
-                    "Preço Spot & WACC": f"${eq_i.current_price:,.2f} (WACC {vm_i['wacc_capm_pct']:.2f}%)",
-                    "DCF Forward (10% MoS)": f"${vm_i['dcf_fair_mos10_usd']:,.2f} ({vm_i['dcf_upside_pct']:+.1f}%)",
+                    "Spot Price & WACC": f"${eq_i.current_price:,.2f} (WACC {vm_i['wacc_capm_pct']:.2f}%)",
+                    "Forward DCF (10% MoS)": f"${vm_i['dcf_fair_mos10_usd']:,.2f} ({vm_i['dcf_upside_pct']:+.1f}%)",
                     "Reverse DCF (g_impl vs g_fund)": f"g_impl {vm_i['reverse_dcf_g_impl_pct']:.1f}% vs g_fund {vm_i['g_fund_projected_pct']:.1f}%",
-                    "PEGY Forward (NTM)": f"{vm_i['primary_pegy_label']} ({vm_i['primary_pegy_status']})",
+                    "Forward PEGY (NTM)": f"{vm_i['primary_pegy_label']} ({vm_i['primary_pegy_status']})",
                     "SOTP & ROIC vs WACC": f"SOTP ${vm_i['sotp_fair_price_usd']:,.2f} ({vm_i['sotp_upside_pct']:+.1f}%) | ROIC {fh_i['roic_goodwill_pct']:.1f}%",
                 }
             ])
             render_clean_table(df_dd_val)
 
     # ==========================================================================
-    # ABA 4: SIMULADORES INTERATIVOS (SHANNON INFLOW & STRESS-TEST LTV) & NOTIFICADOR (ON/OFF)
+    # TAB 4: INTERACTIVE SIMULATORS (SHANNON INFLOW & LTV STRESS-TEST) & NOTIFIER
     # ==========================================================================
     with tabs[3]:
         render_section_header(
-            "1. Simulador Interativo de Novo Aporte (Shannon's Demon Inflow Rebalancing)",
-            "Calcule como distribuir dinheiro novo exclusivamente nos ativos em faixa de acumulação e abaixo do peso-alvo (sem vender vencedores)",
+            "1. Interactive Cash Inflow Simulator (Shannon's Demon Inflow Rebalancing)",
+            "Calculate how to allocate fresh capital exclusively across accumulation-range assets below target weight (without selling winners)",
         )
         col_inf1, col_inf2 = st.columns([1, 2])
         with col_inf1:
             inflow_usd = st.number_input(
-                "Valor do Novo Aporte em Caixa (USD)",
+                "Fresh Cash Inflow Amount (USD)",
                 min_value=500.0,
                 max_value=5_000_000.0,
                 value=10_000.0,
@@ -743,35 +743,35 @@ def main() -> None:
 
         with col_inf2:
             st.markdown(
-                f'<div class="insight-callout"><strong>{len(eligible_rows)} Ativos Qualificados para Receber o Novo Aporte de USD {inflow_usd:,.0f}:</strong> '
-                f'Alocação proporcional ao peso-alvo nos ativos que cumprem simultaneamente os critérios de desconto fundamentalista/on-chain.</div>',
+                f'<div class="insight-callout"><strong>{len(eligible_rows)} Qualified Assets to Receive Fresh Inflow of USD {inflow_usd:,.0f}:</strong> '
+                f'Proportional allocation by target weight across assets simultaneously satisfying fundamental/on-chain discount criteria.</div>',
                 unsafe_allow_html=True,
             )
 
         df_inflow = pd.DataFrame([
             {
                 "Ticker": r.asset_ticker,
-                "Ativo": r.asset_name,
+                "Asset": r.asset_name,
                 "Vertical": r.framework_category,
-                "Indicador Atual": r.primary_indicator_current,
-                "Status Consultivo": "ELEGÍVEL INFLOW" if r.shannon_inflow_eligible else "MONITORAR",
-                "Aporte Sugerido (USD)": f"USD {(inflow_usd * (r.target_weight_pct / total_w_elig)):,.2f} ({(r.target_weight_pct / total_w_elig)*100:.1f}% do Aporte)",
+                "Current Metric": r.primary_indicator_current,
+                "Advisory Status": "INFLOW ELIGIBLE" if r.shannon_inflow_eligible else "MONITOR",
+                "Suggested Inflow (USD)": f"USD {(inflow_usd * (r.target_weight_pct / total_w_elig)):,.2f} ({(r.target_weight_pct / total_w_elig)*100:.1f}% of Inflow)",
             }
             for r in eligible_rows
         ])
-        render_clean_table(df_inflow, badge_cols=["Status Consultivo"])
+        render_clean_table(df_inflow, badge_cols=["Advisory Status"])
 
         render_section_header(
-            "2. Simulador Interativo de Stress-Test de Alavancagem Convexa (LTV & Health Factor Aave V3)",
-            "Teste choques severos de mercado nas suas Ações/ETFs e no seu BTC para auditar a folga contra o Hard-Cap de 50% LTV",
+            "2. Interactive Convex Leverage Stress-Test Simulator (LTV & Aave V3 Health Factor)",
+            "Simulate severe market drawdowns on your Stocks/ETFs and Bitcoin to audit your safety cushion against the 50% LTV Hard-Cap",
         )
         s_col1, s_col2, s_col3 = st.columns(3)
         with s_col1:
-            shock_eq_pct = st.slider("Choque Simulado nas Ações/ETFs (%)", min_value=-60, max_value=20, value=-25, step=5)
+            shock_eq_pct = st.slider("Simulated Shock on Stocks/ETFs (%)", min_value=-60, max_value=20, value=-25, step=5)
         with s_col2:
-            shock_btc_pct = st.slider("Choque Simulado no Bitcoin (%)", min_value=-75, max_value=30, value=-40, step=5)
+            shock_btc_pct = st.slider("Simulated Shock on Bitcoin (%)", min_value=-75, max_value=30, value=-40, step=5)
         with s_col3:
-            sim_debt_pct = st.slider("LTV Inicial antes do Choque (%)", min_value=0, max_value=35, value=20, step=2)
+            sim_debt_pct = st.slider("Initial LTV Prior to Shock (%)", min_value=0, max_value=35, value=20, step=2)
 
         collat_stocks_usd = capital_usd * (portfolio.ltv_eligible_stocks_weight_pct / 100.0)
         collat_btc_usd = capital_usd * (portfolio.ltv_eligible_btc_weight_pct / 100.0)
@@ -790,21 +790,21 @@ def main() -> None:
 
         l1, l2, l3, l4 = st.columns(4)
         with l1:
-            render_kpi_card("Dívida Simulada", f"USD {sim_debt_usd:,.0f}", f"LTV Inicial: {sim_debt_pct}%", tone="blue")
+            render_kpi_card("Simulated Debt", f"USD {sim_debt_usd:,.0f}", f"Initial LTV: {sim_debt_pct}%", tone="blue")
         with l2:
-            render_kpi_card("Patrimônio Pós-Choque", f"USD {stressed_portfolio_usd:,.0f}", f"Eq {shock_eq_pct}% | BTC {shock_btc_pct}%", tone="amber")
+            render_kpi_card("Post-Shock Portfolio", f"USD {stressed_portfolio_usd:,.0f}", f"Eq {shock_eq_pct}% | BTC {shock_btc_pct}%", tone="amber")
         with l3:
             tone_ltv = "emerald" if resulting_ltv_pct <= 35.0 else "amber"
-            render_kpi_card("LTV Resultante Pós-Choque", f"{resulting_ltv_pct:.1f}%", "Hard-Cap de Segurança: 50.0%", tone=tone_ltv)
+            render_kpi_card("Post-Shock Resulting LTV", f"{resulting_ltv_pct:.1f}%", "Safety Hard-Cap: 50.0%", tone=tone_ltv)
         with l4:
-            render_kpi_card("Health Factor Estimado", f"{min(9.99, resulting_hf):.2f}", "Liquidação apenas em HF = 1.00", tone="purple")
+            render_kpi_card("Estimated Health Factor", f"{min(9.99, resulting_hf):.2f}", "Liquidation only at HF = 1.00", tone="purple")
 
         # ----------------------------------------------------------------------
-        # 3. CHAVE LIGA / DESLIGA (ON/OFF) DO NOTIFICADOR PASSIVO MATINAL
+        # 3. BACKGROUND MORNING NOTIFIER MASTER SWITCH (ON / OFF)
         # ----------------------------------------------------------------------
         render_section_header(
-            "3. Notificador Passivo Matinal em Background (Chave Mestra Liga / Desliga — ON/OFF)",
-            "Mantenha DESLIGADO (OFF) enquanto não estiver investindo ativamente; ligue (ON) quando desejar receber alertas matinais",
+            "3. Background Morning Notifier (Master Switch — ON / OFF)",
+            "Keep OFF while not actively investing; toggle ON when you want daily automated morning alerts",
         )
         notifier_eng = BackgroundNotifierEngine()
         notif_cfg = notifier_eng.load_config()
@@ -812,33 +812,33 @@ def main() -> None:
         n_col1, n_col2 = st.columns([1, 2])
         with n_col1:
             enabled_now = st.toggle(
-                "🔔 Ativar Notificador Passivo Matinal (ON / OFF)",
+                "🔔 Enable Morning Background Notifier (ON / OFF)",
                 value=bool(notif_cfg.enabled),
-                help="Quando desligado (OFF), nenhum alerta externo é disparado.",
+                help="When turned OFF, no external alerts are dispatched.",
             )
-            sched_time = st.text_input("Horário Diário de Varredura", value=notif_cfg.schedule_time_hhmm)
-            tg_token = st.text_input("Telegram Bot Token (Opcional — você preenche se quiser)", value=notif_cfg.telegram_bot_token, type="password")
-            tg_chat = st.text_input("Telegram Chat ID (Opcional)", value=notif_cfg.telegram_chat_id)
-            dc_hook = st.text_input("Discord Webhook URL (Opcional)", value=notif_cfg.discord_webhook_url, type="password")
+            sched_time = st.text_input("Daily Scan Time (HH:MM)", value=notif_cfg.schedule_time_hhmm)
+            tg_token = st.text_input("Telegram Bot Token (Optional — fill when ready)", value=notif_cfg.telegram_bot_token, type="password")
+            tg_chat = st.text_input("Telegram Chat ID (Optional)", value=notif_cfg.telegram_chat_id)
+            dc_hook = st.text_input("Discord Webhook URL (Optional)", value=notif_cfg.discord_webhook_url, type="password")
 
-            if st.button("💾 Salvar Estado do Notificador (ON/OFF)", use_container_width=True, type="primary"):
+            if st.button("💾 Save Notifier Settings (ON/OFF)", use_container_width=True, type="primary"):
                 notif_cfg.enabled = enabled_now
                 notif_cfg.schedule_time_hhmm = sched_time
                 notif_cfg.telegram_bot_token = tg_token
                 notif_cfg.telegram_chat_id = tg_chat
                 notif_cfg.discord_webhook_url = dc_hook
                 notifier_eng.save_config(notif_cfg)
-                st.success(f"Estado do Notificador salvo: {'LIGADO (ON)' if enabled_now else 'DESLIGADO (OFF — Modo Silencioso)'}!")
+                st.success(f"Notifier state saved: {'ENABLED (ON)' if enabled_now else 'DISABLED (OFF — Silent Mode)'}!")
                 st.rerun()
 
         with n_col2:
-            status_badge = "LIGADO (ON — Monitoramento Ativo)" if notif_cfg.enabled else "DESLIGADO (OFF — Modo Silencioso / Pré-Investimento)"
+            status_badge = "ENABLED (ON — Active Monitoring)" if notif_cfg.enabled else "DISABLED (OFF — Silent Mode / Pre-Investment)"
             st.markdown(
                 f"""
                 <div class="insight-callout">
-                    <strong>Status Atual da Chave Mestra:</strong> <code>{status_badge}</code><br>
-                    • <strong>Por que os campos de Telegram/Discord existem?</strong> O aplicativo <strong>não conhece nem acessa</strong> seu Telegram automaticamente — esses campos ficam em branco e desligados por padrão caso no futuro você mesmo queira colar um Webhook do Discord ou Bot do Telegram.<br>
-                    • Enquanto a chave estiver em <strong>OFF</strong>, o sistema permanece 100% silencioso e você consome tudo apenas quando quiser clicando no botão do <strong>Relatório Master Multi-Completo (.PDF)</strong> na Aba 1.
+                    <strong>Current Master Switch Status:</strong> <code>{status_badge}</code><br>
+                    • <strong>Why do Telegram/Discord fields exist?</strong> The terminal <strong>does not know or access</strong> your Telegram automatically — these fields remain blank and disabled by default until you optionally paste a Discord Webhook or Telegram Bot credentials.<br>
+                    • As long as this switch is <strong>OFF</strong>, the engine remains 100% silent and you consume reports on-demand via the <strong>360° Master Report (.PDF)</strong> button in Tab 1.
                 </div>
                 """,
                 unsafe_allow_html=True,

@@ -1400,9 +1400,9 @@ EQUITY_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
 
 # Dados de pares bancários globais para o Scatter Plot obrigatório: P/TBV vs. ROE para Bancos
 GLOBAL_BANKS_SCATTER_DATA: List[Dict[str, Any]] = [
-    {"Ticker": "JPM", "Banco": "JPMorgan Chase & Co. (Carteira — Money Center Leader)", "ROE_pct": 18.2, "PTBV": 2.48, "PEGY_Fin": 1.24, "PB": 2.02, "Grupo": "Carteira"},
-    {"Ticker": "NU", "Banco": "Nu Holdings / Nubank (Carteira — High-ROTE Digital Bank)", "ROE_pct": 28.5, "PTBV": 6.80, "PEGY_Fin": 0.78, "PB": 6.45, "Grupo": "Carteira"},
-    {"Ticker": "MÉDIA-SETOR", "Banco": "Média Setorial Bancos Globais (Benchmark Referência)", "ROE_pct": 11.8, "PTBV": 1.35, "PEGY_Fin": 1.32, "PB": 1.15, "Grupo": "Benchmark Setorial"},
+    {"Ticker": "JPM", "Banco": "JPMorgan Chase & Co. (Portfolio — Money Center Leader)", "ROE_pct": 18.2, "PTBV": 2.48, "PEGY_Fin": 1.24, "PB": 2.02, "Grupo": "Portfolio"},
+    {"Ticker": "NU", "Banco": "Nu Holdings / Nubank (Portfolio — High-ROTE Digital Bank)", "ROE_pct": 28.5, "PTBV": 6.80, "PEGY_Fin": 0.78, "PB": 6.45, "Grupo": "Portfolio"},
+    {"Ticker": "SECTOR-AVG", "Banco": "Global Banking Peer Average (Sector Benchmark)", "ROE_pct": 11.8, "PTBV": 1.35, "PEGY_Fin": 1.32, "PB": 1.15, "Grupo": "Sector Benchmark"},
 ]
 
 

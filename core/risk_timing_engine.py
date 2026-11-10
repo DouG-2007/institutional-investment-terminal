@@ -208,10 +208,10 @@ class RiskTimingEngine:
         base_btc_collat_usd = cap * 0.50
         base_aave_debt_usd = base_btc_collat_usd * (ltv_btc_pct / 100.0)
         aave_stress_scenarios = [
-            ("Cenário Base Normal (Liquidez Estável)", 5.15, 0.0),
-            ("Estresse Moderado (Utilização Pool > 85%)", 11.50, -15.0),
-            ("Pico de Euforia / Kink Rate (Utilização > 92%)", 19.80, -25.0),
-            ("Choque Extremo de Liquidez DeFi (Kink Máximo + Queda BTC)", 32.00, -40.0),
+            ("Normal Base Scenario (Stable Liquidity)", 5.15, 0.0),
+            ("Moderate Stress (Pool Utilization > 85%)", 11.50, -15.0),
+            ("Euphoria Peak / Kink Rate (Utilization > 92%)", 19.80, -25.0),
+            ("Extreme DeFi Liquidity Shock (Max Kink + BTC Dump)", 32.00, -40.0),
         ]
         aave_v3_stress_test_table: List[Dict[str, Any]] = []
         for sc_name, rate_aa, btc_shock_pct in aave_stress_scenarios:
@@ -227,9 +227,9 @@ class RiskTimingEngine:
                 "LTV BTC Resultante (Após 1 Ano s/ Amortizar)": f"{resulting_ltv_1y:.2f}%",
                 "Health Factor Aave V3 (Liq = 1.00)": f"{health_factor:.2f}",
                 "Diagnóstico de Risco": (
-                    "Seguro (LTV < 35% e Health Factor > 2.2)"
+                    "Safe (LTV < 35% & Health Factor > 2.2)"
                     if resulting_ltv_1y < 35.0
-                    else "Atenção: Migrar dívida para Box Spread IBKR Fixo ou amortizar c/ dividendos"
+                    else "Caution: Refinance to IBKR Fixed Box Spread or amortize via dividends"
                 ),
             })
 
@@ -238,53 +238,53 @@ class RiskTimingEngine:
         # ======================================================================
         framework_rules_documentation = [
             {
-                "Classe / Vertical": "1. High-Growth Techs (ex.: NVDA, AMZN, ASML)",
+                "Classe / Vertical": "1. High-Growth Techs (e.g., NVDA, AMZN, ASML)",
                 "Métrica Primária": "Enterprise PEGY (EV/EBIT NTM)",
-                "Referência de Compra (Consultiva)": "Faixa Ouro: Enterprise PEGY (EV/EBIT NTM) entre 0 e 1.20x",
+                "Referência de Compra (Consultiva)": "Gold Range: Enterprise PEGY (EV/EBIT NTM) between 0 and 1.20x",
                 "Referência de Poda 50% (Consultiva)": "Enterprise PEGY (EV/EBIT NTM) > 1.60x",
-                "Nota Estratégica": "EV/EBIT não penaliza o CAPEX pesado de expansão em infraestrutura de IA/Cloud.",
+                "Nota Estratégica": "EV/EBIT does not penalize aggressive growth CapEx in AI/Cloud infrastructure.",
             },
             {
-                "Classe / Vertical": "2. Cash Cows & Monopólios (ex.: AAPL, MSFT, GOOGL, META, V)",
+                "Classe / Vertical": "2. Cash Cows & Tollbooths (e.g., AAPL, MSFT, GOOGL, META, V)",
                 "Métrica Primária": "Enterprise PEGY (EV/FCF NTM)",
-                "Referência de Compra (Consultiva)": "Faixa Ouro: Enterprise PEGY (EV/FCF NTM) entre 0 e 1.20x",
+                "Referência de Compra (Consultiva)": "Gold Range: Enterprise PEGY (EV/FCF NTM) between 0 and 1.20x",
                 "Referência de Poda 50% (Consultiva)": "Enterprise PEGY (EV/FCF NTM) > 1.60x",
-                "Nota Estratégica": "Captura a geração pura de fluxo de caixa livre mais Dividend Yield + Buyback Yield.",
+                "Nota Estratégica": "Reflects pure free cash flow conversion plus Dividend Yield + Buyback Yield.",
             },
             {
-                "Classe / Vertical": "3. Cíclicas & Commodities (ex.: XOM, CAT, FCX, VALE)",
-                "Métrica Primária": "Múltiplos Relativos Inversos + DCF de Meio de Ciclo",
-                "Referência de Compra (Consultiva)": "Fundo de Ciclo: P/E e EV/EBITDA > 1.15x média do setor + Preço <= 0.85x Valor Justo DCF",
-                "Referência de Poda 50% (Consultiva)": "Topo de Ciclo: P/E e EV/EBITDA < 0.80x média do setor OU Preço > 1.25x Valor Justo DCF",
-                "Nota Estratégica": "Em cíclicas, P/E baixo indica lucro de pico insustentável (topo); P/E alto indica lucro deprimido de fundo.",
+                "Classe / Vertical": "3. Cyclicals & Hard Commodities (e.g., XOM, CAT, FCX, VALE)",
+                "Métrica Primária": "Inverse Relative Multiples + Mid-Cycle DCF",
+                "Referência de Compra (Consultiva)": "Trough: P/E and EV/EBITDA > 1.15x sector avg + Price <= 0.85x Fair Value DCF",
+                "Referência de Poda 50% (Consultiva)": "Peak: P/E and EV/EBITDA < 0.80x sector avg OR Price > 1.25x Fair Value DCF",
+                "Nota Estratégica": "In cyclicals, low P/E flags unsustainable peak earnings; high P/E indicates depressed trough earnings.",
             },
             {
-                "Classe / Vertical": "4. Setor Financeiro & Bancos (ex.: JPM, BAC, DBSDY)",
-                "Métrica Primária": "PEGY Financeiro (NTM P/E / [EPS Growth + Div Yield]) + Filtro P/B",
-                "Referência de Compra (Consultiva)": "PEGY Financeiro entre 0 e 1.00x COM P/B >= 1.0x (P/B < 1.0x é veto estrutural)",
-                "Referência de Poda 50% (Consultiva)": "PEGY Financeiro > 1.50x",
-                "Nota Estratégica": "Protege contra armadilhas de valor bancárias onde P/B < 1.0 reflete destruição de patrimônio.",
+                "Classe / Vertical": "4. Financial Sector & Banks (e.g., JPM, BAC, DBSDY)",
+                "Métrica Primária": "Financial PEGY (NTM P/E / [EPS Growth + Div Yield]) + P/B Filter",
+                "Referência de Compra (Consultiva)": "Financial PEGY 0 to 1.00x WITH P/B >= 1.0x (P/B < 1.0x is structural veto)",
+                "Referência de Poda 50% (Consultiva)": "Financial PEGY > 1.50x",
+                "Nota Estratégica": "Shields against value traps where P/B < 1.0 reflects balance-sheet book value destruction.",
             },
             {
-                "Classe / Vertical": "5. Defensivas & Dividend Aristocrats (ex.: WMT, PG, KO, JNJ)",
-                "Métrica Primária": "P/E e EV/EBITDA vs. Setor + DCF + Trava SSS",
-                "Referência de Compra (Consultiva)": "P/E e EV/EBITDA <= 0.85x média do setor + Preço <= 0.85x DCF (com SSS positivo)",
-                "Referência de Poda 50% (Consultiva)": "P/E e EV/EBITDA >= 1.20x média do setor OU Preço >= 1.20x DCF",
-                "Nota Estratégica": "No varejo físico, SSS (Same Store Sales) positivo é pré-requisito contra perda de relevância.",
+                "Classe / Vertical": "5. Defensives & Dividend Aristocrats (e.g., WMT, PG, KO, JNJ)",
+                "Métrica Primária": "P/E & EV/EBITDA vs Sector + DCF + SSS Lock",
+                "Referência de Compra (Consultiva)": "P/E & EV/EBITDA <= 0.85x sector avg + Price <= 0.85x DCF (positive SSS required)",
+                "Referência de Poda 50% (Consultiva)": "P/E & EV/EBITDA >= 1.20x sector avg OR Price >= 1.20x DCF",
+                "Nota Estratégica": "In physical retail, positive Same Store Sales (SSS) is mandatory to prevent relevance loss.",
             },
             {
-                "Classe / Vertical": "6. Bitcoin (BTC — Reserva Soberana)",
-                "Métrica Primária": "NUPL, MVRV Z-Score, 200W SMA e Pi Cycle Top",
-                "Referência de Compra (Consultiva)": "NUPL < 0.0 OU MVRV Z <= 0.50 OU Preço <= 1.05x 200W SMA",
-                "Referência de Poda 50% (Consultiva)": "Pi Cycle Top ativado (111d > 2x350d) OU Reverse Cross do NUPL (< 0.60 após superar 0.65)",
-                "Nota Estratégica": "Referência consultiva de ciclo macro on-chain; metade estrutural permanece em cold storage.",
+                "Classe / Vertical": "6. Bitcoin (BTC — Sovereign Reserve Asset)",
+                "Métrica Primária": "NUPL, MVRV Z-Score, 200W SMA and Pi Cycle Top",
+                "Referência de Compra (Consultiva)": "NUPL < 0.0 OR MVRV Z <= 0.50 OR Price <= 1.05x 200W SMA",
+                "Referência de Poda 50% (Consultiva)": "Pi Cycle Top triggered (111d > 2x350d) OR NUPL Reverse Cross (< 0.60 after > 0.65)",
+                "Nota Estratégica": "On-chain macro cycle reference; structural 50% core allocation remains in cold storage.",
             },
             {
                 "Classe / Vertical": "7. Altcoins (ETH, SOL, AAVE, MKR, LINK, PENDLE)",
                 "Métrica Primária": "BTC NUPL Macro + P/F (Price-to-Fees) + Trailing Drawdown",
-                "Referência de Compra (Consultiva)": "Fundo Macro: BTC NUPL < 0.30 (ou < 0.0) + Múltiplo P/F saudável e Real Earnings > 0",
-                "Referência de Poda 50%/100% (Consultiva)": "BTC NUPL > 0.60 ou MVRV Z > 3.0 combinado com Trailing Drawdown >= 20% ou P/F > 35x em DeFi",
-                "Nota Estratégica": "Sincroniza o risco das altcoins com o termômetro macro de liquidez do Bitcoin.",
+                "Referência de Compra (Consultiva)": "Macro Trough: BTC NUPL < 0.30 (or < 0.0) + Healthy P/F & Real Earnings > 0",
+                "Referência de Poda 50%/100% (Consultiva)": "BTC NUPL > 0.60 or MVRV Z > 3.0 combined with Trailing Drawdown >= 20% or P/F > 35x",
+                "Nota Estratégica": "Synchronizes high-beta altcoin exposure with Bitcoin's global liquidity thermometer.",
             },
         ]
 
@@ -307,21 +307,21 @@ class RiskTimingEngine:
                 c = cryptos["BTC-USD"]
                 om = c.onchain_metrics
                 ind_str = f"NUPL: {om['nupl']:.2f} | MVRV Z: {om['mvrv_z_score']:.2f} | Px/200W: {om['price_to_200w_sma_x']:.2f}x"
-                buy_ref = "NUPL < 0.0 ou MVRV Z <= 0.5 ou Px <= 1.05x 200W SMA"
-                prune_ref = "Pi Cycle Top Ativo ou Reverse Cross NUPL (< 0.60 pós > 0.65)"
+                buy_ref = "NUPL < 0.0 or MVRV Z <= 0.5 or Px <= 1.05x 200W SMA"
+                prune_ref = "Pi Cycle Top Active or NUPL Reverse Cross (< 0.60 post > 0.65)"
                 in_buy = (om["nupl"] < 0.0) or (om["mvrv_z_score"] <= 0.5) or (om["price_to_200w_sma_x"] <= 1.05)
                 in_prune = om["pi_cycle_top_triggered"] or (om["nupl"] > 0.65)
-                status = "Dentro da Ref. de Compra Agressiva" if in_buy else ("Sinal de Topo / Ref. de Poda" if in_prune else "Faixa Neutra de Ciclo (Manutenção / DCA Discricionário)")
+                status = "Within Aggressive Buy Reference" if in_buy else ("Cycle Top Signal / Prune Reference" if in_prune else "Neutral Cycle Band (Hold / Discretionary DCA)")
                 shannon_ok = not in_prune
             elif tk in cryptos:
                 c = cryptos[tk]
                 pf_val = c.tokenomics_valuation["pf_ratio"]
                 ind_str = f"BTC NUPL: {btc_nupl:.2f} | BTC MVRV Z: {btc_mvrv:.2f} | P/F: {pf_val:.1f}x"
-                buy_ref = "BTC NUPL < 0.30 + P/F Saudável"
-                prune_ref = "(BTC NUPL > 0.60 ou MVRV Z > 3.0) + (DD >= 20% ou P/F > 35x DeFi)"
+                buy_ref = "BTC NUPL < 0.30 + Healthy P/F"
+                prune_ref = "(BTC NUPL > 0.60 or MVRV Z > 3.0) + (DD >= 20% or P/F > 35x DeFi)"
                 in_buy = (btc_nupl < 0.30) or (tk == "AAVE-USD" and pf_val < 10.0)
                 in_prune = (btc_nupl > 0.60 or btc_mvrv > 3.0) and (pf_val > 35.0)
-                status = "Ref. de Compra (Valuation P/F Descontado)" if in_buy else ("Ref. de Saída Cíclica" if in_prune else "Meio de Ciclo Cripto (Monitorar BTC NUPL)")
+                status = "Buy Reference (Discounted P/F Valuation)" if in_buy else ("Cyclical Exit Reference" if in_prune else "Mid-Cycle Crypto (Monitor BTC NUPL)")
                 shannon_ok = in_buy or (btc_nupl <= 0.55 and pf_val <= 50.0)
             elif tk in eq_map:
                 e = eq_map[tk]
@@ -330,14 +330,14 @@ class RiskTimingEngine:
                 if sec == "TECH_HIGH_GROWTH":
                     val = vm["enterprise_pegy_ev_ebit"]
                     ind_str = f"Ent. PEGY (EV/EBIT): {val:.2f}x | g_impl: {vm['reverse_dcf_g_impl_pct']:.1f}% vs g_fund: {vm['g_fund_projected_pct']:.1f}%"
-                    buy_ref = "Enterprise PEGY (EV/EBIT NTM) entre 0 e 1.20x"
+                    buy_ref = "Enterprise PEGY (EV/EBIT NTM) between 0 and 1.20x"
                     prune_ref = "Enterprise PEGY (EV/EBIT NTM) > 1.60x"
                     in_buy = val <= 1.20
                     in_prune = val > 1.60
                 elif sec in ["TECH_CASH_COW", "FINANCIAL_TOLLBOOTH"]:
                     val = vm["enterprise_pegy_ev_fcf"]
                     ind_str = f"Ent. PEGY (EV/FCF): {val:.2f}x | g_impl: {vm['reverse_dcf_g_impl_pct']:.1f}% vs g_fund: {vm['g_fund_projected_pct']:.1f}%"
-                    buy_ref = "Enterprise PEGY (EV/FCF NTM) entre 0 e 1.20x"
+                    buy_ref = "Enterprise PEGY (EV/FCF NTM) between 0 and 1.20x"
                     prune_ref = "Enterprise PEGY (EV/FCF NTM) > 1.60x"
                     in_buy = val <= 1.20
                     in_prune = val > 1.60
@@ -345,34 +345,34 @@ class RiskTimingEngine:
                     val = vm["pegy_financeiro"]
                     pb = vm["pb_current"]
                     ind_str = f"PEGY Fin: {val:.2f}x | P/B: {pb:.2f}x | P/TBV: {vm['ptbv_current']:.2f}x | ROE: {e.forensic_health['roic_goodwill_pct']:.1f}%"
-                    buy_ref = "PEGY Financeiro 0 a 1.00x COM P/B >= 1.0x"
-                    prune_ref = "PEGY Financeiro > 1.50x"
+                    buy_ref = "Financial PEGY 0 to 1.00x WITH P/B >= 1.0x"
+                    prune_ref = "Financial PEGY > 1.50x"
                     in_buy = (val <= 1.00) and (pb >= 1.0)
                     in_prune = val > 1.50
                 else:  # RETAIL / DEFENSIVE (WMT)
                     pe_rel = vm["pe_current"] / vm["pe_sector_avg"] if vm["pe_sector_avg"] > 0 else 1.0
                     px_dcf = e.current_price / vm["dcf_fair_mos10_usd"] if vm["dcf_fair_mos10_usd"] > 0 else 1.0
-                    ind_str = f"P/E vs Setor: {pe_rel:.2f}x | Px/DCF: {px_dcf:.2f}x | SSS: +4.8%"
-                    buy_ref = "P/E e EV/EBITDA <= 0.85x Setor + Preço <= 0.85x DCF"
-                    prune_ref = "P/E e EV/EBITDA >= 1.20x Setor OU Preço >= 1.20x DCF"
+                    ind_str = f"P/E vs Sector: {pe_rel:.2f}x | Px/DCF: {px_dcf:.2f}x | SSS: +4.8%"
+                    buy_ref = "P/E & EV/EBITDA <= 0.85x Sector + Price <= 0.85x DCF"
+                    prune_ref = "P/E & EV/EBITDA >= 1.20x Sector OR Price >= 1.20x DCF"
                     in_buy = (pe_rel <= 0.85) and (px_dcf <= 0.85)
                     in_prune = (pe_rel >= 1.20) or (px_dcf >= 1.20)
 
                 if in_buy:
-                    status = "Dentro da Faixa Ouro de Compra do Framework"
+                    status = "Within Framework Gold Buy Range"
                 elif in_prune:
-                    status = f"Acima da Ref. Teórica de Poda (Pesar contra Tax-Drag de -{tax_drag_hurdle_pct:.2f}% e ROIC {e.forensic_health['roic_goodwill_pct']:.1f}%)"
+                    status = f"Above Theoretical Prune Ref (Weigh against Tax-Drag of -{tax_drag_hurdle_pct:.2f}% & ROIC {e.forensic_health['roic_goodwill_pct']:.1f}%)"
                 else:
-                    status = "Faixa Neutra (Entre Compra e Poda — Manter Posição)"
+                    status = "Neutral Band (Between Buy and Prune — Maintain Position)"
                 shannon_ok = in_buy or (not in_prune and vm["reverse_dcf_g_impl_pct"] <= vm["g_fund_projected_pct"])
             else:
                 # ETFs (SPY, QQQ, SMH, ITA, QLD)
                 ind_str = f"Shiller CAPE: {shiller_cape:.1f}x | VIX: {vix_current:.1f}"
-                buy_ref = "DCA Estrutural em Regimes Normais / Quedas de VIX > 25"
-                prune_ref = "Excesso extremo de peso ou Shiller CAPE > 40x (em 2x Leveraged QLD)"
+                buy_ref = "Structural DCA in Normal Regimes / VIX Spikes > 25"
+                prune_ref = "Extreme allocation drift or Shiller CAPE > 40x (on 2x Leveraged QLD)"
                 in_buy = True
                 in_prune = False
-                status = "Elegível para Acumulação Estrutural de Índice"
+                status = "Eligible for Structural Index Accumulation"
                 shannon_ok = True
 
             consultative_rows.append(ConsultativeTimingRow(
