@@ -1,9 +1,9 @@
 """
-MOTOR DE EXPORTAÇÃO DO RELATÓRIO MASTER MULTI-COMPLETO 360° EM PDF (.PDF)
-Unifica 100% da densidade informacional dos 5 dossiês especializados + todos os dados analíticos,
-indicadores econômicos, métodos de valuation Forward (NTM) e gráficos vetoriais (SVG) do aplicativo
-em UM ÚNICO RELATÓRIO MULTI-SEÇÕES DE ALTA LEITURA E ZERO TABELAS ESPREMIDAS.
-Renderizado via Chromium / Microsoft Edge Headless com tipografia e gráficos vetoriais nítidos.
+360° MASTER INSTITUTIONAL REPORT PDF EXPORT ENGINE (.PDF)
+Unifies 100% of analytical intelligence from specialized engines + all market data,
+economic cycle indicators, Forward (NTM) multi-scenario valuation models, and vector graphics
+into a SINGLE HIGH-DENSITY, 7-SECTION VECTOR PDF WITH ZERO CLIPPING OR COMPRESSED TABLES.
+Rendered via Headless Chromium / Microsoft Edge with crisp vector typography.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class InstitutionalPDFExporter:
         return ""
 
     # ==========================================================================
-    # RELATÓRIO ÚNICO MULTI-COMPLETO (7 SEÇÕES INTEGRADAS EM UM SÓ PDF)
+    # CONSOLIDATED MASTER REPORT (7 INTEGRATED SECTIONS IN SINGLE PDF)
     # ==========================================================================
     def build_complete_html_report(
         self,
@@ -274,14 +274,14 @@ class InstitutionalPDFExporter:
         """
 
         # ======================================================================
-        # SEÇÃO 1: MACROECONOMIA GLOBAL, CICLOS, GRÁFICOS MACRO, GEOPOLÍTICA & DISRUPÇÕES
+        # SECTION 1: GLOBAL MACROECONOMICS, CYCLES, MACRO CHARTS, GEOPOLITICS & DISRUPTIONS
         # ======================================================================
         lag_rows_html = "".join(
-            f"<tr><td><strong>{_esc(m['Indicador'])}</strong></td>"
-            f"<td class='mono'>{_esc(m['Valor Atual'])}</td>"
-            f"<td class='mono'>{_esc(m['Variação / Taxa'])}</td>"
-            f"<td>{_esc(m['Referência'])}</td>"
-            f"<td>{_auto_badge(m['Leitura'])}</td></tr>"
+            f"<tr><td><strong>{_esc(m.get('Indicator', m.get('Indicador', '')))}</strong></td>"
+            f"<td class='mono'>{_esc(m.get('Current Value', m.get('Valor Atual', '')))}</td>"
+            f"<td class='mono'>{_esc(m.get('Rate / Change', m.get('Variação / Taxa', '')))}</td>"
+            f"<td>{_esc(m.get('Benchmark Reference', m.get('Referência', '')))}</td>"
+            f"<td>{_auto_badge(m.get('Institutional Reading', m.get('Leitura', '')))}</td></tr>"
             for m in macro.basic_metrics
         )
         verts_html = " | ".join(f"<strong>{k}:</strong> {v:.2f}%" for k, v in yc["vertices"].items())
@@ -464,7 +464,7 @@ class InstitutionalPDFExporter:
         """
 
         # ======================================================================
-        # SEÇÃO 2: DADOS ANALÍTICOS DO PORTFÓLIO, LOOK-THROUGH FIEL À CARTEIRA,
+        # SECTION 2: PORTFOLIO HOLDINGS, LOOK-THROUGH OVERLAP DECOMPOSITION,
         #          CONTABILIDADE FORENSE (SEM ALTMAN Z) & VALUATION FORWARD (NTM)
         # ======================================================================
         pos_rows_html = "".join(
@@ -495,16 +495,16 @@ class InstitutionalPDFExporter:
 
         sec_lt_rows_html = "".join(
             f"<tr>"
-            f"<td><strong>{_esc(s['Bloco / Setor Look-Through'])}</strong></td>"
-            f"<td class='mono'>{s['Peso Nominal (%)']:.2f}%</td>"
-            f"<td class='mono'><strong>{s['Exposição Efetiva Look-Through (%)']:.2f}%</strong></td>"
-            f"<td class='mono'>${s['Exposição Financeira (USD)']:,.0f}</td>"
-            f"<td>{_esc(s['Principais Ativos Contribuintes'])}</td>"
+            f"<td><strong>{_esc(s.get('Sector / Look-Through Block', s.get('Bloco / Setor Look-Through', '')))}</strong></td>"
+            f"<td class='mono'>{s.get('Nominal Weight (%)', s.get('Peso Nominal (%)', 0.0)):.2f}%</td>"
+            f"<td class='mono'><strong>{s.get('Effective Look-Through Exposure (%)', s.get('Exposição Efetiva Look-Through (%)', 0.0)):.2f}%</strong></td>"
+            f"<td class='mono'>${s.get('Financial Exposure ($)', s.get('Exposição Financeira (USD)', 0.0)):,.0f}</td>"
+            f"<td>{_esc(s.get('Primary Contributing Assets', s.get('Principais Ativos Contribuintes', '')))}</td>"
             f"</tr>"
             for s in portfolio.sector_exposure_summary
         )
 
-        # Tabelas Forenses Divididas em Parte A (5 colunas) e Parte B (5 colunas) — ESTRITAMENTE CALIBRADAS POR SETOR!
+        # Forensic Tables Split into Part A (5 columns) and Part B (5 columns) — STRICTLY SECTORIAL!
         for_part_a_html = ""
         for_part_b_html = ""
         for e in equities:
@@ -546,24 +546,26 @@ class InstitutionalPDFExporter:
                 f"</tr>"
             )
 
-        # Matriz CAGR 12 KPIs dividida em Parte A (6 KPIs Operacionais) e Parte B (6 KPIs de Caixa/Retorno)
+        # CAGR Matrix 12 KPIs split into Part A (6 Operating KPIs) and Part B (6 Cash Flow/Return KPIs)
         kpis_part_a = ["Revenue", "Gross Profit", "EBIT", "EBITDA", "NOPAT", "Net Income"]
         kpis_part_b = ["CFO", "FCF", "EPS", "Dividends", "Book Value", "ROIC"]
+        _pt_to_en_cagr = {"Receita": "Revenue", "Lucro Bruto": "Gross Profit", "Lucro Líquido": "Net Income", "FCO": "CFO", "Dividendos": "Dividends"}
+        _en_to_pt_cagr = {v: k for k, v in _pt_to_en_cagr.items()}
         cagr_a_rows = ""
         cagr_b_rows = ""
         for e in equities:
             cells_a = "".join(
-                f"<td class='mono'>{e.cagr_matrix_12_kpis[k]['3y']:+.1f}% | <strong>{e.cagr_matrix_12_kpis[k]['5y']:+.1f}%</strong> | {e.cagr_matrix_12_kpis[k]['10y']:+.1f}%</td>"
-                for k in ["Receita", "Lucro Bruto", "EBIT", "EBITDA", "NOPAT", "Lucro Líquido"]
+                f"<td class='mono'>{(e.cagr_matrix_12_kpis.get(k) or e.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['3y']:+.1f}% | <strong>{(e.cagr_matrix_12_kpis.get(k) or e.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['5y']:+.1f}%</strong> | {(e.cagr_matrix_12_kpis.get(k) or e.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['10y']:+.1f}%</td>"
+                for k in kpis_part_a
             )
             cells_b = "".join(
-                f"<td class='mono'>{e.cagr_matrix_12_kpis[k]['3y']:+.1f}% | <strong>{e.cagr_matrix_12_kpis[k]['5y']:+.1f}%</strong> | {e.cagr_matrix_12_kpis[k]['10y']:+.1f}%</td>"
-                for k in ["FCO", "FCF", "EPS", "Dividendos", "Book Value", "ROIC"]
+                f"<td class='mono'>{(e.cagr_matrix_12_kpis.get(k) or e.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['3y']:+.1f}% | <strong>{(e.cagr_matrix_12_kpis.get(k) or e.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['5y']:+.1f}%</strong> | {(e.cagr_matrix_12_kpis.get(k) or e.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['10y']:+.1f}%</td>"
+                for k in kpis_part_b
             )
             cagr_a_rows += f"<tr><td class='mono'><strong>{_esc(e.ticker)}</strong></td>{cells_a}</tr>"
             cagr_b_rows += f"<tr><td class='mono'><strong>{_esc(e.ticker)}</strong></td>{cells_b}</tr>"
 
-        # Valuation Multi-Métodos Forward (8 Métodos divididos em Parte A: 6 colunas e Parte B: 6 colunas — ESTRITAMENTE POR SETOR!)
+        # Multi-Method Forward Valuation (8 Methods split into Part A & Part B — STRICTLY SECTORIAL!)
         val_a_rows = ""
         val_b_rows = ""
         for e in equities:
@@ -675,13 +677,13 @@ class InstitutionalPDFExporter:
 
         banks_rows_html = "".join(
             f"<tr>"
-            f"<td class='mono'><strong>{_esc(b['Ticker'])}</strong></td>"
-            f"<td>{_esc(b['Banco'])}</td>"
-            f"<td>{_auto_badge(b['Grupo'])}</td>"
-            f"<td class='mono'><strong>{b['ROE_pct']:.1f}%</strong></td>"
-            f"<td class='mono'><strong>{b['PTBV']:.2f}x</strong></td>"
-            f"<td class='mono'>{b['PB']:.2f}x {'(VETO < 1.0x)' if b['PB'] < 1.0 else '(Approved >= 1.0x)'}</td>"
-            f"<td class='mono'><strong>{b['PEGY_Fin']:.2f}x</strong></td>"
+            f"<td class='mono'><strong>{_esc(b.get('Ticker', ''))}</strong></td>"
+            f"<td>{_esc(b.get('Bank', b.get('Banco', '')))}</td>"
+            f"<td>{_auto_badge(b.get('Group', b.get('Grupo', '')))}</td>"
+            f"<td class='mono'><strong>{b.get('ROE_pct', 0.0):.1f}%</strong></td>"
+            f"<td class='mono'><strong>{b.get('PTBV', 0.0):.2f}x</strong></td>"
+            f"<td class='mono'>{b.get('PB', 0.0):.2f}x {'(VETO < 1.0x)' if b.get('PB', 0.0) < 1.0 else '(Approved >= 1.0x)'}</td>"
+            f"<td class='mono'><strong>{b.get('PEGY_Fin', 0.0):.2f}x</strong></td>"
             f"</tr>"
             for b in GLOBAL_BANKS_SCATTER_DATA
         )
@@ -844,7 +846,7 @@ class InstitutionalPDFExporter:
         """
 
         # ======================================================================
-        # SEÇÃO 3: INTELIGÊNCIA ANALÍTICA CRIPTO (ON-CHAIN, MINERAÇÃO, FLUXOS, TOKENOMICS)
+        # SECTION 3: ON-CHAIN CRYPTO INTELLIGENCE (CYCLES, MINING, TOKENOMICS & PROTOCOL EARNINGS)
         #          & DEFI STATE OF THE UNION (NARRATIVAS DUNE/DEFILLAMA & CICLO)
         # ======================================================================
         cr_part_a_rows = ""
@@ -870,8 +872,8 @@ class InstitutionalPDFExporter:
                 f"<tr>"
                 f"<td class='mono'><strong>{_esc(sym)}</strong></td>"
                 f"<td class='mono'>NVT Nominal: <strong>{tv.get('nvt_nominal', 0.0):.1f}x</strong> {_auto_badge(tv.get('nvt_nominal_status', ''))}<br><span style='font-size:6.7pt;color:#475569;'><strong>Ref NVT:</strong> &lt; 30x (Subavaliado/Compra) | 30x a 75x (Justo) | &gt; 75x (Sobreavaliado/Bolha)</span><br>NVT Golden Cross: <strong>{tv['nvt_golden_cross']:+.2f}</strong> (Ref: &lt; -1.6 / &gt; +2.0) | NVM: <strong>{tv['nvm_ratio']:.2f}</strong><br>P/F: <strong>{tv['pf_ratio']:.1f}x</strong> | TVL: ${tv['tvl_b']:.2f}B | Vol 24h: ${tv['tx_vol_24h_b']:.2f}B</td>"
-                f"<td class='mono'><strong>Real Earnings: USD {tv['protocol_real_earnings_m']:+.1f}M / ano</strong><br>(Fees ${tv['protocol_fees_annual_m']:.1f}M - Emissão ${tv['token_issuance_annual_m']:.1f}M)<br><strong>Real Yield: {tv['real_yield_pct']:+.2f}%</strong> (APR {tv['apr_staking_pct']:.1f}% - Infl {tv['token_inflation_pct']:.1f}%)</td>"
-                f"<td class='mono'>Circulating: <strong>{c.circulating_pct:.1f}%</strong><br>Unlock 30d: <strong>{ss['unlock_pct_of_circ']:.2f}% Circ</strong> ({ss['monthly_unlock_tokens_m']:.2f}M tokens)<br><strong>Px Teórico Pós-Unlock: ${ss['theoretical_post_unlock_price_usd']:,.2f}</strong></td>"
+                f"<td class='mono'><strong>Real Earnings: USD {tv['protocol_real_earnings_m']:+.1f}M / year</strong><br>(Fees ${tv['protocol_fees_annual_m']:.1f}M - Issuance ${tv['token_issuance_annual_m']:.1f}M)<br><strong>Real Yield: {tv['real_yield_pct']:+.2f}%</strong> (APR {tv['apr_staking_pct']:.1f}% - Infl {tv['token_inflation_pct']:.1f}%)</td>"
+                f"<td class='mono'>Circulating: <strong>{c.circulating_pct:.1f}%</strong><br>Unlock 30d: <strong>{ss['unlock_pct_of_circ']:.2f}% Circ</strong> ({ss['monthly_unlock_tokens_m']:.2f}M tokens)<br><strong>Theoretical Post-Unlock Px: ${ss['theoretical_post_unlock_price_usd']:,.2f}</strong></td>"
                 f"<td class='mono'>SSR: {ss['ssr_stablecoin_supply_ratio']:.1f} | BTC.D: {ss['btc_dominance_pct']:.1f}%<br>OI/MCap: <strong>{ds['oi_to_mcap_pct']:.2f}%</strong> (OI ${ds['open_interest_b']:.2f}B)<br>Funding 8h: <strong>{ds['funding_rate_8h_pct']:+.4f}%</strong> | F&amp;G: {ds['fear_and_greed_index']}/100</td>"
                 f"<td>{_esc(ds['liquidation_heatmap_summary'])}</td>"
                 f"</tr>"
@@ -970,7 +972,7 @@ class InstitutionalPDFExporter:
         """
 
         # ======================================================================
-        # SEÇÃO 4: DOSSIÊ FORENSE CORPORATIVO (SEC 10-K/10-Q, PORTER, CALLS Q&A & M&A)
+        # SECTION 4: CORPORATE FORENSIC DOSSIER (SEC 10-K/10-Q, PORTER 5-FORCES, EARNINGS CALLS & M&A)
         # ======================================================================
         doc_eq_html = "".join(
             f"<tr>"
@@ -1084,7 +1086,7 @@ class InstitutionalPDFExporter:
         """
 
         # ======================================================================
-        # SEÇÃO 5: DOSSIÊ TÉCNICO DE PROTOCOLOS CRIPTO (WHITEPAPERS, GITHUB,
+        # SECTION 5: CRYPTO PROTOCOL TECHNICAL DOSSIER (WHITEPAPERS, GITHUB REPOS,
         #          SINAIS DE CORE DEVS, UPGRADES & CRONOGRAMA FORENSE DE UNLOCKS)
         # ======================================================================
         doc_cr_html = "".join(
@@ -1170,7 +1172,7 @@ class InstitutionalPDFExporter:
         """
 
         # ======================================================================
-        # SEÇÃO 6: SCREENER QUANTITATIVO E FORENSE DE OPORTUNIDADES (SEM ALTMAN Z)
+        # SECTION 6: QUANTITATIVE & FORENSIC OPPORTUNITY SCREENER
         # ======================================================================
         scr_stk_html = "".join(
             f"<tr>"
@@ -1236,28 +1238,28 @@ class InstitutionalPDFExporter:
         """
 
         # ======================================================================
-        # SEÇÃO 7: GOVERNANÇA DE RISCO, ALAVANCAGEM CONVEXA LTV & TIMING CONSULTIVO
+        # SECTION 7: RISK GOVERNANCE, CONVEX LTV LEVERAGE & ADVISORY TIMING
         # ======================================================================
         aave_stress_html = "".join(
             f"<tr>"
-            f"<td><strong>{_esc(s['Cenário Stress-Test Aave V3'])}</strong></td>"
-            f"<td class='mono'>{_esc(s['Borrow Rate USDC (% a.a.)'])}</td>"
-            f"<td class='mono'>{_esc(s['Choque Simulado no Colateral BTC'])}</td>"
-            f"<td class='mono'>${s['Custo Anual de Juros (USD)']:,.0f}</td>"
-            f"<td class='mono'><strong>{_esc(s['LTV BTC Resultante (Após 1 Ano s/ Amortizar)'])}</strong></td>"
-            f"<td class='mono'>{_esc(s['Health Factor Aave V3 (Liq = 1.00)'])}</td>"
-            f"<td>{_auto_badge(s['Diagnóstico de Risco'])}</td>"
+            f"<td><strong>{_esc(s.get('Aave V3 Stress Scenario', s.get('Cenário Stress-Test Aave V3', '')))}</strong></td>"
+            f"<td class='mono'>{_esc(s.get('Borrow Rate USDC (% p.a.)', s.get('Borrow Rate USDC (% a.a.)', '')))}</td>"
+            f"<td class='mono'>{_esc(s.get('Simulated BTC Collateral Shock', s.get('Choque Simulado no Colateral BTC', '')))}</td>"
+            f"<td class='mono'>${s.get('Annual Interest Cost ($)', s.get('Custo Anual de Juros (USD)', 0.0)):,.0f}</td>"
+            f"<td class='mono'><strong>{_esc(s.get('Resulting 1Y BTC LTV (Without Amortization)', s.get('LTV BTC Resultante (Após 1 Ano s/ Amortizar)', '')))}</strong></td>"
+            f"<td class='mono'>{_esc(s.get('Health Factor Aave V3 (Liq = 1.00)', ''))}</td>"
+            f"<td>{_auto_badge(s.get('Risk Assessment', s.get('Diagnóstico de Risco', '')))}</td>"
             f"</tr>"
             for s in risk_timing.aave_v3_stress_test_table
         )
 
         rules_doc_html = "".join(
             f"<tr>"
-            f"<td><strong>{_esc(r['Classe / Vertical'])}</strong></td>"
-            f"<td>{_esc(r['Métrica Primária'])}</td>"
-            f"<td>{_esc(r['Referência de Compra (Consultiva)'])}</td>"
-            f"<td>{_esc(r['Referência de Poda 50% (Consultiva)'] if 'Referência de Poda 50% (Consultiva)' in r else r.get('Referência de Poda 50%/100% (Consultiva)', ''))}</td>"
-            f"<td>{_esc(r['Nota Estratégica'])}</td>"
+            f"<td><strong>{_esc(r.get('Asset Class / Vertical', r.get('Classe / Vertical', '')))}</strong></td>"
+            f"<td>{_esc(r.get('Primary Metric', r.get('Métrica Primária', '')))}</td>"
+            f"<td>{_esc(r.get('Advisory Buy Reference', r.get('Advisory Accumulation Reference', r.get('Referência de Compra (Consultiva)', ''))))}</td>"
+            f"<td>{_esc(r.get('Advisory 50% Trim Reference', r.get('Advisory Trimming Reference', r.get('Referência de Poda 50% (Consultiva)', r.get('Referência de Poda 50%/100% (Consultiva)', '')))))}</td>"
+            f"<td>{_esc(r.get('Strategic Note', r.get('Nota Estratégica', '')))}</td>"
             f"</tr>"
             for r in risk_timing.framework_rules_documentation
         )
@@ -1561,13 +1563,15 @@ class InstitutionalPDFExporter:
 
             kpis_a = ["Revenue", "Gross Profit", "EBIT", "EBITDA", "NOPAT", "Net Income"]
             kpis_b = ["CFO", "FCF", "EPS", "Dividends", "Book Value", "ROIC"]
+            _pt_to_en_cagr = {"Receita": "Revenue", "Lucro Bruto": "Gross Profit", "Lucro Líquido": "Net Income", "FCO": "CFO", "Dividendos": "Dividends"}
+            _en_to_pt_cagr = {v: k for k, v in _pt_to_en_cagr.items()}
             cagr_cells_a = "".join(
-                f"<td class='mono'>{eq.cagr_matrix_12_kpis[k]['3y']:+.1f}% | <strong>{eq.cagr_matrix_12_kpis[k]['5y']:+.1f}%</strong> | {eq.cagr_matrix_12_kpis[k]['10y']:+.1f}%</td>"
-                for k in ["Receita", "Lucro Bruto", "EBIT", "EBITDA", "NOPAT", "Lucro Líquido"]
+                f"<td class='mono'>{(eq.cagr_matrix_12_kpis.get(k) or eq.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['3y']:+.1f}% | <strong>{(eq.cagr_matrix_12_kpis.get(k) or eq.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['5y']:+.1f}%</strong> | {(eq.cagr_matrix_12_kpis.get(k) or eq.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['10y']:+.1f}%</td>"
+                for k in kpis_a
             )
             cagr_cells_b = "".join(
-                f"<td class='mono'>{eq.cagr_matrix_12_kpis[k]['3y']:+.1f}% | <strong>{eq.cagr_matrix_12_kpis[k]['5y']:+.1f}%</strong> | {eq.cagr_matrix_12_kpis[k]['10y']:+.1f}%</td>"
-                for k in ["FCO", "FCF", "EPS", "Dividendos", "Book Value", "ROIC"]
+                f"<td class='mono'>{(eq.cagr_matrix_12_kpis.get(k) or eq.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['3y']:+.1f}% | <strong>{(eq.cagr_matrix_12_kpis.get(k) or eq.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['5y']:+.1f}%</strong> | {(eq.cagr_matrix_12_kpis.get(k) or eq.cagr_matrix_12_kpis.get(_en_to_pt_cagr.get(k, k), {'3y':0.0,'5y':0.0,'10y':0.0}))['10y']:+.1f}%</td>"
+                for k in kpis_b
             )
 
             sotp_rows = "".join(

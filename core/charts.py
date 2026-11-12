@@ -1,13 +1,13 @@
 """
-CONSTRUTOR DE GRÁFICOS INTERATIVOS OBRIGATÓRIOS (PLOTLY)
-Implementa exatamente todos os gráficos exigidos na especificação técnica com tema institucional Dark:
-1. Gráfico Preço BTC + aSOPR (com linha 1.0 destacada como suporte/resistência)
-2. Gráfico Preço BTC + Pi Cycle Top (111d vs 2x 350d) + 200W SMA + Hash Ribbon (30d vs 60d) + MMC
-3. Gráfico Preço Cripto + MVRV Z-Score (< 0 e > 7) e NUPL (< 0, 0.30, 0.60, 0.75)
-4. Gráfico Preço Cripto vs. NVM Ratio + Gráfico Exchange Inflow + CDD
+INTERACTIVE INSTITUTIONAL PLOTLY CHARTS BUILDER
+Builds all interactive charts with institutional Dark theme and vector layout:
+1. BTC Price + aSOPR (with 1.0 line highlighted as bull support / bear resistance)
+2. BTC Price + Pi Cycle Top (111d vs 2x 350d) + 200W SMA + Hash Ribbon + MMC
+3. Crypto Price + MVRV Z-Score (< 0 and > 7) and NUPL (< 0, 0.30, 0.60, 0.75)
+4. Crypto Price vs. NVM Ratio + Exchange Inflow + CDD
 5. Scatter Plot P/TBV vs. ROE para Bancos
-6. Gráfico Comparativo Multi-Métodos de Valuation por Ação (Preço Atual vs. DCF vs. SOTP vs. Faixa PEGY)
-7. Gráficos Macro: Spread 10Y-2Y (c/ linha zero e desinversão) + Curva de Juros + PMI (Services vs Mfg c/ linhas 50 e 60) + M2 vs DXY vs Ouro vs S&P 500 + ICSA Trend
+6. Multi-Method Equity Valuation Comparison Chart (Spot Price vs. DCF vs. SOTP vs. PEGY Band)
+7. Macro Charts: 10Y-2Y Spread (Zero line & de-inversion) + Yield Curve + PMI (Services vs Mfg) + M2 vs DXY vs Gold vs S&P 500 + ICSA Trend
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def _apply_dark_theme(
     fig.for_each_annotation(
         lambda a: a.update(
             font=dict(size=11, color="#94A3B8", family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif")
-        ) if a.text and ("<b" not in a.text and "Spot:" not in a.text and "Linha" not in a.text and "Piso" not in a.text and "Limite" not in a.text and "Zona" not in a.text and "Conversão" not in a.text and "50" not in a.text and "60" not in a.text) else None
+        ) if a.text and ("<b" not in a.text and "Spot:" not in a.text and "Line" not in a.text and "Floor" not in a.text and "Limit" not in a.text and "Zone" not in a.text and "Conversion" not in a.text and "50" not in a.text and "60" not in a.text) else None
     )
     return sanitize_plotly_figure_against_overlaps(
         fig,
@@ -113,7 +113,7 @@ def _apply_dark_theme(
 
 
 # ==============================================================================
-# 1. GRÁFICO PREÇO BTC + aSOPR (COM LINHA 1.0 DESTACADA COMO SUPORTE/RESISTÊNCIA)
+# 1. BTC PRICE + aSOPR (1.0 LINE HIGHLIGHTED AS BULL SUPPORT / BEAR RESISTANCE)
 # ==============================================================================
 def build_btc_asopr_chart(crypto: CryptoFullProfile) -> go.Figure:
     s = crypto.chart_series
@@ -126,13 +126,13 @@ def build_btc_asopr_chart(crypto: CryptoFullProfile) -> go.Figure:
         vertical_spacing=0.07,
         row_heights=[0.55, 0.45],
         subplot_titles=(
-            f"{crypto.symbol} — Preço Spot (USD)",
-            "aSOPR (Adjusted Spent Output Profit Ratio) — Linha 1.00 = Suporte Bull / Resistência Bear",
+            f"{crypto.symbol} — Spot Price (USD)",
+            "aSOPR (Adjusted Spent Output Profit Ratio) — Line 1.00 = Bull Support / Bear Resistance",
         ),
     )
 
     fig.add_trace(
-        go.Scatter(x=px.index, y=px.values, name="Preço (USD)", line=dict(color="#F59E0B", width=2.2)),
+        go.Scatter(x=px.index, y=px.values, name="Price (USD)", line=dict(color="#F59E0B", width=2.2)),
         row=1, col=1,
     )
 
@@ -141,23 +141,23 @@ def build_btc_asopr_chart(crypto: CryptoFullProfile) -> go.Figure:
         row=2, col=1,
     )
 
-    # Linha 1.0 destacada como suporte/resistência
+    # 1.0 line highlighted as support/resistance
     fig.add_hline(
         y=1.00,
         line_dash="dash",
         line_color="#EF4444",
         line_width=2.2,
-        annotation_text="aSOPR = 1.00 (Suporte Bull / Resistência Bear | >1 Lucro, <1 Prejuízo)",
+        annotation_text="aSOPR = 1.00 (Bull Support / Bear Resistance | >1 Profit, <1 Loss)",
         annotation_position="top left",
         annotation_font_color="#FCA5A5",
         row=2, col=1,
     )
 
-    return _apply_dark_theme(fig, height=480, title=f"Gráfico Obrigatório 1: {crypto.symbol} Preço vs. aSOPR (Suporte/Resistência em 1.0)")
+    return _apply_dark_theme(fig, height=480, title=f"Chart 1: {crypto.symbol} Price vs. aSOPR (Support/Resistance at 1.0)")
 
 
 # ==============================================================================
-# 2. GRÁFICO PREÇO BTC + PI CYCLE TOP + 200W SMA + HASH RIBBON + MMC
+# 2. BTC PRICE + PI CYCLE TOP + 200W SMA + HASH RIBBON + MMC
 # ==============================================================================
 def build_btc_picycle_200w_hashribbon_mmc_chart(crypto: CryptoFullProfile) -> go.Figure:
     s = crypto.chart_series
@@ -175,25 +175,25 @@ def build_btc_picycle_200w_hashribbon_mmc_chart(crypto: CryptoFullProfile) -> go
         vertical_spacing=0.08,
         row_heights=[0.62, 0.38],
         subplot_titles=(
-            "Preço BTC vs. Pi Cycle Top (111d SMA vs 2x 350d SMA), 200W SMA (Piso Secular) e MMC (Custo Mínimo Mineração)",
-            "Hash Ribbon (Miner Capitulation & Reversão): Hash Rate SMA 30d vs. SMA 60d",
+            "BTC Price vs. Pi Cycle Top (111d SMA vs 2x 350d SMA), 200W SMA (Secular Floor) & MMC (Cost of Production)",
+            "Hash Ribbon (Miner Capitulation & Recovery): Hash Rate 30d SMA vs. 60d SMA",
         ),
     )
 
-    fig.add_trace(go.Scatter(x=px.index, y=px.values, name="Preço BTC", line=dict(color="#F8FAFC", width=2.3)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=px.index, y=px.values, name="BTC Price", line=dict(color="#F8FAFC", width=2.3)), row=1, col=1)
     fig.add_trace(go.Scatter(x=sma111.index, y=sma111.values, name="Pi Cycle 111d SMA", line=dict(color="#F59E0B", width=1.8)), row=1, col=1)
     fig.add_trace(go.Scatter(x=sma350x2.index, y=sma350x2.values, name="Pi Cycle 2x 350d SMA (Topo)", line=dict(color="#EF4444", width=1.8, dash="dot")), row=1, col=1)
-    fig.add_trace(go.Scatter(x=sma200w.index, y=sma200w.values, name="200W SMA (Piso Histórico)", line=dict(color="#10B981", width=2.0, dash="dash")), row=1, col=1)
+    fig.add_trace(go.Scatter(x=sma200w.index, y=sma200w.values, name="200W SMA (Secular Floor)", line=dict(color="#10B981", width=2.0, dash="dash")), row=1, col=1)
     fig.add_trace(go.Scatter(x=mmc.index, y=mmc.values, name="MMC (Minimum Mining Cost)", line=dict(color="#A855F7", width=1.8, dash="dashdot")), row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=hr30.index, y=hr30.values, name="Hash Rate SMA 30d (Rápida)", line=dict(color="#34D399", width=2.0)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=hr30.index, y=hr30.values, name="Hash Rate 30d SMA (Fast)", line=dict(color="#34D399", width=2.0)), row=2, col=1)
     fig.add_trace(go.Scatter(x=hr60.index, y=hr60.values, name="Hash Rate SMA 60d (Lenta)", line=dict(color="#60A5FA", width=2.0, dash="dash")), row=2, col=1)
 
-    return _apply_dark_theme(fig, height=520, title="Gráfico Obrigatório 2: Preço BTC + Pi Cycle Top + 200W SMA + MMC + Hash Ribbon")
+    return _apply_dark_theme(fig, height=520, title="Chart 2: BTC Price + Pi Cycle Top + 200W SMA + MMC + Hash Ribbon")
 
 
 # ==============================================================================
-# 3. GRÁFICO PREÇO CRIPTO + MVRV Z-SCORE E NUPL
+# 3. CRYPTO PRICE + MVRV Z-SCORE AND NUPL
 # ==============================================================================
 def build_crypto_mvrv_nupl_chart(crypto: CryptoFullProfile) -> go.Figure:
     s = crypto.chart_series
@@ -207,29 +207,29 @@ def build_crypto_mvrv_nupl_chart(crypto: CryptoFullProfile) -> go.Figure:
         vertical_spacing=0.06,
         row_heights=[0.40, 0.30, 0.30],
         subplot_titles=(
-            f"{crypto.symbol} — Preço Spot (USD)",
+            f"{crypto.symbol} — Spot Price (USD)",
             "MVRV Z-Score (< 0 Fundo/Verde | > 7 Topo/Vermelho)",
-            "NUPL (< 0 Prejuízo/Compra | 0.30 Acumulação | 0.60/0.65 Alerta | > 0.75 Euforia/Venda)",
+            "NUPL (< 0 Loss/Buy | 0.30 Accumulation | 0.60/0.65 Alert | > 0.75 Euphoria/Sell)",
         ),
     )
 
-    fig.add_trace(go.Scatter(x=px.index, y=px.values, name="Preço (USD)", line=dict(color="#F59E0B", width=2.0)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=px.index, y=px.values, name="Price (USD)", line=dict(color="#F59E0B", width=2.0)), row=1, col=1)
 
     fig.add_trace(go.Scatter(x=mvrv.index, y=mvrv.values, name="MVRV Z-Score", line=dict(color="#38BDF8", width=1.9)), row=2, col=1)
     fig.add_hline(y=0.0, line_dash="dash", line_color="#10B981", annotation_text="Fundo (< 0)", row=2, col=1)
     fig.add_hline(y=7.0, line_dash="dash", line_color="#EF4444", annotation_text="Topo (> 7)", row=2, col=1)
 
     fig.add_trace(go.Scatter(x=nupl.index, y=nupl.values, name="NUPL", line=dict(color="#A855F7", width=1.9)), row=3, col=1)
-    fig.add_hline(y=0.0, line_dash="dash", line_color="#10B981", annotation_text="Capitulação (0.0)", row=3, col=1)
+    fig.add_hline(y=0.0, line_dash="dash", line_color="#10B981", annotation_text="Capitulation (0.0)", row=3, col=1)
     fig.add_hline(y=0.30, line_dash="dot", line_color="#60A5FA", annotation_text="0.30", row=3, col=1)
     fig.add_hline(y=0.60, line_dash="dot", line_color="#FBBF24", annotation_text="0.60", row=3, col=1)
     fig.add_hline(y=0.75, line_dash="dash", line_color="#EF4444", annotation_text="Euforia (0.75)", row=3, col=1)
 
-    return _apply_dark_theme(fig, height=560, title=f"Gráfico Obrigatório 3: {crypto.symbol} Preço + MVRV Z-Score & NUPL")
+    return _apply_dark_theme(fig, height=560, title=f"Chart 3: {crypto.symbol} Price + MVRV Z-Score & NUPL")
 
 
 # ==============================================================================
-# 4. GRÁFICO PREÇO CRIPTO VS. NVM RATIO (+ EXCHANGE INFLOW & CDD)
+# 4. CRYPTO PRICE VS. NVM RATIO (+ EXCHANGE INFLOW & CDD)
 # ==============================================================================
 def build_crypto_nvm_and_cdd_chart(crypto: CryptoFullProfile) -> go.Figure:
     s = crypto.chart_series
@@ -245,18 +245,18 @@ def build_crypto_nvm_and_cdd_chart(crypto: CryptoFullProfile) -> go.Figure:
         row_heights=[0.55, 0.45],
         specs=[[{"secondary_y": True}], [{"secondary_y": True}]],
         subplot_titles=(
-            f"{crypto.symbol} Preço vs. NVM Ratio (Solidez = NVM lateralizando/caindo enquanto Preço sobe)",
-            "Fluxo para Corretoras (Exchange Inflow) + CDD (Coin Days Destroyed — Movimentação de Baleias Antigas)",
+            f"{crypto.symbol} Price vs. NVM Ratio (Strength = NVM flat/falling while Price rises)",
+            "Exchange Inflow + CDD (Coin Days Destroyed — Vintage Coin Distribution)",
         ),
     )
 
-    fig.add_trace(go.Scatter(x=px.index, y=px.values, name="Preço (USD)", line=dict(color="#F59E0B", width=2.2)), row=1, col=1, secondary_y=False)
+    fig.add_trace(go.Scatter(x=px.index, y=px.values, name="Price (USD)", line=dict(color="#F59E0B", width=2.2)), row=1, col=1, secondary_y=False)
     fig.add_trace(go.Scatter(x=nvm.index, y=nvm.values, name="NVM Ratio (Metcalfe)", line=dict(color="#10B981", width=2.0, dash="dot")), row=1, col=1, secondary_y=True)
 
     fig.add_trace(go.Bar(x=inflow.index, y=inflow.values, name="Exchange Inflow (24h)", marker_color="rgba(59, 130, 246, 0.45)"), row=2, col=1, secondary_y=False)
     fig.add_trace(go.Scatter(x=cdd.index, y=cdd.values, name="CDD (Coin Days Destroyed)", line=dict(color="#EF4444", width=1.8)), row=2, col=1, secondary_y=True)
 
-    return _apply_dark_theme(fig, height=500, title=f"Gráfico Obrigatório 4: {crypto.symbol} Preço vs. NVM Ratio & Exchange Inflow + CDD")
+    return _apply_dark_theme(fig, height=500, title=f"Chart 4: {crypto.symbol} Price vs. NVM Ratio & Exchange Inflow + CDD")
 
 
 # ==============================================================================
@@ -292,13 +292,13 @@ def build_banks_ptbv_vs_roe_scatter() -> go.Figure:
             ),
         ))
 
-    # Linha de regressão fundamentalista (Corredor Justo: P/TBV = 0.115 * ROE - 0.10)
+    # Fundamental regression line (Fair corridor: P/TBV = 0.115 * ROE - 0.10)
     x_line = np.linspace(5.0, 23.0, 50)
     y_line = 0.115 * x_line - 0.10
     fig.add_trace(go.Scatter(
         x=x_line, y=y_line,
         mode="lines",
-        name="Linha de Regressão Setorial (P/TBV Justo p/ ROE)",
+        name="Sector Regression Line (Fair P/TBV for ROE)",
         line=dict(color="#94A3B8", width=1.8, dash="dash"),
     ))
 
@@ -313,11 +313,11 @@ def build_banks_ptbv_vs_roe_scatter() -> go.Figure:
 
     fig.update_xaxes(title_text="ROE — Return on Equity (%)")
     fig.update_yaxes(title_text="P/TBV — Price to Tangible Book Value (x)")
-    return _apply_dark_theme(fig, height=440, title="Gráfico Obrigatório 5: Scatter Plot Setorial P/TBV vs. ROE para Bancos Globais")
+    return _apply_dark_theme(fig, height=440, title="Chart 5: Global Banking Sector Scatter Plot — P/TBV vs. ROE")
 
 
 # ==============================================================================
-# 6. GRÁFICO COMPARATIVO MULTI-MÉTODOS DE VALUATION POR AÇÃO
+# 6. MULTI-METHOD EQUITY VALUATION COMPARISON CHART
 # ==============================================================================
 def build_multi_method_valuation_chart(equities: List[EquityFullAnalysis]) -> go.Figure:
     tickers = [e.ticker for e in equities]
@@ -327,22 +327,22 @@ def build_multi_method_valuation_chart(equities: List[EquityFullAnalysis]) -> go
     pegy_gold_px = [e.valuation_methods["pegy_gold_fair_price_usd"] for e in equities]
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(name="Preço Atual (Spot USD)", x=tickers, y=curr_px, marker_color="#3B82F6"))
+    fig.add_trace(go.Bar(name="Current Spot Price (USD)", x=tickers, y=curr_px, marker_color="#3B82F6"))
     fig.add_trace(go.Bar(name="Valor Justo DCF (c/ 10% MoS)", x=tickers, y=dcf_mos10, marker_color="#10B981"))
     fig.add_trace(go.Bar(name="Valor Justo SOTP (Peer Multiples)", x=tickers, y=sotp_px, marker_color="#A855F7"))
     fig.add_trace(go.Bar(name="Teto Faixa Ouro PEGY (1.2x / 1.0x)", x=tickers, y=pegy_gold_px, marker_color="#F59E0B"))
 
     fig.update_layout(barmode="group")
-    fig.update_yaxes(title_text="Preço por Ação (USD)")
+    fig.update_yaxes(title_text="Price per Share (USD)")
     return _apply_dark_theme(
         fig,
         height=460,
-        title="Gráfico Obrigatório 6: Matriz Comparativa Multi-Métodos de Valuation por Ação (Preço Atual vs. DCF vs. SOTP vs. Faixa PEGY)",
+        title="Chart 6: Multi-Method Equity Valuation Matrix (Spot Price vs. DCF vs. SOTP vs. PEGY Gold Band)",
     )
 
 
 # ==============================================================================
-# 7. GRÁFICOS MACRO: SPREAD 10Y-2Y + DINÂMICA 2Y/10Y + PMI + M2 VS DXY + ICSA
+# 7. MACRO CHARTS: 10Y-2Y SPREAD + 2Y/10Y DYNAMICS + PMI + M2 VS DXY + ICSA
 # ==============================================================================
 def build_macro_comprehensive_chart(macro: MacroDataBundle) -> go.Figure:
     sh = macro.series_history
@@ -363,35 +363,35 @@ def build_macro_comprehensive_chart(macro: MacroDataBundle) -> go.Figure:
             [{"secondary_y": False}, {"secondary_y": True}],
         ],
         subplot_titles=(
-            "Spread 10Y-2Y (%) — Linha Zero Destacada (Alerta de Desinversão)",
-            "Dinâmica das Pontas: Yield 2 Anos (Curta) vs. Yield 10 Anos (Longa)",
-            "PMI Services vs. Manufacturing (Linhas 50 Expansão e 60 Inflação)",
-            "Liquidez Global: Oferta Monetária M2 (USD B) vs. Dólar DXY",
+            "10Y-2Y Spread (%) — Zero Line Highlighted (De-inversion Alert)",
+            "Yield Curve Tenors: 2-Year Yield (Short) vs. 10-Year Yield (Long)",
+            "PMI Services vs. Manufacturing (50 Expansion & 60 Inflation Lines)",
+            "Global Liquidity: M2 Money Supply (USD B) vs. DXY Dollar Index",
         ),
     )
 
     # 1) Spread 10Y-2Y
     fig.add_trace(go.Scatter(x=spread.index, y=spread.values, name="Spread 10Y-2Y (%)", line=dict(color="#38BDF8", width=2.2), fill="tozeroy", fillcolor="rgba(56,189,248,0.12)"), row=1, col=1)
-    fig.add_hline(y=0.0, line_dash="dash", line_color="#EF4444", line_width=2.0, annotation_text="Linha Zero (Desinversão)", row=1, col=1)
+    fig.add_hline(y=0.0, line_dash="dash", line_color="#EF4444", line_width=2.0, annotation_text="Zero Line (De-inversion)", row=1, col=1)
 
-    # 2) Dinâmica 2Y vs 10Y
+    # 2) 2Y vs 10Y Dynamics
     fig.add_trace(go.Scatter(x=dgs2.index, y=dgs2.values, name="US 2Y Yield (%)", line=dict(color="#F59E0B", width=2.0)), row=1, col=2)
     fig.add_trace(go.Scatter(x=dgs10.index, y=dgs10.values, name="US 10Y Yield (%)", line=dict(color="#10B981", width=2.0)), row=1, col=2)
 
     # 3) PMI Services vs Manufacturing
     fig.add_trace(go.Scatter(x=pmi_s.index, y=pmi_s.values, name="PMI Services", line=dict(color="#10B981", width=2.2)), row=2, col=1)
     fig.add_trace(go.Scatter(x=pmi_m.index, y=pmi_m.values, name="PMI Manufacturing", line=dict(color="#60A5FA", width=2.0, dash="dot")), row=2, col=1)
-    fig.add_hline(y=50.0, line_dash="dash", line_color="#FBBF24", annotation_text="50 (Expansão/Contração)", row=2, col=1)
-    fig.add_hline(y=60.0, line_dash="dot", line_color="#EF4444", annotation_text="60 (Risco Inflação)", row=2, col=1)
+    fig.add_hline(y=50.0, line_dash="dash", line_color="#FBBF24", annotation_text="50 (Expansion/Contraction)", row=2, col=1)
+    fig.add_hline(y=60.0, line_dash="dot", line_color="#EF4444", annotation_text="60 (Inflation Risk)", row=2, col=1)
 
     # 4) M2 vs DXY
     fig.add_trace(go.Scatter(x=m2.index, y=m2.values, name="M2 Money Supply", line=dict(color="#10B981", width=2.2)), row=2, col=2, secondary_y=False)
-    fig.add_trace(go.Scatter(x=dxy.index, y=dxy.values, name="DXY (Índice Dólar)", line=dict(color="#EF4444", width=1.9, dash="dash")), row=2, col=2, secondary_y=True)
+    fig.add_trace(go.Scatter(x=dxy.index, y=dxy.values, name="DXY (US Dollar Index)", line=dict(color="#EF4444", width=1.9, dash="dash")), row=2, col=2, secondary_y=True)
 
     return _apply_dark_theme(
         fig,
         height=660,
-        title="Gráfico Obrigatório 7: Painel Macro Leading — Spread 10Y-2Y, Dinâmica 2Y vs 10Y, PMI (Services vs Mfg) e M2 vs DXY",
+        title="Chart 7: Leading Macro Dashboard — 10Y-2Y Spread, 2Y vs 10Y Dynamics, PMI (Services vs Mfg) and M2 vs DXY",
         legend_pos="bottom",
     )
 
@@ -405,7 +405,7 @@ def build_yield_curve_and_icsa_chart(macro: MacroDataBundle) -> go.Figure:
         horizontal_spacing=0.08,
         subplot_titles=(
             f"Curva de Juros Atual dos EUA — {macro.yield_curve['curve_classification']}",
-            "ICSA (Pedidos Iniciais de Seguro-Desemprego — Par Obrigatório da Regra de Sahm)",
+            "ICSA (Initial Jobless Claims — Paired with Sahm Rule)",
         ),
     )
 
@@ -436,17 +436,17 @@ def build_yield_curve_and_icsa_chart(macro: MacroDataBundle) -> go.Figure:
         go.Scatter(
             x=icsa.index,
             y=icsa.rolling(4, min_periods=1).mean().values,
-            name="ICSA Média 4 Semanas",
+            name="ICSA 4-Week Moving Average",
             line=dict(color="#F59E0B", width=2.0, dash="dash"),
         ),
         row=1, col=2,
     )
 
-    return _apply_dark_theme(fig, height=360, title="Estrutura a Termo da Curva de Juros (Vértices) & Tendência de Seguro-Desemprego (ICSA)")
+    return _apply_dark_theme(fig, height=360, title="Treasury Yield Curve Term Structure & Initial Jobless Claims (ICSA Trend)")
 
 
 # ==============================================================================
-# 8. MÓDULO 6: VELOCÍMETRO DE VALIDAÇÃO DE PESO ALVO DA CARTEIRA (SOMA = 100%)
+# 8. TARGET PORTFOLIO WEIGHT VALIDATION GAUGE (SUM = 100%)
 # ==============================================================================
 def build_portfolio_weight_gauge_chart(target_weight_sum_pct: float) -> go.Figure:
     diff = round(target_weight_sum_pct - 100.0, 2)
@@ -499,7 +499,7 @@ def build_portfolio_weight_gauge_chart(target_weight_sum_pct: float) -> go.Figur
 
 
 # ==============================================================================
-# 9. MÓDULO 7.B: RAIO-X DE SAÚDE FORENSE 5 ANOS (SLOAN, FCO/EBITDA, NWC, ROIC VS WACC)
+# 9. 5-YEAR FORENSIC HEALTH AUDIT (SLOAN, CFO/EBITDA, NWC, ROIC VS WACC)
 # ==============================================================================
 def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
     fh5 = dd.forensic_5y_history or {}
@@ -517,10 +517,10 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
         vertical_spacing=0.25,
         horizontal_spacing=0.10,
         subplot_titles=(
-            "Sloan Ratio Histórico 5y (%) — [Alerta: > +10% | Ótimo: < -10%]",
-            "Conversão de Caixa: FCO / EBITDA (x) — [Ideal: ≥ 0.85x | Pura: 1.0x]",
-            "Capital de Giro Líquido (NWC) vs. FCO Operacional (USD B)",
-            "Árvore de Criação de Valor: ROIC c/ Goodwill vs. WACC (%)",
+            "5Y Historical Sloan Ratio (%) — [Alert: > +10% | Optimal: < -10%]",
+            "Cash Conversion: CFO / EBITDA (x) — [Ideal: >= 0.85x | Pure: 1.0x]",
+            "Net Working Capital (NWC) vs. Operating CFO (USD B)",
+            "Value Creation Tree: ROIC with Goodwill vs. WACC (%)",
         ),
     )
 
@@ -538,7 +538,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
         col=1,
     )
     fig.add_hline(y=10.0, line_dash="dash", line_color="#EF4444", annotation_text="Limite Alerta (+10%)", row=1, col=1)
-    fig.add_hline(y=-10.0, line_dash="dot", line_color="#10B981", annotation_text="Zona Ótima (-10%)", row=1, col=1)
+    fig.add_hline(y=-10.0, line_dash="dot", line_color="#10B981", annotation_text="Optimal Zone (-10%)", row=1, col=1)
     max_sloan = max(max(sloan), 12.0)
     min_sloan = min(min(sloan), -12.0)
     fig.update_yaxes(range=[min_sloan * 1.35 if min_sloan < 0 else -14.0, max_sloan * 1.35 if max_sloan > 0 else 14.0], row=1, col=1)
@@ -558,7 +558,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
         row=1,
         col=2,
     )
-    fig.add_hline(y=1.0, line_dash="dash", line_color="#10B981", annotation_text="Conversão Pura (1.0x)", row=1, col=2)
+    fig.add_hline(y=1.0, line_dash="dash", line_color="#10B981", annotation_text="Pure Conversion (1.0x)", row=1, col=2)
     fig.add_hline(y=0.80, line_dash="dot", line_color="#EF4444", annotation_text="Piso Forense (0.80x)", row=1, col=2)
     max_fco_eb = max(max(fco_eb), 1.05)
     min_fco_eb = min(min(fco_eb), 0.70)
@@ -581,7 +581,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
         go.Bar(
             x=years,
             y=nwc,
-            name="NWC Giro Líquido (USD B)",
+            name="Net Working Capital NWC (USD B)",
             marker_color="#F59E0B",
             text=[f"${v:,.1f}B" for v in nwc],
             textposition="auto",
@@ -636,7 +636,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
 
 
 # ==============================================================================
-# 10. MÓDULO 7.B: IDENTIDADE DUPONT (3 PILARES) + SHARE COUNT (BUYBACKS) & MARGEM BRUTA
+# 10. DUPONT IDENTITY (3 PILLARS) + SHARE COUNT (BUYBACKS) & GROSS MARGIN
 # ==============================================================================
 def build_deep_dive_dupont_and_margins_chart(dd: DeepDiveResultBundle) -> go.Figure:
     fh5 = dd.forensic_5y_history or {}
@@ -654,14 +654,14 @@ def build_deep_dive_dupont_and_margins_chart(dd: DeepDiveResultBundle) -> go.Fig
         horizontal_spacing=0.12,
         specs=[[{"secondary_y": True}, {"secondary_y": True}]],
         subplot_titles=(
-            "Decomposição DuPont: Margem Líquida (%), Giro (x), Alavancagem (x) & ROE (%)",
-            "Moats & Alocação de Capital: Margem Bruta 5y (%) vs. Share Count Diluído (B)",
+            "DuPont Decomposition: Net Margin (%), Asset Turnover (x), Leverage (x) & ROE (%)",
+            "Economic Moats & Capital Allocation: 5Y Gross Margin (%) vs. Diluted Share Count (B)",
         ),
     )
 
     # Col 1: DuPont
     fig.add_trace(
-        go.Bar(x=years, y=dm, name="Margem Líquida (%)", marker_color="rgba(16, 185, 129, 0.55)"),
+        go.Bar(x=years, y=dm, name="Net Margin (%)", marker_color="rgba(16, 185, 129, 0.55)"),
         row=1, col=1, secondary_y=False,
     )
     fig.add_trace(
@@ -696,7 +696,7 @@ def build_deep_dive_dupont_and_margins_chart(dd: DeepDiveResultBundle) -> go.Fig
         go.Bar(
             x=years,
             y=shares,
-            name="Share Count Diluído (Bilhões Ações)",
+            name="Diluted Share Count (Billion Shares)",
             marker_color="rgba(168, 85, 247, 0.45)",
             text=[f"{v:.2f}B" for v in shares],
             textposition="auto",
@@ -715,15 +715,15 @@ def build_deep_dive_dupont_and_margins_chart(dd: DeepDiveResultBundle) -> go.Fig
 
 
 # ==============================================================================
-# 11. MÓDULO 7.B: COCKPIT DE VALUATION MULTI-MÉTODO + REVERSE DCF + OWNER EARNINGS + MD&A
+# 11. MULTI-METHOD VALUATION COCKPIT + REVERSE DCF + OWNER EARNINGS + MD&A
 # ==============================================================================
 def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: float = 4.42) -> go.Figure:
     eq = dd.equity_analysis
     vm = eq.valuation_methods
     mda = dd.mda_quant_breakdown or {
-        "Volume Orgânico (%)": 5.0,
+        "Organic Volume (%)": 5.0,
         "Pricing Power / Mix (%)": 3.5,
-        "Impacto Cambial FX (%)": -0.5,
+        "FX Headwind Impact (%)": -0.5,
         "Crescimento Total Receita (%)": 8.0,
     }
 
@@ -739,19 +739,19 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
         vertical_spacing=0.28,
         horizontal_spacing=0.10,
         subplot_titles=(
-            "Grade de 7 Métodos de Valor Justo vs. Preço Spot (DCF 3 Cenários + 10% MoS, SOTP e PEGY Faixa Ouro)",
+            "Multi-Method Fair Value Grid vs. Spot Price (DCF 3 Scenarios + 10% MoS, SOTP & PEGY Gold Band)",
             "Reverse DCF (g_impl vs. g_fund & CAGR FCF 5y) & Owner Earnings vs. US 10Y",
-            "Decomposição do Crescimento da Receita MD&A (% Volume, % Preço, % FX)",
+            "MD&A Revenue Growth Decomposition (% Volume, % Price, % FX)",
         ),
     )
 
     # Row 1 (Colspan=2): Grade de Valor Justo
     labels_val = [
-        "Preço Atual Spot",
+        "Current Spot Price",
         "DCF Conservador",
         "DCF (c/ 10% MoS)",
         "DCF Base",
-        "Preço Justo SOTP",
+        "SOTP Fair Value",
         "PEGY Faixa Ouro",
         "DCF Otimista",
     ]
@@ -836,14 +836,14 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
     fig.update_yaxes(range=[min(min_g * 1.30, 0.0) if min_g < 0 else 0.0, max_g * 1.35 + 5.0], row=2, col=1)
 
     # Row 2, Col 2: MD&A Decomposition
-    mda_keys = ["Volume Orgânico (%)", "Pricing Power / Mix (%)", "Impacto Cambial FX (%)", "Crescimento Total Receita (%)"]
+    mda_keys = ["Organic Volume (%)", "Pricing Power / Mix (%)", "FX Headwind Impact (%)", "Total Revenue Growth (%)"]
     mda_vals = [mda.get(k, 0.0) for k in mda_keys]
     mda_colors = ["#38BDF8", "#10B981", "#EF4444" if mda_vals[2] < 0 else "#F59E0B", "#A855F7"]
     fig.add_trace(
         go.Bar(
-            x=["% Volume", "% Preço (Mix)", "% FX (Câmbio)", "Total Receita"],
+            x=["% Volume", "% Price (Mix)", "% FX (Currency)", "Total Revenue"],
             y=mda_vals,
-            name="Decomposição MD&A (%)",
+            name="MD&A Decomposition (%)",
             marker_color=mda_colors,
             text=[f"{v:+.1f}%" for v in mda_vals],
             textposition="outside",
@@ -864,7 +864,7 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
 
 
 # ==============================================================================
-# 12. MÓDULO 7.C: VELOCÍMETROS ON-CHAIN (MVRV Z-SCORE & NUPL) + AUDITORIA GITHUB
+# 12. ON-CHAIN GAUGES (MVRV Z-SCORE & NUPL) + GITHUB AUDIT
 # ==============================================================================
 def build_crypto_onchain_gauges_chart(dd: DeepDiveResultBundle) -> go.Figure:
     cp = dd.crypto_profile
@@ -912,7 +912,7 @@ def build_crypto_onchain_gauges_chart(dd: DeepDiveResultBundle) -> go.Figure:
             mode="gauge+number",
             value=nupl,
             number=dict(font=dict(size=24, color="#F8FAFC"), valueformat=".2f"),
-            title=dict(text="<b>NUPL On-Chain</b><br><span style='font-size:10px;color:#94A3B8'>&lt;0 Capitulação | &gt;0.75 Topo</span>", font=dict(size=11)),
+            title=dict(text="<b>On-Chain NUPL</b><br><span style='font-size:10px;color:#94A3B8'>&lt;0 Capitulation | &gt;0.75 Market Top</span>", font=dict(size=11)),
             gauge=dict(
                 axis=dict(range=[-0.3, 1.0]),
                 bar=dict(color=nupl_color, thickness=0.35),
@@ -978,7 +978,7 @@ def build_crypto_onchain_gauges_chart(dd: DeepDiveResultBundle) -> go.Figure:
         plot_bgcolor=DARK_BG,
         font=dict(family="Inter, sans-serif", color=FONT_COLOR),
         margin=dict(l=20, r=20, t=75, b=20),
-        title=dict(text=f"Painel Velocímetro de Ciclo On-Chain & Segurança ({dd.normalized_ticker})", font=dict(size=14, color="#F8FAFC"), x=0.01),
+        title=dict(text=f"On-Chain Cycle & Security Dashboard ({dd.normalized_ticker})", font=dict(size=14, color="#F8FAFC"), x=0.01),
     )
     return fig
 
@@ -993,7 +993,7 @@ def build_crypto_github_and_earnings_chart(dd: DeepDiveResultBundle) -> go.Figur
         horizontal_spacing=0.10,
         subplot_titles=(
             "Atividade de Engenharia GitHub: Commits (4w) & Active Devs vs. Benchmarks",
-            "Economia Real do Protocolo (Anualizado USD M): Fees vs. Emissão vs. Real Earnings",
+            "Protocol Real Economics (Annualized USD M): Fees vs. Issuance vs. Real Earnings",
         ),
     )
 
@@ -1025,7 +1025,7 @@ def build_crypto_github_and_earnings_chart(dd: DeepDiveResultBundle) -> go.Figur
 
     fig.add_trace(
         go.Bar(
-            x=["Protocol Fees (Receita)", "Token Issuance (Diluição)", "Real Earnings (Lucro Real)"],
+            x=["Protocol Fees (Revenue)", "Token Issuance (Dilution)", "Real Earnings (Retained Cash Flow)"],
             y=[fees_m, iss_m, re_m],
             name="Economia Real Anual (USD M)",
             marker_color=["#38BDF8", "#F59E0B", "#10B981" if re_m > 0 else "#EF4444"],

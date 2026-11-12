@@ -1,9 +1,9 @@
 """
-MÓDULO 5: MONITOR DE RISCO, ALAVANCAGEM CONVEXA & SEÇÃO DOCUMENTAL CONSULTIVA DE TIMING
-REGRA ARQUITETURAL ESTRITA: O sistema NÃO é um robô trader autônomo e NÃO realiza rebalanceamento
-mecânico por calendário. As diretrizes de timing, aportes (Shannon Inflow) e poda são apresentadas
-exclusivamente como Referência Estratégica Consultiva / Não-Vinculante ao lado da estimativa de
-impacto fiscal (Tax-Drag Hurdle Rate), para tomada de decisão discricionária do investidor.
+MODULE 5: RISK MONITOR, CONVEX LEVERAGE & CONSULTATIVE TIMING DOCUMENTATION
+STRICT ARCHITECTURAL RULE: The system is NOT an automated trading bot and does NOT perform mechanical
+calendar rebalancing. Timing guidelines, capital additions (Shannon Inflow), and pruning references are presented
+strictly as Consultative / Non-Binding Strategic References alongside estimated tax drag
+(Tax-Drag Hurdle Rate), enabling disciplined, discretionary decision-making by the institutional investor.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class ConsultativeTimingRow:
     consultative_status_vs_reference: str
     estimated_unrealized_gain_pct: float
     capital_gains_tax_rate_pct: float
-    tax_drag_hurdle_rate_pct: float  # Queda mínima necessária pós-venda para compensar o imposto pago
+    tax_drag_hurdle_rate_pct: float  # Minimum post-sale drawdown required to offset capital gains tax
     shannon_inflow_eligible: bool
 
 
@@ -65,7 +65,7 @@ class RiskTimingEngine:
         cap = portfolio.capital_usd
 
         # ======================================================================
-        # 5.1 MÉTRICAS DE RISCO, LIQUIDEZ E ALAVANCAGEM CONVEXA
+        # 5.1 RISK METRICS, LIQUIDITY & CONVEX LEVERAGE
         # ======================================================================
         sharpe = 1.68
         sortino = 2.45
@@ -74,9 +74,9 @@ class RiskTimingEngine:
         calmar = round(cagr_port_pct / max_dd_pct, 2)
 
         if calmar > 3.0:
-            calmar_cls = f"Lendário ({calmar:.2f} > 3.0)"
+            calmar_cls = f"Legendary ({calmar:.2f} > 3.0)"
         elif calmar >= 1.0:
-            calmar_cls = f"Ótimo ({calmar:.2f} entre 1.0 e 2.0+)"
+            calmar_cls = f"Optimal ({calmar:.2f} between 1.0 and 2.0+)"
         elif calmar >= 0.5:
             calmar_cls = f"Ok ({calmar:.2f} entre 0.5 e 1.0)"
         else:
@@ -84,26 +84,26 @@ class RiskTimingEngine:
 
         performance_risk_metrics = {
             "sharpe_ratio": sharpe,
-            "sharpe_reference": "> 1.0 (Excelente Relação Retorno/Volatilidade)",
+            "sharpe_reference": "> 1.0 (Optimal Return-to-Volatility Profile)",
             "sortino_ratio": sortino,
             "sortino_reference": f"> Sharpe ({sortino:.2f} > {sharpe:.2f} — Volatilidade Concentrada na Alta / Assimetria Positiva)",
             "portfolio_cagr_est_pct": cagr_port_pct,
             "portfolio_max_drawdown_pct": max_dd_pct,
             "calmar_ratio": calmar,
-            "calmar_reference": "< 0.5 Lixo | 0.5-1.0 Ok | 1.0-2.0 Ótimo | > 3.0 Lendário",
+            "calmar_reference": "< 0.5 Poor | 0.5-1.0 Acceptable | 1.0-2.0 Optimal | > 3.0 Legendary",
             "calmar_classification": calmar_cls,
         }
 
         if vix_current > 30.0:
-            vix_cls = "Medo Extremo (> 30 — Ações Baratas / Pânico Institucional)"
+            vix_cls = "Extreme Fear (> 30 — Deep Value / Institutional Panic)"
         elif vix_current >= 15.0:
-            vix_cls = "Normal (15 a 25 — Volatilidade Padrão de Mercado)"
+            vix_cls = "Normal (15 to 25 — Standard Market Volatility)"
         else:
-            vix_cls = "Complacência (< 15 — Baixa Proteção Implícita)"
+            vix_cls = "Complacency (< 15 — Low Implied Protection)"
 
         vix_indicator = {
             "vix_current": round(vix_current, 2),
-            "vix_reference": "> 30 Medo Extremo / Ações Baratas | 15-25 Normal | < 15 Complacência",
+            "vix_reference": "> 30 Extreme Fear / Deep Value | 15-25 Normal | < 15 Complacency",
             "vix_classification": vix_cls,
         }
 
@@ -137,18 +137,18 @@ class RiskTimingEngine:
             adtv_table.append({
                 "Ticker": pos.ticker,
                 "Ativo": pos.name,
-                "Posição na Carteira (USD)": round(pos.allocated_usd, 2),
-                "ADTV Médio Diário (USD M)": round(adtv_usd / 1e6, 1),
+                "Portfolio Position (USD)": round(pos.allocated_usd, 2),
+                "Average Daily ADTV ($M)": round(adtv_usd / 1e6, 1),
                 "% do ADTV": round(pos_pct_adtv, 4),
-                "Referência": "< 1.0000% do ADTV",
+                "Reference Threshold": "< 1.0000% of ADTV",
                 "Status Slippage": "Liquidez Institucional Plena (< 1% ADTV — Zero Slippage)" if pos_pct_adtv < 1.0 else "ALERTA DE SLIPPAGE (>= 1% ADTV)",
             })
 
         # ======================================================================
-        # PAINEL DE ALAVANCAGEM CONVEXA ANTI-CÍCLICA (LTV GLOBAL)
+        # CONVEX COUNTER-CYCLICAL LEVERAGE PANEL (GLOBAL LTV)
         # ======================================================================
         # LTV_Global = (Peso_Stocks * LTV_Stocks) + (Peso_BTC * LTV_BTC)
-        # Considerando Hard-Assets/Stocks (50%) e Crypto/BTC colateralizável (50%)
+        # Assuming Hard-Assets/Stocks (50%) and Collateralizable Crypto/BTC (50%)
         btc_prof = cryptos.get("BTC-USD")
         btc_mvrv_z = btc_prof.onchain_timing["mvrv_z_score"] if btc_prof and hasattr(btc_prof, "onchain_timing") else (
             btc_prof.onchain_metrics["mvrv_z_score"] if btc_prof else 1.85
@@ -184,27 +184,27 @@ class RiskTimingEngine:
             "ltv_global_current_pct": ltv_global_pct,
             "total_debt_usd": round(cap * (ltv_global_pct / 100.0), 2),
             "ibkr_box_spread_rate_pct": ibkr_box_spread_rate,
-            "ibkr_formula": f"Fed Funds ({fed_funds_rate_pct:.2f}%) + 0.35% a.a. = {ibkr_box_spread_rate:.2f}% a.a.",
+            "ibkr_formula": f"Fed Funds ({fed_funds_rate_pct:.2f}%) + 0.35% p.a. = {ibkr_box_spread_rate:.2f}% p.a.",
             "aave_v3_wbtc_usdc_borrow_rate_pct": aave_v3_usdc_borrow_rate,
             "blended_carry_cost_pct": blended_borrow_cost,
-            "ltv_structural_base_ref": "20.0% contínuo em condições normais (Desalavancagem ocorre organicamente pela valorização do colateral e novos aportes)",
-            "turbo_trigger_ref": "28.0% a 30.0% LTV em pânico real (Shiller CAPE < 28x ou BTC MVRV Z < 0.5) pareado c/ confirmação de reversão (Hash Ribbon Compra + aSOPR > 1.0)",
+            "ltv_structural_base_ref": "20.0% structural baseline under normal regimes (Deleveraging occurs organically via collateral appreciation and cash flows)",
+            "turbo_trigger_ref": "28.0% to 30.0% LTV in acute panic (Shiller CAPE < 28x or BTC MVRV Z < 0.5) paired with confirmed technical reversal (Hash Ribbon Buy + aSOPR > 1.0)",
             "turbo_trigger_status": (
-                "GATILHO TURBO ATIVO (Condição de Fundo + Reversão Confirmada)"
+                "TURBO TRIGGER ACTIVE (Bottom Conditions + Confirmed Reversal)"
                 if (turbo_condition_met and reversal_confirmed)
-                else f"INATIVO (CAPE {shiller_cape:.1f}x | BTC MVRV Z {btc_mvrv_z:.2f} | Confirmações: Hash Ribbon={'OK' if hash_ribbon_ok else 'Aguardar'}, aSOPR={btc_asopr:.3f})"
+                else f"INACTIVE (CAPE {shiller_cape:.1f}x | BTC MVRV Z {btc_mvrv_z:.2f} | Confirmations: Hash Ribbon={'OK' if hash_ribbon_ok else 'Wait'}, aSOPR={btc_asopr:.3f})"
             ),
-            "defensive_reduction_ref": "10.0% LTV apenas em duplo estresse (Fed Funds > 4.5% a.a. concomitante com Shiller CAPE > 36x)",
+            "defensive_reduction_ref": "10.0% LTV only during dual stress (Fed Funds > 4.5% p.a. concurrent with Shiller CAPE > 36x)",
             "defensive_reduction_status": (
-                "ALERTA DE DUPLO ESTRESSE ATIVO (Considerar redução defensiva para 10% LTV)"
+                "DOUBLE-STRESS ALERT ACTIVE (Consider defensive deleveraging to 10% LTV)"
                 if defensive_condition_met
-                else f"INATIVO (Fed Funds {fed_funds_rate_pct:.2f}% <= 4.50% | Teto de Segurança contra Margin Call em 45.0% LTV)"
+                else f"INACTIVE (Fed Funds {fed_funds_rate_pct:.2f}% <= 4.50% | Safety Buffer Against Margin Call at 45.0% LTV Intact)"
             ),
             "margin_call_safety_ceiling_pct": 45.0,
-            "max_collateral_drop_before_45_ltv_pct": round((1.0 - (ltv_global_pct / 45.0)) * 100.0, 1),  # -55.6% de queda simultânea antes de tocar 45% LTV
+            "max_collateral_drop_before_45_ltv_pct": round((1.0 - (ltv_global_pct / 45.0)) * 100.0, 1),  # -55.6% simultaneous collateral drop before reaching 45% LTV
         }
 
-        # Stress-Test de Custo de Carregamento DeFi (Aave V3 WBTC/USDC Borrow Rate Spikes)
+        # DeFi Carry Cost Stress-Test (Aave V3 WBTC/USDC Borrow Rate Spikes)
         base_btc_collat_usd = cap * 0.50
         base_aave_debt_usd = base_btc_collat_usd * (ltv_btc_pct / 100.0)
         aave_stress_scenarios = [
@@ -220,13 +220,13 @@ class RiskTimingEngine:
             resulting_ltv_1y = (stressed_debt_1y / stressed_collat) * 100.0 if stressed_collat > 0 else 0.0
             health_factor = (stressed_collat * 0.78) / stressed_debt_1y if stressed_debt_1y > 0 else 9.9
             aave_v3_stress_test_table.append({
-                "Cenário Stress-Test Aave V3": sc_name,
-                "Borrow Rate USDC (% a.a.)": f"{rate_aa:.2f}%",
-                "Choque Simulado no Colateral BTC": f"{btc_shock_pct:+.0f}%",
-                "Custo Anual de Juros (USD)": round(base_aave_debt_usd * (rate_aa / 100.0), 2),
-                "LTV BTC Resultante (Após 1 Ano s/ Amortizar)": f"{resulting_ltv_1y:.2f}%",
+                "Aave V3 Stress Scenario": sc_name,
+                "Borrow Rate USDC (% p.a.)": f"{rate_aa:.2f}%",
+                "Simulated BTC Collateral Shock": f"{btc_shock_pct:+.0f}%",
+                "Annual Interest Cost ($)": round(base_aave_debt_usd * (rate_aa / 100.0), 2),
+                "Resulting 1Y BTC LTV (Without Amortization)": f"{resulting_ltv_1y:.2f}%",
                 "Health Factor Aave V3 (Liq = 1.00)": f"{health_factor:.2f}",
-                "Diagnóstico de Risco": (
+                "Risk Assessment": (
                     "Safe (LTV < 35% & Health Factor > 2.2)"
                     if resulting_ltv_1y < 35.0
                     else "Caution: Refinance to IBKR Fixed Box Spread or amortize via dividends"
@@ -234,57 +234,57 @@ class RiskTimingEngine:
             })
 
         # ======================================================================
-        # 5.2 SEÇÃO DOCUMENTAL CONSULTIVA: REFERÊNCIA DE TIMING, APORTES E PODA
+        # 5.2 CONSULTATIVE TIMING, INFLOW & PRUNING DOCUMENTATION
         # ======================================================================
         framework_rules_documentation = [
             {
-                "Classe / Vertical": "1. High-Growth Techs (e.g., NVDA, AMZN, ASML)",
-                "Métrica Primária": "Enterprise PEGY (EV/EBIT NTM)",
-                "Referência de Compra (Consultiva)": "Gold Range: Enterprise PEGY (EV/EBIT NTM) between 0 and 1.20x",
-                "Referência de Poda 50% (Consultiva)": "Enterprise PEGY (EV/EBIT NTM) > 1.60x",
-                "Nota Estratégica": "EV/EBIT does not penalize aggressive growth CapEx in AI/Cloud infrastructure.",
+                "Asset Class / Vertical": "1. High-Growth Techs (e.g., NVDA, AMZN, ASML)",
+                "Primary Metric": "Enterprise PEGY (EV/EBIT NTM)",
+                "Advisory Buy Reference": "Gold Range: Enterprise PEGY (EV/EBIT NTM) between 0 and 1.20x",
+                "Advisory 50% Trim Reference": "Enterprise PEGY (EV/EBIT NTM) > 1.60x",
+                "Strategic Note": "EV/EBIT does not penalize aggressive growth CapEx in AI/Cloud infrastructure.",
             },
             {
-                "Classe / Vertical": "2. Cash Cows & Tollbooths (e.g., AAPL, MSFT, GOOGL, META, V)",
-                "Métrica Primária": "Enterprise PEGY (EV/FCF NTM)",
-                "Referência de Compra (Consultiva)": "Gold Range: Enterprise PEGY (EV/FCF NTM) between 0 and 1.20x",
-                "Referência de Poda 50% (Consultiva)": "Enterprise PEGY (EV/FCF NTM) > 1.60x",
-                "Nota Estratégica": "Reflects pure free cash flow conversion plus Dividend Yield + Buyback Yield.",
+                "Asset Class / Vertical": "2. Cash Cows & Tollbooths (e.g., AAPL, MSFT, GOOGL, META, V)",
+                "Primary Metric": "Enterprise PEGY (EV/FCF NTM)",
+                "Advisory Buy Reference": "Gold Range: Enterprise PEGY (EV/FCF NTM) between 0 and 1.20x",
+                "Advisory 50% Trim Reference": "Enterprise PEGY (EV/FCF NTM) > 1.60x",
+                "Strategic Note": "Reflects pure free cash flow conversion plus Dividend Yield + Buyback Yield.",
             },
             {
-                "Classe / Vertical": "3. Cyclicals & Hard Commodities (e.g., XOM, CAT, FCX, VALE)",
-                "Métrica Primária": "Inverse Relative Multiples + Mid-Cycle DCF",
-                "Referência de Compra (Consultiva)": "Trough: P/E and EV/EBITDA > 1.15x sector avg + Price <= 0.85x Fair Value DCF",
-                "Referência de Poda 50% (Consultiva)": "Peak: P/E and EV/EBITDA < 0.80x sector avg OR Price > 1.25x Fair Value DCF",
-                "Nota Estratégica": "In cyclicals, low P/E flags unsustainable peak earnings; high P/E indicates depressed trough earnings.",
+                "Asset Class / Vertical": "3. Cyclicals & Hard Commodities (e.g., XOM, CAT, FCX, VALE)",
+                "Primary Metric": "Inverse Relative Multiples + Mid-Cycle DCF",
+                "Advisory Buy Reference": "Trough: P/E and EV/EBITDA > 1.15x sector avg + Price <= 0.85x Fair Value DCF",
+                "Advisory 50% Trim Reference": "Peak: P/E and EV/EBITDA < 0.80x sector avg OR Price > 1.25x Fair Value DCF",
+                "Strategic Note": "In cyclicals, low P/E flags unsustainable peak earnings; high P/E indicates depressed trough earnings.",
             },
             {
-                "Classe / Vertical": "4. Financial Sector & Banks (e.g., JPM, BAC, DBSDY)",
-                "Métrica Primária": "Financial PEGY (NTM P/E / [EPS Growth + Div Yield]) + P/B Filter",
-                "Referência de Compra (Consultiva)": "Financial PEGY 0 to 1.00x WITH P/B >= 1.0x (P/B < 1.0x is structural veto)",
-                "Referência de Poda 50% (Consultiva)": "Financial PEGY > 1.50x",
-                "Nota Estratégica": "Shields against value traps where P/B < 1.0 reflects balance-sheet book value destruction.",
+                "Asset Class / Vertical": "4. Financial Sector & Banks (e.g., JPM, BAC, DBSDY)",
+                "Primary Metric": "Financial PEGY (NTM P/E / [EPS Growth + Div Yield]) + P/B Filter",
+                "Advisory Buy Reference": "Financial PEGY 0 to 1.00x WITH P/B >= 1.0x (P/B < 1.0x is structural veto)",
+                "Advisory 50% Trim Reference": "Financial PEGY > 1.50x",
+                "Strategic Note": "Shields against value traps where P/B < 1.0 reflects balance-sheet book value destruction.",
             },
             {
-                "Classe / Vertical": "5. Defensives & Dividend Aristocrats (e.g., WMT, PG, KO, JNJ)",
-                "Métrica Primária": "P/E & EV/EBITDA vs Sector + DCF + SSS Lock",
-                "Referência de Compra (Consultiva)": "P/E & EV/EBITDA <= 0.85x sector avg + Price <= 0.85x DCF (positive SSS required)",
-                "Referência de Poda 50% (Consultiva)": "P/E & EV/EBITDA >= 1.20x sector avg OR Price >= 1.20x DCF",
-                "Nota Estratégica": "In physical retail, positive Same Store Sales (SSS) is mandatory to prevent relevance loss.",
+                "Asset Class / Vertical": "5. Defensives & Dividend Aristocrats (e.g., WMT, PG, KO, JNJ)",
+                "Primary Metric": "P/E & EV/EBITDA vs Sector + DCF + SSS Lock",
+                "Advisory Buy Reference": "P/E & EV/EBITDA <= 0.85x sector avg + Price <= 0.85x DCF (positive SSS required)",
+                "Advisory 50% Trim Reference": "P/E & EV/EBITDA >= 1.20x sector avg OR Price >= 1.20x DCF",
+                "Strategic Note": "In physical retail, positive Same Store Sales (SSS) is mandatory to prevent relevance loss.",
             },
             {
-                "Classe / Vertical": "6. Bitcoin (BTC — Sovereign Reserve Asset)",
-                "Métrica Primária": "NUPL, MVRV Z-Score, 200W SMA and Pi Cycle Top",
-                "Referência de Compra (Consultiva)": "NUPL < 0.0 OR MVRV Z <= 0.50 OR Price <= 1.05x 200W SMA",
-                "Referência de Poda 50% (Consultiva)": "Pi Cycle Top triggered (111d > 2x350d) OR NUPL Reverse Cross (< 0.60 after > 0.65)",
-                "Nota Estratégica": "On-chain macro cycle reference; structural 50% core allocation remains in cold storage.",
+                "Asset Class / Vertical": "6. Bitcoin (BTC — Sovereign Reserve Asset)",
+                "Primary Metric": "NUPL, MVRV Z-Score, 200W SMA and Pi Cycle Top",
+                "Advisory Buy Reference": "NUPL < 0.0 OR MVRV Z <= 0.50 OR Price <= 1.05x 200W SMA",
+                "Advisory 50% Trim Reference": "Pi Cycle Top triggered (111d > 2x350d) OR NUPL Reverse Cross (< 0.60 after > 0.65)",
+                "Strategic Note": "On-chain macro cycle reference; structural 50% core allocation remains in cold storage.",
             },
             {
-                "Classe / Vertical": "7. Altcoins (ETH, SOL, AAVE, MKR, LINK, PENDLE)",
-                "Métrica Primária": "BTC NUPL Macro + P/F (Price-to-Fees) + Trailing Drawdown",
-                "Referência de Compra (Consultiva)": "Macro Trough: BTC NUPL < 0.30 (or < 0.0) + Healthy P/F & Real Earnings > 0",
-                "Referência de Poda 50%/100% (Consultiva)": "BTC NUPL > 0.60 or MVRV Z > 3.0 combined with Trailing Drawdown >= 20% or P/F > 35x",
-                "Nota Estratégica": "Synchronizes high-beta altcoin exposure with Bitcoin's global liquidity thermometer.",
+                "Asset Class / Vertical": "7. Altcoins (ETH, SOL, AAVE, MKR, LINK, PENDLE)",
+                "Primary Metric": "BTC NUPL Macro + P/F (Price-to-Fees) + Trailing Drawdown",
+                "Advisory Buy Reference": "Macro Trough: BTC NUPL < 0.30 (or < 0.0) + Healthy P/F & Real Earnings > 0",
+                "Advisory 50%/100% Trim Reference": "BTC NUPL > 0.60 or MVRV Z > 3.0 combined with Trailing Drawdown >= 20% or P/F > 35x",
+                "Strategic Note": "Synchronizes high-beta altcoin exposure with Bitcoin's global liquidity thermometer.",
             },
         ]
 
@@ -295,9 +295,9 @@ class RiskTimingEngine:
         consultative_rows: List[ConsultativeTimingRow] = []
         for pos in portfolio.positions:
             tk = pos.ticker
-            # Estimativa de lucro latente na posição e cálculo do Tax-Drag Hurdle Rate
-            # Tax-Drag Hurdle Rate = (Ganho_Latente_% / (100 + Ganho_Latente_%)) * Alíquota_Imposto_%
-            # Representa a queda mínima que o ativo precisa sofrer após uma venda tributada para que o investidor recompre a mesma quantidade de ações!
+            # Unrealized gain estimate and Tax-Drag Hurdle Rate calculation
+            # Tax-Drag Hurdle Rate = (Unrealized_Gain_% / (100 + Unrealized_Gain_%)) * Tax_Rate_%
+            # Minimum required post-sale price drawdown to buy back identical share quantity after taxes
             est_gain_pct = 85.0 if "Crypto" in pos.category else (65.0 if pos.category == "Hard-Asset Stock" else 45.0)
             tax_rate_pct = 15.0
             tax_paid_pct_of_position = (est_gain_pct / (100.0 + est_gain_pct)) * tax_rate_pct

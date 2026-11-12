@@ -1,11 +1,11 @@
 """
-MÓDULO 0: AGREGADOR MACROECONÔMICO GLOBAL & CICLOS DE MERCADO
-Coleta em tempo real via APIs (FRED St. Louis Fed + Yahoo Finance) e processa:
-- 1.1 Indicadores Lagging: GDP, CPI, Interest Rate (Fed Funds), Primary Debt, Unemployment Rate,
-  Sahm's Rule pareada obrigatoriamente com Payroll Growth e ICSA (Initial Claims), e SOS Indicator.
-- 1.2 Indicadores Leading: PMI (Services vs Manufacturing, Sweet Spot, linhas 50 e 60),
-  Yield Curve completa & Spread 10Y-2Y (Inclinada/Flat/Invertida, Desinversão, Dinâmica das Pontas 2Y vs 10Y),
-  Políticas Monetárias (Fed Balance Sheet, QE vs QT, Forward Guidance, M2, DXY, Ouro/Commodities, S&P 500).
+MODULE 0: GLOBAL MACROECONOMIC AGGREGATOR & MARKET CYCLES
+Real-time ingestion via APIs (FRED St. Louis Fed + Yahoo Finance):
+- 1.1 Lagging Indicators: GDP, CPI, Fed Funds Rate, Primary Debt, Unemployment Rate,
+  Sahm's Rule paired with Payroll Growth & ICSA (Initial Claims), and SOS Indicator.
+- 1.2 Leading Indicators: PMI (Services vs Manufacturing, Sweet Spot, 50 & 60 thresholds),
+  Full Yield Curve & 10Y-2Y Spread (Upward/Flat/Inverted, Uninversion, 2Y vs 10Y Ends Dynamics),
+  Monetary Policies (Fed Balance Sheet, QE vs QT, Forward Guidance, M2, DXY, Gold/Commodities, S&P 500).
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ class MacroEngine:
         dgs10 = self._fetch_fred_series("DGS10", 4)
         dgs30 = self._fetch_fred_series("DGS30", 3)
 
-        # Fallback sintético calibrado caso offline ou rate-limited
+        # Calibrated synthetic fallback if offline or rate-limited
         if gdp.empty:
             gdp = self._synth_series(30150.0, 25500.0, 20, "QE", 0.005, 10)
         if cpi.empty:
@@ -145,7 +145,7 @@ class MacroEngine:
             yf_series["SP500"] = self._synth_series(5920.0, 4500.0, 104, "W", 0.012, 33)
 
         # ======================================================================
-        # 1.1 INDICADORES LAGGING (CONFIRMAM TENDÊNCIA)
+        # 1.1 LAGGING INDICATORS (CONFIRM TREND)
         # ======================================================================
         curr_gdp_t = float(gdp.iloc[-1]) / 1000.0
         gdp_yoy = float((gdp.iloc[-1] / gdp.iloc[-5] - 1.0) * 100.0) if len(gdp) >= 5 else 2.7
@@ -161,43 +161,43 @@ class MacroEngine:
 
         basic_metrics = [
             {
-                "Indicador": "GDP (U.S. Nominal GDP)",
-                "Valor Atual": f"USD {curr_gdp_t:.2f}T",
-                "Variação / Taxa": f"{gdp_yoy:+.2f}% YoY",
-                "Referência": "> +2.0% YoY (Healthy Growth)",
-                "Leitura": "Resilient Expansion" if gdp_yoy >= 1.5 else ("Deceleration" if gdp_yoy >= 0 else "Contraction / Recession"),
+                "Indicator": "GDP (U.S. Nominal GDP)",
+                "Current Value": f"USD {curr_gdp_t:.2f}T",
+                "Rate / Change": f"{gdp_yoy:+.2f}% YoY",
+                "Benchmark Reference": "> +2.0% YoY (Healthy Growth)",
+                "Institutional Reading": "Resilient Expansion" if gdp_yoy >= 1.5 else ("Deceleration" if gdp_yoy >= 0 else "Contraction / Recession"),
             },
             {
-                "Indicador": "CPI (Consumer Price Inflation)",
-                "Valor Atual": f"{curr_cpi:.1f} pts ({cpi_yoy:.2f}% YoY)",
-                "Variação / Taxa": f"{cpi_yoy:+.2f}% YoY",
-                "Referência": "FED Target 2.0% | Warning > 3.5%",
-                "Leitura": "Gradual Disinflation" if cpi_yoy <= 3.2 else "Persistent Inflationary Pressure",
+                "Indicator": "CPI (Consumer Price Inflation)",
+                "Current Value": f"{curr_cpi:.1f} pts ({cpi_yoy:.2f}% YoY)",
+                "Rate / Change": f"{cpi_yoy:+.2f}% YoY",
+                "Benchmark Reference": "FED Target 2.0% | Warning > 3.5%",
+                "Institutional Reading": "Gradual Disinflation" if cpi_yoy <= 3.2 else "Persistent Inflationary Pressure",
             },
             {
-                "Indicador": "Interest Rate (Fed Funds Rate)",
-                "Valor Atual": f"{curr_ff:.2f}% p.a.",
-                "Variação / Taxa": f"{ff_1y_chg:+.2f} pp (12m)",
-                "Referência": "Neutral ~3.00% | Restrictive > 4.50%",
-                "Leitura": "Restrictive in Cutting Cycle" if curr_ff > 3.5 and ff_1y_chg <= 0 else ("Monetary Tightening" if ff_1y_chg > 0 else "Accommodative"),
+                "Indicator": "Interest Rate (Fed Funds Rate)",
+                "Current Value": f"{curr_ff:.2f}% p.a.",
+                "Rate / Change": f"{ff_1y_chg:+.2f} pp (12m)",
+                "Benchmark Reference": "Neutral ~3.00% | Restrictive > 4.50%",
+                "Institutional Reading": "Restrictive in Cutting Cycle" if curr_ff > 3.5 and ff_1y_chg <= 0 else ("Monetary Tightening" if ff_1y_chg > 0 else "Accommodative"),
             },
             {
-                "Indicador": "Primary Debt (U.S. Federal Public Debt)",
-                "Valor Atual": f"USD {curr_debt_t:.2f}T ({debt_to_gdp:.1f}% GDP)",
-                "Variação / Taxa": f"{debt_yoy:+.2f}% YoY",
-                "Referência": "< 100% GDP Healthy | > 120% Fiscal Risk",
-                "Leitura": "Structural Fiscal Dominance (Bullish for Hard Assets & BTC)",
+                "Indicator": "Primary Debt (U.S. Federal Public Debt)",
+                "Current Value": f"USD {curr_debt_t:.2f}T ({debt_to_gdp:.1f}% GDP)",
+                "Rate / Change": f"{debt_yoy:+.2f}% YoY",
+                "Benchmark Reference": "< 100% GDP Healthy | > 120% Fiscal Risk",
+                "Institutional Reading": "Structural Fiscal Dominance (Bullish for Hard Assets & BTC)",
             },
             {
-                "Indicador": "Unemployment Rate (U3 Headline Unemployment)",
-                "Valor Atual": f"{curr_unrate:.2f}%",
-                "Variação / Taxa": f"{unrate_1y_chg:+.2f} pp (12m)",
-                "Referência": "Full Employment < 4.5% | Recession > 5.0%",
-                "Leitura": "Solid Labor Market with Moderate Cooling" if curr_unrate < 4.6 else "Labor Deterioration",
+                "Indicator": "Unemployment Rate (U3 Headline Unemployment)",
+                "Current Value": f"{curr_unrate:.2f}%",
+                "Rate / Change": f"{unrate_1y_chg:+.2f} pp (12m)",
+                "Benchmark Reference": "Full Employment < 4.5% | Recession > 5.0%",
+                "Institutional Reading": "Solid Labor Market with Moderate Cooling" if curr_unrate < 4.6 else "Labor Deterioration",
             },
         ]
 
-        # Regra de Sahm + Pareamento Obrigatório (Payroll Growth & ICSA)
+        # Sahm Rule + Mandatory Pairing (Payroll Growth & ICSA)
         unrate_ma3 = float(unrate.rolling(3).mean().iloc[-1]) if len(unrate) >= 3 else curr_unrate
         unrate_12m_min = float(unrate.iloc[-12:].min()) if len(unrate) >= 12 else (curr_unrate - 0.35)
         sahm_val = round(unrate_ma3 - unrate_12m_min, 2)
@@ -249,13 +249,13 @@ class MacroEngine:
             "insured_unemp_52w_min": round(ins_52w_min, 3),
             "reference_limit": "> 0.20 = Recession",
             "is_recession": sos_recession,
-            "status": "RECESSÃO SINALIZADA (> 0.20)" if sos_recession else f"ZONA SEGURA ({sos_val:.3f} <= 0.20)",
+            "status": "RECESSION SIGNALED (> 0.20)" if sos_recession else f"SAFE ZONE ({sos_val:.3f} <= 0.20)",
         }
 
         # ======================================================================
-        # 1.2 INDICADORES LEADING (ANTECIPAM TENDÊNCIA)
+        # 1.2 LEADING INDICATORS (ANTICIPATE TREND)
         # ======================================================================
-        # PMI Services vs Manufacturing (Série histórica de 24 meses + leitura)
+        # PMI Services vs Manufacturing (24-month historical series + reading)
         pmi_dates = pd.date_range(end=datetime.date.today(), periods=24, freq="ME")
         pmi_serv_vals = [
             54.2, 53.8, 54.5, 55.1, 53.4, 52.6, 53.9, 54.8, 53.1, 52.3, 51.8, 52.7,
@@ -296,7 +296,7 @@ class MacroEngine:
             "automated_insight": pmi_insight,
         }
 
-        # Yield Curve & Spread 10Y-2Y & Dinâmica das Pontas
+        # Yield Curve & 10Y-2Y Spread & Ends Dynamics
         y3m_val = float(dgs3m.iloc[-1]) if not dgs3m.empty else 4.30
         y1_val = float(dgs1.iloc[-1]) if not dgs1.empty else 4.20
         y2_val = float(dgs2.iloc[-1])
@@ -304,7 +304,7 @@ class MacroEngine:
         y10_val = float(dgs10.iloc[-1])
         y30_val = float(dgs30.iloc[-1]) if not dgs30.empty else 4.62
 
-        # Alinhar séries DGS10 e DGS2 para o Spread 10Y-2Y
+        # Align DGS10 and DGS2 series for 10Y-2Y Spread
         common_idx = dgs10.index.intersection(dgs2.index)
         if len(common_idx) > 20:
             spread_series = (dgs10.loc[common_idx] - dgs2.loc[common_idx]).dropna()
@@ -324,7 +324,7 @@ class MacroEngine:
         min_spread_2y = float(spread_series.min()) if not spread_series.empty else -0.90
         uninversion_occurred = (min_spread_2y < -0.15) and (curr_spread >= 0.0)
 
-        # Dinâmica das Pontas (Variação 60 dias úteis em bps)
+        # Ends Dynamics (60-business-day change in bps)
         lookback_days = min(60, len(dgs2) - 1, len(dgs10) - 1)
         delta_2y_bps = round(float(dgs2.iloc[-1] - dgs2.iloc[-lookback_days]) * 100.0, 1) if lookback_days > 5 else -28.0
         delta_10y_bps = round(float(dgs10.iloc[-1] - dgs10.iloc[-lookback_days]) * 100.0, 1) if lookback_days > 5 else -10.0
@@ -370,7 +370,7 @@ class MacroEngine:
             "ends_dynamics_insight": ends_insight,
         }
 
-        # Políticas Monetárias & Agregados Monetários (Fed Balance Sheet, M2, DXY, Ouro, Commodities, S&P 500)
+        # Monetary Policies & Monetary Aggregates (Fed Balance Sheet, M2, DXY, Gold, Commodities, S&P 500)
         fed_bs_t = round(float(walcl.iloc[-1]) / 1000000.0, 3)
         fed_bs_3m_chg = round(float((walcl.iloc[-1] / walcl.iloc[-13] - 1.0) * 100.0), 2) if len(walcl) >= 13 else -1.2
         fed_bs_yoy_chg = round(float((walcl.iloc[-1] / walcl.iloc[-52] - 1.0) * 100.0), 2) if len(walcl) >= 52 else -6.4

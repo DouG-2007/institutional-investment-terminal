@@ -1,20 +1,20 @@
 """
-MÓDULO 4: SCREENER QUANTITATIVO E FORENSE DE NOVAS OPORTUNIDADES (AÇÕES E CRIPTOATIVOS)
-Aplica estritamente todos os filtros do "Value Investing Framework (TRUE)" e reúne os indicadores
-dos Módulos 1, 2 e 3 para cada candidato do universo de busca:
+MODULE 4: QUANTITATIVE AND FORENSIC SCREENER FOR NEW OPPORTUNITIES (STOCKS & CRYPTOASSETS)
+Strictly executes all filters from the "Value Investing Framework (TRUE)" and compiles
+forensic, valuation, on-chain, and governance indicators for each candidate:
 
-Filtros de Ações:
-1. Sloan Ratio <= +5.0% (destacando < -10% como Ótimo);
-2. FCO / EBITDA >= 0.90x (destacando > 1.0x como Ótimo);
-3. ROIC (via NOPAT) >= 18.0% e > WACC;
-4. Solvência Blindada: Liquidez Corrente > 1.0x, Caixa Pós-OpEx Positivo e Interest Coverage > 4.0x (mínimo saudável > 3.0x);
-5. Valuation e Setor: Reverse DCF (g_impl <= g_fund) + métricas setoriais saudáveis (PEGY / Enterprise PEGY / DCF / SOTP).
+Equity Screening Filters:
+1. Sloan Ratio <= +5.0% (highlighting < -10% as Optimal);
+2. CFO / EBITDA >= 0.90x (highlighting > 1.0x as Optimal);
+3. ROIC (via NOPAT) >= 18.0% and > WACC;
+4. Resilient Solvency: Current Ratio > 1.0x, positive post-OpEx cash flow, and Interest Coverage > 4.0x (healthy minimum > 3.0x);
+5. Forward Valuation & Sector Fit: Reverse DCF (g_impl <= g_fund) + healthy sectoral metrics (PEGY / Enterprise PEGY / DCF / SOTP).
 
-Filtros de Criptoativos:
+Cryptoasset Screening Filters:
 1. Circulating Supply >= 65.0%;
-2. Unlocks <= 2.5%/mês (destacando < 1.0% como impacto baixo);
-3. Token Sniffer >= 85/100 e auditorias de código;
-4. Active Devs >= 40 no GitHub e Protocol Real Earnings > 0;
+2. Monthly Unlocks <= 2.5%/month (highlighting < 1.0% as Low Dilution);
+3. Token Sniffer Security Score >= 85/100 and top-tier code audits;
+4. Active Developers >= 40 on GitHub and Protocol Real Earnings > 0;
 5. MVRV Z-Score <= 2.0.
 """
 
@@ -22,7 +22,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List
-import yfinance as yf
 
 
 @dataclass
@@ -32,7 +31,7 @@ class StockScreenerRow:
     sector: str
     country: str
     price_usd: float
-    # Filtros Forenses & Solvência
+    # Forensic & Solvency Filters
     sloan_ratio_pct: float
     sloan_status: str
     fco_to_ebitda: float
@@ -41,17 +40,17 @@ class StockScreenerRow:
     wacc_pct: float
     current_ratio: float
     interest_coverage_x: float
-    # Filtros de Valuation & Setor
+    # Valuation & Sector Filters
     reverse_dcf_g_impl_pct: float
     g_fund_pct: float
     enterprise_or_fin_pegy: float
     pegy_type: str
     dcf_fair_mos10_usd: float
     sotp_fair_usd: float
-    # Módulo 2 & 3 (Filings & Geopolítica/Micro)
+    # Modules 2 & 3 (Filings & Geopolitics/Micro)
     auditor_sox404b: str
     moat_and_catalysts: str
-    # Resultado dos 5 Filtros
+    # 5 Strict Filter Outcomes
     filters_passed_count: int
     all_5_filters_passed: bool
     framework_verdict: str
@@ -65,7 +64,7 @@ class CryptoScreenerRow:
     price_usd: float
     market_cap_b: float
     fdv_b: float
-    # 5 Filtros Estritos
+    # 5 Strict Filters
     circulating_supply_pct: float
     monthly_unlock_pct: float
     unlock_status: str
@@ -79,7 +78,7 @@ class CryptoScreenerRow:
     pf_ratio: float
     mvrv_z_score: float
     nupl: float
-    # Documental & Micro
+    # Governance & Micro
     whitepaper_and_dao: str
     filters_passed_count: int
     all_5_filters_passed: bool
@@ -90,8 +89,8 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
     {
         "ticker": "ASML",
         "name": "ASML Holding N.V.",
-        "sector": "High-Growth Tech / Litografia EUV",
-        "country": "Holanda (UE)",
+        "sector": "High-Growth Tech / EUV Lithography",
+        "country": "Netherlands (EU)",
         "px": 745.00,
         "sloan": -11.2,
         "fco_eb": 1.24,
@@ -107,13 +106,13 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "dcf": 835.0,
         "sotp": 860.0,
         "audit": "KPMG — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Monopólio 100% em Litografia EUV & High-NA EUV; Backlog de EUR 36B)",
+        "moat_cat": "Wide Moat (100% Global Monopoly in EUV & High-NA EUV Lithography; EUR 36B Backlog)",
     },
     {
         "ticker": "TSM",
         "name": "Taiwan Semiconductor (TSMC)",
-        "sector": "High-Growth Tech / Foundry Semicondutores",
-        "country": "Taiwan / ADR EUA",
+        "sector": "High-Growth Tech / Pure-Play Foundry",
+        "country": "Taiwan / US ADR",
         "px": 192.00,
         "sloan": -10.6,
         "fco_eb": 1.18,
@@ -129,13 +128,13 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "dcf": 228.0,
         "sotp": 240.0,
         "audit": "Deloitte — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Monopólio de Fundição 3nm/2nm e Empacotamento CoWoS para IA)",
+        "moat_cat": "Wide Moat (Global Foundry Monopoly in 3nm/2nm Wafers and CoWoS Advanced Packaging for AI)",
     },
     {
         "ticker": "MELI",
         "name": "MercadoLibre, Inc.",
         "sector": "High-Growth Tech / E-Commerce & Fintech",
-        "country": "EUA / América Latina",
+        "country": "US / Latin America",
         "px": 1980.00,
         "sloan": -12.4,
         "fco_eb": 1.32,
@@ -151,13 +150,13 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "dcf": 2240.0,
         "sotp": 2380.0,
         "audit": "PwC — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Efeito de Rede Duplo: Mercado Livre + Mercado Pago + Logística Própria)",
+        "moat_cat": "Wide Moat (Two-Sided Network Effects: Marketplace + Mercado Pago + Proprietary Fulfillment Logistics)",
     },
     {
         "ticker": "NU",
         "name": "Nu Holdings Ltd. (Nubank)",
         "sector": "Fintech / Digital Banking",
-        "country": "Brasil / México / Colômbia",
+        "country": "Brazil / Mexico / Colombia",
         "px": 14.20,
         "sloan": -13.1,
         "fco_eb": 1.28,
@@ -169,17 +168,17 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "g_impl": 21.5,
         "g_fund": 30.0,
         "pegy": 0.78,
-        "pegy_t": "PEGY Financeiro / Fintech",
+        "pegy_t": "Financial / Fintech PEGY",
         "dcf": 17.5,
         "sotp": 18.2,
         "audit": "KPMG — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Custo de Servir < $0.90/mês, 110M+ clientes e expansão acelerada no México)",
+        "moat_cat": "Wide Moat (Cost-to-Serve < $0.90/month, 110M+ Customers & Accelerating Deposit Growth in Mexico)",
     },
     {
         "ticker": "AVGO",
         "name": "Broadcom Inc.",
         "sector": "High-Growth Tech / Custom AI Silicon & VMware",
-        "country": "Estados Unidos",
+        "country": "United States",
         "px": 176.00,
         "sloan": -8.4,
         "fco_eb": 1.04,
@@ -195,13 +194,13 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "dcf": 192.0,
         "sotp": 204.0,
         "audit": "PwC — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Líder em ASICs de IA customizados para Google/Meta + Software VMware)",
+        "moat_cat": "Wide Moat (Dominant Custom AI ASIC Provider for Hyperscalers + VMware Infrastructure Software Monopoly)",
     },
     {
         "ticker": "MA",
         "name": "Mastercard Incorporated",
         "sector": "Cash Cow / Payment Rails Duopoly",
-        "country": "Estados Unidos",
+        "country": "United States",
         "px": 512.00,
         "sloan": -11.8,
         "fco_eb": 1.09,
@@ -217,13 +216,13 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "dcf": 545.0,
         "sotp": 560.0,
         "audit": "PwC — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Duopólio global de cartões com margem operacional > 58% e serviços cyber)",
+        "moat_cat": "Wide Moat (Global Payment Rails Duopoly with > 58% Operating Margin and Cyber Value-Added Services)",
     },
     {
         "ticker": "COST",
         "name": "Costco Wholesale Corp.",
-        "sector": "Varejo Subscrição / Defensive",
-        "country": "Estados Unidos",
+        "sector": "Subscription Retail / Defensive",
+        "country": "United States",
         "px": 915.00,
         "sloan": -6.2,
         "fco_eb": 1.11,
@@ -233,19 +232,19 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "cr": 1.04,
         "icov": 48.0,
         "g_impl": 14.8,
-        "g_fund": 11.2,  # Reprova no Filtro 5 (g_impl > g_fund e PEGY > 1.6)
+        "g_fund": 11.2,  # Fails Filter 5 (g_impl > g_fund & PEGY > 1.6)
         "pegy": 1.88,
         "pegy_t": "Enterprise PEGY (EV/EBIT)",
         "dcf": 740.0,
         "sotp": 790.0,
         "audit": "KPMG — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Negócio impecável com SSS +7.2%, mas reprovado no filtro de Valuation atual)",
+        "moat_cat": "Wide Moat (Flawless Membership Business Model with SSS +7.2%, but Fails Current Valuation Filter)",
     },
     {
         "ticker": "LLY",
         "name": "Eli Lilly and Company",
         "sector": "Healthcare / GLP-1 Duopoly",
-        "country": "Estados Unidos",
+        "country": "United States",
         "px": 860.00,
         "sloan": -3.8,
         "fco_eb": 0.92,
@@ -261,29 +260,29 @@ STOCK_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "dcf": 795.0,
         "sotp": 840.0,
         "audit": "EY — Unqualified / SOX 404b Clean",
-        "moat_cat": "Wide Moat (Patentes Mounjaro/Zepbound; aguardar recuo para g_impl <= g_fund)",
+        "moat_cat": "Wide Moat (Mounjaro/Zepbound Incretin Patents; Await Retracement for g_impl <= g_fund)",
     },
     {
         "ticker": "INTC",
         "name": "Intel Corporation",
-        "sector": "Semicondutores Legacy IDM",
-        "country": "Estados Unidos",
+        "sector": "Legacy IDM Semiconductor",
+        "country": "United States",
         "px": 23.50,
-        "sloan": +6.8,  # Reprova Sloan (> +5.0%)
-        "fco_eb": 0.68,  # Reprova FCO/EBITDA (< 0.90x)
-        "roic": 2.1,    # Reprova ROIC (< 18%)
+        "sloan": +6.8,  # Fails Sloan (> +5.0%)
+        "fco_eb": 0.68,  # Fails CFO/EBITDA (< 0.90x)
+        "roic": 2.1,    # Fails ROIC (< 18%)
         "wacc": 9.4,
-        "z": 1.65,      # Reprova Altman Z (< 2.90)
+        "z": 1.65,      # Fails Altman Z (< 2.90)
         "cr": 1.32,
-        "icov": 1.8,    # Reprova Interest Coverage (< 4.0x)
+        "icov": 1.8,    # Fails Interest Coverage (< 4.0x)
         "g_impl": 8.5,
         "g_fund": 3.0,
         "pegy": 2.45,
         "pegy_t": "Enterprise PEGY (EV/EBIT)",
         "dcf": 18.0,
         "sotp": 21.0,
-        "audit": "EY — Unqualified / Reestruturação",
-        "moat_cat": "Narrow/Eroding Moat (Perda de liderança litográfica para TSMC e de GPUs para Nvidia)",
+        "audit": "EY — Unqualified / Restructuring",
+        "moat_cat": "Narrow/Eroding Moat (Lost Process Node Supremacy to TSMC and AI GPU Acceleration to Nvidia)",
     },
 ]
 
@@ -307,7 +306,7 @@ CRYPTO_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "pf": 6.2,
         "mvrv_z": 0.55,
         "nupl": 0.21,
-        "wp_dao": "Whitepaper DAI/USDS + Smart Burn Engine (Recompra contínua de MKR com lucro de T-Bills RWA)",
+        "wp_dao": "DAI/USDS Whitepaper + Smart Burn Engine (Continuous MKR Buyback Funded by RWA T-Bill Net Interest Income)",
     },
     {
         "symbol": "PENDLE",
@@ -327,7 +326,7 @@ CRYPTO_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "pf": 16.4,
         "mvrv_z": 0.78,
         "nupl": 0.31,
-        "wp_dao": "Padrão EIP-5115 Principal/Yield Token (PT/YT) + 42% do supply travado em vePENDLE",
+        "wp_dao": "EIP-5115 Principal/Yield Token (PT/YT) Standard + 42% of Circulating Supply Locked in vePENDLE",
     },
     {
         "symbol": "LINK",
@@ -347,7 +346,7 @@ CRYPTO_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "pf": 48.0,
         "mvrv_z": 0.48,
         "nupl": 0.18,
-        "wp_dao": "Monopólio de Oráculos (USD 75B+ TVS) e protocolo CCIP adotado por SWIFT, DTCC e Euroclear",
+        "wp_dao": "Global Oracle Monopoly ($75B+ TVS) and CCIP Interoperability Protocol Adopted by SWIFT, DTCC & Euroclear",
     },
     {
         "symbol": "UNI",
@@ -367,7 +366,7 @@ CRYPTO_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "pf": 11.2,
         "mvrv_z": 0.64,
         "nupl": 0.24,
-        "wp_dao": "Uniswap V4 Hooks + Unichain L2 com captura de MEV e taxas para validadores/stakers UNI",
+        "wp_dao": "Uniswap V4 Programmable Hooks + Unichain L2 Capturing MEV & Priority Sequencing Fees for Stakers",
     },
     {
         "symbol": "SUI",
@@ -376,18 +375,18 @@ CRYPTO_CANDIDATES_RAW: List[Dict[str, Any]] = [
         "px": 2.15,
         "mcap_b": 6.10,
         "fdv_b": 21.50,
-        "circ_pct": 28.4,      # Reprova Filtro 1 (< 65% Circulating Supply)
-        "unlock_pct": 4.20,    # Reprova Filtro 2 (> 2.5%/mês — Diluição VC)
+        "circ_pct": 28.4,      # Fails Filter 1 (< 65% Circulating Supply)
+        "unlock_pct": 4.20,    # Fails Filter 2 (> 2.5%/mo — Aggressive VC Dilution)
         "sniffer": 95,
         "audits": "Zellic, OtterSec",
         "devs": 145,
         "commits": 330,
-        "real_earnings_m": -185.0,  # Reprova Filtro 4 (Emissão de tokens supera receita)
+        "real_earnings_m": -185.0,  # Fails Filter 4 (Token Inflation Outweighs Net Protocol Revenue)
         "real_yield_pct": -4.2,
         "pf": 390.0,
         "mvrv_z": 1.55,
         "nupl": 0.52,
-        "wp_dao": "Tecnologia rápida, mas reprovado pela diluição agressiva de unlocks mensais para VCs/Seed",
+        "wp_dao": "High-Throughput Parallel Move VM, but Rejected Due to Heavy VC/Seed Monthly Token Dilution",
     },
 ]
 
@@ -399,7 +398,7 @@ class ScreenerEngine:
     def run_stock_screener(self) -> List[StockScreenerRow]:
         out: List[StockScreenerRow] = []
         for c in STOCK_CANDIDATES_RAW:
-            # Avaliação dos 5 filtros estritos do Framework:
+            # Evaluate the 5 Strict Framework Filters:
             f1_sloan = c["sloan"] <= 5.0
             f2_fco = c["fco_eb"] >= 0.90
             f3_roic = (c["roic"] >= 18.0) and (c["roic"] > c["wacc"])
@@ -409,15 +408,15 @@ class ScreenerEngine:
             passed_cnt = sum([f1_sloan, f2_fco, f3_roic, f4_solv, f5_val])
             all_passed = passed_cnt == 5
 
-            sloan_st = "Ótimo (< -10%)" if c["sloan"] < -10.0 else ("Aprovado (<= +5%)" if f1_sloan else "REPROVADO (> +5%)")
-            fco_st = "Ótimo (> 1.0x)" if c["fco_eb"] > 1.0 else ("Aprovado (>= 0.90x)" if f2_fco else "REPROVADO (< 0.90x)")
+            sloan_st = "Optimal (< -10%)" if c["sloan"] < -10.0 else ("Approved (<= +5%)" if f1_sloan else "REJECTED (> +5%)")
+            fco_st = "Optimal (> 1.0x)" if c["fco_eb"] > 1.0 else ("Approved (>= 0.90x)" if f2_fco else "REJECTED (< 0.90x)")
 
             if all_passed:
-                verdict = f"APROVADO 5/5 (Candidato de Elite — {c['pegy_t']} {c['pegy']:.2f}x | g_impl {c['g_impl']:.1f}% <= g_fund {c['g_fund']:.1f}%)"
+                verdict = f"APPROVED 5/5 (Elite Candidate — {c['pegy_t']} {c['pegy']:.2f}x | g_impl {c['g_impl']:.1f}% <= g_fund {c['g_fund']:.1f}%)"
             elif passed_cnt == 4 and not f5_val:
-                verdict = f"WATCHLIST QUALIDADE 4/5 (Aprovado em Forense/ROIC/Solvência; Aguardar g_impl <= g_fund)"
+                verdict = f"QUALITY WATCHLIST 4/5 (Passed Forensic/ROIC/Solvency; Awaiting g_impl <= g_fund)"
             else:
-                verdict = f"REPROVADO ({passed_cnt}/5 Filtros — Violação dos Critérios Forenses/Solvência)"
+                verdict = f"REJECTED ({passed_cnt}/5 Filters — Violation of Forensic/Solvency Standards)"
 
             out.append(StockScreenerRow(
                 ticker=c["ticker"],
@@ -460,20 +459,20 @@ class ScreenerEngine:
             all_passed = passed_cnt == 5
 
             unlock_st = (
-                f"Impacto Baixo ({c['unlock_pct']:.2f}% < 1.0%/mês)"
+                f"Low Impact ({c['unlock_pct']:.2f}% < 1.0%/mo)"
                 if c["unlock_pct"] < 1.0
                 else (
-                    f"Impacto Moderado ({c['unlock_pct']:.2f}% <= 2.5%/mês)"
+                    f"Moderate Impact ({c['unlock_pct']:.2f}% <= 2.5%/mo)"
                     if f2_unlock
-                    else f"DILUIÇÃO ALTA ({c['unlock_pct']:.2f}% > 2.5%/mês — VCs)"
+                    else f"HIGH DILUTION ({c['unlock_pct']:.2f}% > 2.5%/mo — VCs)"
                 )
             )
             post_unlock_px = round(c["px"] / (1.0 + (c["unlock_pct"] / 100.0)), 2)
 
             if all_passed:
-                verdict = f"APROVADO 5/5 (Cashflow Real +USD {c['real_earnings_m']:.1f}M | Supply {c['circ_pct']:.1f}% | MVRV Z {c['mvrv_z']:.2f})"
+                verdict = f"APPROVED 5/5 (Real Cash Flow +${c['real_earnings_m']:.1f}M | Supply {c['circ_pct']:.1f}% | MVRV Z {c['mvrv_z']:.2f})"
             else:
-                verdict = f"REPROVADO ({passed_cnt}/5 Filtros — Reprovado em Diluição de Supply / Real Earnings Negativo)"
+                verdict = f"REJECTED ({passed_cnt}/5 Filters — Failed on Supply Dilution / Negative Real Earnings)"
 
             out.append(CryptoScreenerRow(
                 symbol=c["symbol"],

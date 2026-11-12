@@ -1,9 +1,9 @@
 """
-MÓDULO 1.5 (CRIPTO): ANÁLISE COMPLETA DE CRIPTOATIVOS
-Reúne todas as métricas On-Chain (MVRV Z-Score, NUPL, aSOPR c/ linha 1.0, Pi Cycle Top 111d vs 2x350d,
-200W SMA, Exchange Inflow + CDD), Mineração (Hash Ribbon 30d/60d + MMC), Fluxo (Stablecoins Netflow, HODL Waves),
+MODULE 1.5 (CRYPTO): FULL INSTITUTIONAL CRYPTOASSET ON-CHAIN SUITE
+Compiles all on-chain metrics (MVRV Z-Score, NUPL, aSOPR with 1.0 threshold, Pi Cycle Top 111d vs 2x350d,
+200W SMA, Exchange Inflow + CDD), Mining (Hash Ribbon 30d/60d + MMC), Capital Flows (Stablecoins Netflow, HODL Waves),
 Tokenomics (NVM Ratio, NVT Golden Cross, P/S, P/F, Protocol Real Earnings, Real Yield, TVL, Unlocks,
-Preço Teórico Pós-Unlock, SSR, BTC Dominance) e Derivativos (OI/MCap, Funding Rate, Liquidation Heatmap, Fear & Greed).
+Theoretical Post-Unlock Price, SSR, BTC Dominance) and Derivatives (OI/MCap, Funding Rate, Liquidation Heatmap, Fear & Greed).
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ class CryptoFullProfile:
 CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
     "BTC-USD": {
         "name": "Bitcoin Network (Layer-1 PoW)",
-        "category": "Reserva de Valor Monetária Soberana",
+        "category": "Sovereign Monetary Store of Value",
         "default_px": 89500.0,
         "circ_m": 19.78,
         "max_m": 21.00,
@@ -73,14 +73,14 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 65.8,  # > 1y
         "hodl_cold_30d_chg_pp": -1.2,
         "nvm_ratio": 0.68,
-        "nvm_trend": "Lateralizando/Caindo enquanto Preço Sobe (Confirma Solidez Orgânica de Usuários)",
+        "nvm_trend": "Consolidating/Declining while Price Advances (Confirms Organic Network Adoption)",
         "nvt_golden_cross": 0.42,
         "ps_ratio": 880.0,
         "pf_ratio": 880.0,
         "peer_pf_avg": 950.0,
         "protocol_fees_annual_m": 1950.0,
         "token_issuance_annual_m": 14600.0,
-        "protocol_real_earnings_m": -12650.0,  # PoW Security Budget (absorvido por demanda monetária global)
+        "protocol_real_earnings_m": -12650.0,  # PoW Security Budget (absorbed by global monetary demand)
         "apr_staking_pct": 0.0,
         "token_inflation_pct": 0.83,
         "real_yield_pct": -0.83,
@@ -88,7 +88,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 38.5,
         "monthly_unlock_m": 0.0135,  # Halving block reward (~450 BTC/day)
         "unlock_pct_of_circ": 0.07,
-        "unlock_recipient": "100% Mineradores PoW Competitivos (Zero VCs / Zero Fundação)",
+        "unlock_recipient": "100% Competitive PoW Miners (Zero VCs / Zero Foundation)",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 39.5,
@@ -102,7 +102,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
     },
     "ETH-USD": {
         "name": "Ethereum Network (Layer-1 PoS)",
-        "category": "Camada Global de Liquidação & Smart Contracts",
+        "category": "Global Settlement Layer & Smart Contracts",
         "default_px": 2950.0,
         "circ_m": 120.42,
         "max_m": 120.42,
@@ -128,14 +128,14 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 71.2,
         "hodl_cold_30d_chg_pp": +0.9,
         "nvm_ratio": 0.54,
-        "nvm_trend": "Em Queda Estrutural (Expansão de endereços ativos L1 + L2 Blobs supera preço)",
+        "nvm_trend": "Structural Downward Trend (Active L1 + L2 Blob Address Expansion Outpaces Price)",
         "nvt_golden_cross": -0.65,
         "ps_ratio": 148.0,
         "pf_ratio": 115.0,
         "peer_pf_avg": 195.0,
         "protocol_fees_annual_m": 3080.0,
         "token_issuance_annual_m": 2410.0,
-        "protocol_real_earnings_m": +670.0,  # Receita (Burn EIP-1559 + Tips) > Emissão PoS
+        "protocol_real_earnings_m": +670.0,  # Revenue (EIP-1559 Burn + Tips) > PoS Issuance
         "apr_staking_pct": 3.45,
         "token_inflation_pct": 0.05,
         "real_yield_pct": +3.40,
@@ -143,7 +143,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 19.2,
         "monthly_unlock_m": 0.0,
         "unlock_pct_of_circ": 0.00,
-        "unlock_recipient": "Zero Unlocks de VCs (EIP-1559 Queima Taxas Base)",
+        "unlock_recipient": "Zero VC Unlocks (EIP-1559 Structural Base Fee Burn)",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 14.8,
@@ -157,7 +157,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
     },
     "SOL-USD": {
         "name": "Solana Network (High-Throughput L1)",
-        "category": "Execução Monolítica de Alta Velocidade & DEX Retail",
+        "category": "Monolithic High-Throughput Execution & Retail DEX",
         "default_px": 188.0,
         "circ_m": 472.0,
         "max_m": 588.0,
@@ -183,7 +183,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 58.0,
         "hodl_cold_30d_chg_pp": -0.8,
         "nvm_ratio": 0.49,
-        "nvm_trend": "Caindo forte enquanto preço sobe (Crescimento explosivo de DAU e DEX Volume)",
+        "nvm_trend": "Declining Sharply while Price Advances (Explosive DAU & DEX Volume Expansion)",
         "nvt_golden_cross": -0.25,
         "ps_ratio": 92.0,
         "pf_ratio": 46.0,
@@ -198,7 +198,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 8.9,
         "monthly_unlock_m": 1.85,
         "unlock_pct_of_circ": 0.39,
-        "unlock_recipient": "Stakers & Cronograma Final de Vesting Institucional (< 0.5%/mês)",
+        "unlock_recipient": "Stakers & Final Institutional Vesting Tranche (< 0.5%/month)",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 3.85,
@@ -212,7 +212,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
     },
     "AAVE-USD": {
         "name": "Aave Protocol V3 (DeFi Lending)",
-        "category": "Infraestrutura Bancária Descentralizada & Liquidez",
+        "category": "Decentralized Banking Infrastructure & Liquidity",
         "default_px": 172.0,
         "circ_m": 14.95,
         "max_m": 16.00,
@@ -238,14 +238,14 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 74.5,
         "hodl_cold_30d_chg_pp": +1.6,
         "nvm_ratio": 0.42,
-        "nvm_trend": "Caindo consistentemente (TVL e empréstimos GHO em máxima histórica)",
+        "nvm_trend": "Consistently Declining (TVL and GHO Borrowing at All-Time Highs)",
         "nvt_golden_cross": -0.95,
         "ps_ratio": 24.5,
         "pf_ratio": 5.4,
         "peer_pf_avg": 18.5,
         "protocol_fees_annual_m": 475.0,
         "token_issuance_annual_m": 28.0,
-        "protocol_real_earnings_m": +78.5,  # Receita líquida da DAO (USD 106.5M) - Emissão (USD 28M) > 0!
+        "protocol_real_earnings_m": +78.5,  # Net DAO revenue ($106.5M) - Issuance ($28M) > 0
         "apr_staking_pct": 6.40,
         "token_inflation_pct": 1.10,
         "real_yield_pct": +5.30,
@@ -253,7 +253,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 1.45,
         "monthly_unlock_m": 0.012,
         "unlock_pct_of_circ": 0.08,
-        "unlock_recipient": "Reserva de Ecossistema Aave DAO (~93.4% do Supply Total já em circulação)",
+        "unlock_recipient": "Aave DAO Ecosystem Reserve (~93.4% of Total Supply Already Circulating)",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 0.19,
@@ -293,7 +293,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 72.4,
         "hodl_cold_30d_chg_pp": -0.4,
         "nvm_ratio": 0.52,
-        "nvm_trend": "Lateralizando em patamar saudável com queima ativa de MKR",
+        "nvm_trend": "Healthy Consolidation Level with Active MKR Smart Burn Deflation",
         "nvt_golden_cross": 0.35,
         "ps_ratio": 6.8,
         "pf_ratio": 6.2,
@@ -308,7 +308,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 0.85,
         "monthly_unlock_m": 0.0,
         "unlock_pct_of_circ": 0.0,
-        "unlock_recipient": "Zero Unlocks (Supply 100% circulante com deflação via Smart Burn Engine)",
+        "unlock_recipient": "Zero Unlocks (100% Circulating Supply with Systematic Smart Burn Deflation)",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 0.12,
@@ -322,7 +322,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
     },
     "PENDLE-USD": {
         "name": "Pendle Finance V2",
-        "category": "DeFi Yield Tokenization & AMM",
+        "category": "DeFi Yield Tokenization & Fixed Income AMM",
         "default_px": 4.85,
         "circ_m": 162.0,
         "max_m": 258.0,
@@ -348,7 +348,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 68.5,
         "hodl_cold_30d_chg_pp": -0.8,
         "nvm_ratio": 0.61,
-        "nvm_trend": "Forte expansão de TVL institucional (Ethena, LRTs e Borrows)",
+        "nvm_trend": "Strong Institutional TVL Expansion (Ethena, LRTs, and Borrows)",
         "nvt_golden_cross": 0.40,
         "ps_ratio": 18.2,
         "pf_ratio": 16.4,
@@ -363,7 +363,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 0.38,
         "monthly_unlock_m": 0.72,
         "unlock_pct_of_circ": 0.45,
-        "unlock_recipient": "Emissões decrescentes de liquidez (42% do supply travado em vePENDLE)",
+        "unlock_recipient": "Decreasing Liquidity Mining Emissions (42% of Supply Staked in vePENDLE)",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 0.09,
@@ -403,7 +403,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 74.5,
         "hodl_cold_30d_chg_pp": -0.2,
         "nvm_ratio": 0.45,
-        "nvm_trend": "Padrão de acumulação secular com adoção do CCIP por SWIFT/DTCC",
+        "nvm_trend": "Secular Accumulation Pattern with CCIP Cross-Chain Adoption by SWIFT/DTCC",
         "nvt_golden_cross": 0.38,
         "ps_ratio": 52.0,
         "pf_ratio": 48.0,
@@ -418,7 +418,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 1.15,
         "monthly_unlock_m": 3.5,
         "unlock_pct_of_circ": 0.58,
-        "unlock_recipient": "Liberações previsíveis para programa de subsídio e incentivos de nós validadores",
+        "unlock_recipient": "Predictable Subsidy Program Releases for Chainlink Node Operators",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 0.35,
@@ -458,7 +458,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 71.0,
         "hodl_cold_30d_chg_pp": -0.5,
         "nvm_ratio": 0.58,
-        "nvm_trend": "Expansão de volume DEX com lançamento da Unichain L2 e V4 Hooks",
+        "nvm_trend": "DEX Volume Expansion Powered by Unichain L2 Launch & V4 Programmable Hooks",
         "nvt_golden_cross": 0.39,
         "ps_ratio": 12.5,
         "pf_ratio": 11.2,
@@ -473,7 +473,7 @@ CRYPTO_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 2.45,
         "monthly_unlock_m": 1.5,
         "unlock_pct_of_circ": 0.25,
-        "unlock_recipient": "Tesouraria da DAO / Governança Unichain",
+        "unlock_recipient": "DAO Treasury / Unichain Protocol Governance",
         "ssr_ratio": 9.8,
         "btc_dominance_pct": 58.4,
         "oi_b": 0.18,
@@ -510,7 +510,7 @@ class CryptoEngine:
         rng = np.random.default_rng(abs(hash(symbol + "_onchain")) % 10000)
         norm_px = ((px_s - px_s.min()) / max(1e-6, (px_s.max() - px_s.min()))).to_numpy()
 
-        # 1. aSOPR (Oscila em torno de 1.00 — Suporte em bull market e resistência em bear market)
+        # 1. aSOPR (Oscillates around 1.00 - Bull market support / Bear market resistance)
         asopr_vals = 0.96 + norm_px * 0.11 + rng.normal(0, 0.012, n)
         asopr_vals[-1] = kb["asopr"]
         asopr_s = pd.Series(np.clip(asopr_vals, 0.91, 1.14), index=px_s.index, name="aSOPR")
@@ -620,67 +620,67 @@ class CryptoEngine:
             # Leitura de MVRV Z-Score
             mvrv_z = kb["mvrv_z"]
             if mvrv_z < 0.0:
-                mvrv_status = "Fundo Histórico / Verde (< 0.0 — Capitulação / Compra)"
+                mvrv_status = "Historical Cycle Bottom / Green (< 0.0 — Capitulation / Accumulate)"
             elif mvrv_z <= 0.5:
-                mvrv_status = "Zona de Acumulação Forte (<= 0.5)"
+                mvrv_status = "Strong Accumulation Zone (<= 0.5)"
             elif mvrv_z <= 3.0:
-                mvrv_status = "Expansão Saudável de Ciclo (0.5 a 3.0)"
+                mvrv_status = "Healthy Cycle Expansion (0.5 to 3.0)"
             elif mvrv_z <= 7.0:
-                mvrv_status = "Aquecimento / Atenção (3.0 a 7.0)"
+                mvrv_status = "Overheating / Heightened Caution (3.0 to 7.0)"
             else:
-                mvrv_status = "Topo Macro / Vermelho (> 7.0 — Euforia Extrema)"
+                mvrv_status = "Macro Blow-off Top / Red (> 7.0 — Extreme Euphoria)"
 
             # Leitura de NUPL
             nupl = kb["nupl"]
             if nupl < 0.0:
-                nupl_status = "Prejuízo Líquido da Rede / Compra (< 0.0)"
+                nupl_status = "Net Network Unrealized Loss / Buy Zone (< 0.0)"
             elif nupl < 0.30:
-                nupl_status = "Esperança / Acumulação (< 0.30)"
+                nupl_status = "Hope / Accumulation (< 0.30)"
             elif nupl <= 0.60:
-                nupl_status = "Otimismo Saudável (0.30 a 0.60)"
+                nupl_status = "Healthy Optimism (0.30 to 0.60)"
             elif nupl <= 0.75:
-                nupl_status = "Crença / Zona de Alerta (0.60 a 0.75)"
+                nupl_status = "Belief / Alert Zone (0.60 to 0.75)"
             else:
-                nupl_status = "Lucro Excessivo / Venda (> 0.75)"
+                nupl_status = "Excessive Greed / Distribution (> 0.75)"
 
             # Leitura de aSOPR
             asopr = kb["asopr"]
             asopr_status = (
-                f"Acima de 1.0 ({asopr:.3f} > 1.0 — Moedas movidas em lucro; linha 1.0 atuando como suporte de Bull Market)"
+                f"Above 1.0 ({asopr:.3f} > 1.0 — Realized Profits; 1.0 Line Acting as Bull Market Support)"
                 if asopr >= 1.0
-                else f"Abaixo de 1.0 ({asopr:.3f} < 1.0 — Realização de prejuízo / Capitulação; linha 1.0 é resistência em Bear Market)"
+                else f"Below 1.0 ({asopr:.3f} < 1.0 — Loss Realization / Capitulation; 1.0 Line Resisting in Bear Market)"
             )
 
-            # Preço Teórico Pós-Unlock = Market Cap / (Circ. Supply + Unlock)
+            # Theoretical Post-Unlock Price = Market Cap / (Circ. Supply + Unlock)
             unlock_m = kb["monthly_unlock_m"]
             post_unlock_px = round((px * circ_m) / (circ_m + unlock_m), 2) if (circ_m + unlock_m) > 0 else px
             unlock_pct = kb["unlock_pct_of_circ"]
             if unlock_pct < 1.0:
-                unlock_verdict = f"Impacto Baixo ({unlock_pct:.2f}% < 1.0%/mês)"
+                unlock_verdict = f"Low Impact ({unlock_pct:.2f}% < 1.0%/mo)"
             elif unlock_pct <= 5.0:
-                unlock_verdict = f"Impacto Moderado ({unlock_pct:.2f}% entre 1% e 5%)"
+                unlock_verdict = f"Moderate Impact ({unlock_pct:.2f}% between 1% and 5%/mo)"
             else:
-                unlock_verdict = f"Impacto Alto (> 5.0%/mês — Diluição Severa)"
+                unlock_verdict = f"High Impact (> 5.0%/mo — Severe Dilution)"
 
                         # Funding Rate vs Liquidation Heatmap
             fr = kb["funding_rate_8h_pct"]
             if fr > 0.05:
-                fr_status = f"RISCO DE LONG SQUEEZE ({fr:+.4f}% > 0.05% — Alavancagem Comprada Excessiva)"
+                fr_status = f"LONG SQUEEZE RISK ({fr:+.4f}% > 0.05% — Excessive Leveraged Long Exposure)"
             elif fr < 0.0:
-                fr_status = f"RISCO DE SHORT SQUEEZE ({fr:+.4f}% < 0% — Mercado Vendido a Descoberto)"
+                fr_status = f"SHORT SQUEEZE RISK ({fr:+.4f}% < 0% — Net Short Speculative Positioning)"
             else:
-                fr_status = f"Saudável / Neutro ({fr:+.4f}% / 8h — Sem excesso especulativo)"
+                fr_status = f"Healthy / Neutral ({fr:+.4f}% / 8h — Balanced Speculative Open Interest)"
 
-            # NVT Nominal (Market Cap / Volume Diário On-Chain) & Referência de Interpretação
+            # Nominal NVT (Market Cap / Daily On-Chain Volume) & Interpretation Reference
             tx_vol_24h_b = kb["tx_vol_24h_b"]
             nvt_nominal = round(mcap_b / tx_vol_24h_b, 1) if tx_vol_24h_b > 0 else 0.0
             if nvt_nominal < 30.0:
-                nvt_status = f"Subavaliado / Desconto Fundamentalista ({nvt_nominal:.1f}x < 30x)"
+                nvt_status = f"Undervalued / Fundamental Discount ({nvt_nominal:.1f}x < 30x)"
             elif nvt_nominal <= 75.0:
-                nvt_status = f"Neutro / Equilíbrio Justo ({nvt_nominal:.1f}x entre 30x e 75x)"
+                nvt_status = f"Neutral / Fair Value ({nvt_nominal:.1f}x between 30x and 75x)"
             else:
-                nvt_status = f"Sobreavaliado / Risco de Bolha ({nvt_nominal:.1f}x > 75x)"
-            nvt_ref = "< 30x (Subavaliado / Compra) | 30x a 75x (Equilíbrio Justo) | > 75x (Sobreavaliado / Bolha)"
+                nvt_status = f"Overvalued / Bubble Risk ({nvt_nominal:.1f}x > 75x)"
+            nvt_ref = "< 30x (Undervalued / Accumulate) | 30x to 75x (Fair Equilibrium) | > 75x (Overextended / Bubble Risk)"
 
             out[sym] = CryptoFullProfile(
                 symbol=sym,
@@ -694,43 +694,43 @@ class CryptoEngine:
                 circulating_pct=kb["circ_pct"],
                 onchain_metrics={
                     "mvrv_z_score": mvrv_z,
-                    "mvrv_z_ref": "< 0 (Fundo/Verde) | > 7 (Topo/Vermelho)",
+                    "mvrv_z_ref": "< 0 (Bottom/Green) | > 7 (Top/Red)",
                     "mvrv_z_status": mvrv_status,
                     "nupl": nupl,
-                    "nupl_ref": "< 0 (Prejuízo/Compra) | 0.30 | 0.60/0.65 | > 0.75 (Lucro Excessivo/Venda)",
+                    "nupl_ref": "< 0 (Unrealized Loss/Buy) | 0.30 | 0.60/0.65 | > 0.75 (Excessive Profit/Sell)",
                     "nupl_status": nupl_status,
                     "asopr": asopr,
-                    "asopr_ref": "Linha 1.0 = Suporte em Bull Market / Resistência em Bear Market (< 1 prejuízo, > 1 lucro)",
+                    "asopr_ref": "1.0 Line = Bull Market Support / Bear Market Resistance (< 1 Loss, > 1 Profit)",
                     "asopr_status": asopr_status,
                     "sma_200w_usd": kb["sma_200w"],
                     "price_to_200w_sma_x": round(px / kb["sma_200w"], 2),
                     "pi_cycle_111d_sma_usd": kb["sma_111d"],
                     "pi_cycle_350d_x2_sma_usd": kb["sma_350d_x2"],
                     "pi_cycle_top_triggered": kb["pi_cycle_crossed"],
-                    "pi_cycle_status": "ATIVADO (111d > 2x350d — Topo)" if kb["pi_cycle_crossed"] else "INATIVO (111d abaixo de 2x 350d SMA)",
+                    "pi_cycle_status": "TRIGGERED (111d > 2x350d — Top)" if kb["pi_cycle_crossed"] else "INACTIVE (111d below 2x 350d SMA)",
                     "exchange_inflow_24h": kb["exchange_inflow_btc_24h"],
                     "cdd_90d_ma": kb["cdd_90d_ma"],
                     "cdd_whale_alert": kb["cdd_whale_spike_alert"],
-                    "inflow_cdd_status": "Fluxo Normal (Sem pico simultâneo de Inflow + CDD de baleias antigas)" if not kb["cdd_whale_spike_alert"] else "ALERTA: Baleias antigas movendo moedas para corretoras",
+                    "inflow_cdd_status": "Normal Flow (No concurrent Inflow + CDD spike from ancient whales)" if not kb["cdd_whale_spike_alert"] else "ALERT: Ancient whales depositing to centralized exchanges",
                 },
                 mining_metrics={
                     "hashrate_ehs": kb["hashrate_ehs"],
                     "hash_sma30": kb["hash_sma30"],
                     "hash_sma60": kb["hash_sma60"],
                     "hash_ribbon_crossed_up": kb["hash_ribbon_buy_signal"],
-                    "hash_ribbon_status": "SINAL DE COMPRA PÓS-CAPITULAÇÃO ATIVO (SMA 30d > SMA 60d + Momentum Positivo)" if kb["hash_ribbon_buy_signal"] else "Em Capitulação de Mineradores (30d < 60d)",
+                    "hash_ribbon_status": "ACTIVE POST-CAPITULATION BUY SIGNAL (30d SMA > 60d SMA + Positive Momentum)" if kb["hash_ribbon_buy_signal"] else "Miner Capitulation Phase (30d < 60d)",
                     "mmc_minimum_mining_cost_usd": kb["mmc_usd"],
                     "price_lt_mmc": px < kb["mmc_usd"],
-                    "mmc_status": f"DESCONTO EXTREMO (Preço USD {px:,.0f} < MMC USD {kb['mmc_usd']:,.0f})" if px < kb["mmc_usd"] else f"Mineradores Lucrativos (Preço USD {px:,.0f} > MMC USD {kb['mmc_usd']:,.0f})",
+                    "mmc_status": f"EXTREME DISCOUNT (Spot ${px:,.0f} < MMC ${kb['mmc_usd']:,.0f})" if px < kb["mmc_usd"] else f"Miners Profitable (Spot ${px:,.0f} > MMC ${kb['mmc_usd']:,.0f})",
                 },
                 capital_flows={
                     "stablecoins_netflow_24h_m": kb["stablecoin_netflow_24h_m"],
-                    "stablecoins_netflow_status": f"Pressão de Compra (+USD {kb['stablecoin_netflow_24h_m']:.0f}M > 0)" if kb["stablecoin_netflow_24h_m"] > 0 else f"Pressão de Venda ({kb['stablecoin_netflow_24h_m']:.0f}M < 0)",
+                    "stablecoins_netflow_status": f"Net Buying Pressure (+${kb['stablecoin_netflow_24h_m']:.0f}M > 0)" if kb["stablecoin_netflow_24h_m"] > 0 else f"Net Selling Pressure (${kb['stablecoin_netflow_24h_m']:.0f}M < 0)",
                     "hodl_hot_waves_pct": kb["hodl_hot_waves_pct"],
                     "hodl_hot_30d_chg_pp": kb["hodl_hot_30d_chg_pp"],
                     "hodl_cold_waves_pct": kb["hodl_cold_waves_pct"],
                     "hodl_cold_30d_chg_pp": kb["hodl_cold_30d_chg_pp"],
-                    "hodl_waves_verdict": f"Predomínio de Ondas Frias ({kb['hodl_cold_waves_pct']:.1f}% > 1 ano em Acumulação) vs Ondas Quentes ({kb['hodl_hot_waves_pct']:.1f}%)",
+                    "hodl_waves_verdict": f"Cold Waves Dominance ({kb['hodl_cold_waves_pct']:.1f}% > 1 Year in Accumulation) vs Hot Waves ({kb['hodl_hot_waves_pct']:.1f}%)",
                 },
                                 tokenomics_valuation={
                     "nvt_nominal": nvt_nominal,
@@ -740,7 +740,7 @@ class CryptoEngine:
                     "nvm_verdict": kb["nvm_trend"],
                     "nvt_golden_cross": kb["nvt_golden_cross"],
                     "nvt_gc_ref": "< -1.6 (Compra) | > 2.0 (Venda)",
-                    "nvt_gc_status": "COMPRA (< -1.6)" if kb["nvt_golden_cross"] < -1.6 else ("VENDA (> 2.0)" if kb["nvt_golden_cross"] > 2.0 else f"Zona Neutra ({kb['nvt_golden_cross']:+.2f})"),
+                    "nvt_gc_status": "BUY (< -1.6)" if kb["nvt_golden_cross"] < -1.6 else ("SELL (> 2.0)" if kb["nvt_golden_cross"] > 2.0 else f"Neutral Zone ({kb['nvt_golden_cross']:+.2f})"),
                     "ps_ratio": kb["ps_ratio"],
                     "pf_ratio": kb["pf_ratio"],
                     "peer_pf_avg": kb["peer_pf_avg"],
@@ -759,7 +759,7 @@ class CryptoEngine:
                     "fdv_to_mcap_x": round(fdv_b / mcap_b, 2) if mcap_b > 0 else 1.0,
                     "monthly_unlock_tokens_m": unlock_m,
                     "unlock_pct_of_circ": unlock_pct,
-                    "unlock_impact_ref": "< 1% (Baixo) | > 5% (Alto / Diluição VC)",
+                    "unlock_impact_ref": "< 1% (Low) | > 5% (High / VC Dilution)",
                     "unlock_verdict": unlock_verdict,
                     "unlock_recipient": kb["unlock_recipient"],
                     "theoretical_post_unlock_price_usd": post_unlock_px,
@@ -777,11 +777,11 @@ class CryptoEngine:
                     "liq_heatmap_below_price_usd": kb["liq_cluster_below_usd"],
                     "liq_heatmap_below_size_m": kb["liq_cluster_below_size_m"],
                     "liquidation_heatmap_summary": (
-                        f"Cluster Short Liq: USD {kb['liq_cluster_above_size_m']:,.0f}M em ${kb['liq_cluster_above_usd']:,.0f} | "
-                        f"Cluster Long Liq: USD {kb['liq_cluster_below_size_m']:,.0f}M em ${kb['liq_cluster_below_usd']:,.0f}"
+                        f"Short Liq Cluster: ${kb['liq_cluster_above_size_m']:,.0f}M at ${kb['liq_cluster_above_usd']:,.0f} | "
+                        f"Long Liq Cluster: ${kb['liq_cluster_below_size_m']:,.0f}M at ${kb['liq_cluster_below_usd']:,.0f}"
                     ),
                     "fear_and_greed_index": kb["fear_greed"],
-                    "fear_and_greed_label": "Ganância Moderada" if kb["fear_greed"] >= 55 else ("Medo / Oportunidade" if kb["fear_greed"] <= 40 else "Neutro"),
+                    "fear_and_greed_label": "Moderate Greed" if kb["fear_greed"] >= 55 else ("Fear / Opportunity" if kb["fear_greed"] <= 40 else "Neutral"),
                 },
                 chart_series=series_bundle,
             )

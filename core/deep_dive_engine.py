@@ -1,19 +1,19 @@
 """
-MÓDULO 7: MOTOR DE DOSSIÊ INDIVIDUAL DE ATIVO (DEEP DIVE ANALYZER)
-Permite ao usuário inserir qualquer ticker (da carteira, do screener ou externo do mercado,
+MODULE 7: SINGLE-ASSET DEEP DIVE DOSSIER ENGINE
+Allows user to analyze any ticker (from portfolio, screener, or external global market,
 como AAPL, NVDA, JPM, ASML, COST, SPY, QQQ, BTC, ETH, SOL, AAVE, PENDLE, LINK, UNI, TSLA, etc.).
-Identifica automaticamente a classe (Ação, ETF, Cripto) e aplica 100% da arquitetura analítica
+Automatically identifies asset class (Equity, ETF, Crypto) and applies 100% of analytical architecture
 do Value Investing Framework (TRUE):
-- Identidade, Classificação do Framework e Múltiplo Soberano
-- Raio-X Forense com séries históricas de 5 anos (Sloan, FCO/EBITDA, NWC, ROIC vs WACC, DuPont 3 Pilares)
+- Identity, Framework Classification, and Sovereign Multiple
+- Forensic Audit with 5-year historical series (Sloan, CFO/EBITDA, NWC, ROIC vs WACC, DuPont 3 Pillars)
 - Matriz completa de CAGR (3y, 5y, 10y) de todos os 12 KPIs
-- Cockpit de Valuation Multi-Métodos (Todos os 8 métodos lado a lado + SOTP + Reverse DCF + Owner Earnings)
-- Extração Documental (Top 3 Riscos Item 1A, Decomposição Quantitativa MD&A Volume/Preço/FX, SOX 404b,
-  Form 4 Insider Activity, Evolução de Share Count/Buybacks 5y e Margem Bruta 5y)
+- Multi-Method Valuation Cockpit (All 8 methods side-by-side + SOTP + Reverse DCF + Owner Earnings)
+- Documentary Extraction (Top 3 Item 1A Risks, Quantitative MD&A Volume/Price/FX Decomposition, SOX 404(b),
+  Form 4 Insider Activity, 5-Year Share Count/Buybacks Evolution, and 5-Year Gross Margin Trend)
 - Timing On-Chain (Gauges de MVRV Z-Score e NUPL, Pi Cycle, aSOPR, Hash Ribbon/MMC), Tokenomics
-  (Real Earnings Diário/Semanal/Anual, Real Yield, NVM Ratio, Unlocks 30d e Preço Pós-Diluição)
-  e Engenharia/Segurança (GitHub Commits/Devs, Token Sniffer 0-100, DeepDAO)
-- Veredito Automático (Matriz de Score 0 a 100 no Funil de 5 Filtros + Classificação de Regime Consultivo)
+  (Daily/Weekly/Annual Protocol Real Earnings, Real Yield, NVM Ratio, 30d Unlocks and Post-Dilution Valuation)
+  and Engineering/Security (GitHub Commits/Devs, Token Sniffer 0-100, DeepDAO Governance)
+- Automated Verdict (0 to 100 Score Matrix across 5-Filter Funnel + Consultative Regime Classification)
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ EXTENDED_CRYPTO_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 69.0,
         "hodl_cold_30d_chg_pp": +2.1,
         "nvm_ratio": 0.56,
-        "nvm_trend": "Crescimento acelerado de TVL e usuários institucionais de renda fixa DeFi",
+        "nvm_trend": "Accelerating growth in TVL and institutional fixed-income DeFi adoption",
         "nvt_golden_cross": -0.65,
         "ps_ratio": 16.5,
         "pf_ratio": 14.2,
@@ -93,7 +93,7 @@ EXTENDED_CRYPTO_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 0.28,
         "monthly_unlock_m": 1.48,
         "unlock_pct_of_circ": 0.90,
-        "unlock_recipient": "Incentivos de Liquidez vePENDLE & Ecossistema (100% Vesting de Equipe/VCs já concluído)",
+        "unlock_recipient": "vePENDLE liquidity incentives & ecosystem grants (100% team/VC vesting completed)",
         "ssr_ratio": 10.2,
         "btc_dominance_pct": 58.4,
         "oi_b": 0.085,
@@ -106,15 +106,15 @@ EXTENDED_CRYPTO_KB: Dict[str, Dict[str, Any]] = {
         "fear_greed": 61,
         "wp_title": "Pendle V2 Whitepaper: Yield Tokenization & AMM for Time-Decaying Assets (TN Lee et al.)",
         "wp_value_prop": "Permite separar ativos geradores de yield em Principal Token (PT) e Yield Token (YT), criando o mercado de curva de juros fixa e derivativos de taxa no DeFi.",
-        "wp_consensus": "Smart Contracts sob Ethereum, Arbitrum, Optimism e Mantle com governança vePENDLE.",
+        "wp_consensus": "Smart contracts deployed on Ethereum, Arbitrum, Optimism, and Mantle with vePENDLE governance.",
         "wp_accrual": "Detentores de vePENDLE recebem 80% das Swap Fees + 3% de todo o yield gerado pelos YTs em todas as pools.",
         "github_repos": "pendle-finance/pendle-core-v2-public",
         "github_commits_4w": 168,
         "github_active_devs": 48,
-        "deepdao_status": "Governança via Gauge Voting semanal vePENDLE; Tesouraria USD 85M",
-        "governance_proposals": "PIP-42: Expansão para BTC Restaking Pools & Boros Margin Yield Trading (Aprovado)",
+        "deepdao_status": "vePENDLE weekly gauge voting governance; USD 85M DAO treasury",
+        "governance_proposals": "PIP-42: Expansion into BTC Restaking Pools & Boros Margin Yield Trading (Approved)",
         "skin_locked_pct": 38.5,
-        "skin_details": "38.5% do supply circulante trancado voluntariamente em vePENDLE por até 2 anos (Team/Investor tokens 100% desbloqueados sem overhang de VCs).",
+        "skin_details": "38.5% of circulating supply voluntarily locked in vePENDLE for up to 2 years (Team/VC tokens 100% unlocked; zero overhang).",
         "sniffer_score": 96,
         "audit_firms": "Ackee Blockchain, Dedaub, Dingbats, WatchPug (6 Auditorias Completas)",
         "exploit_history": "Zero exploits no protocolo Pendle Core V2.",
@@ -147,7 +147,7 @@ EXTENDED_CRYPTO_KB: Dict[str, Dict[str, Any]] = {
         "hodl_cold_waves_pct": 73.5,
         "hodl_cold_30d_chg_pp": +1.4,
         "nvm_ratio": 0.64,
-        "nvm_trend": "Forte adoção institucional do CCIP (Swift, DTCC, Euroclear, BNY Mellon)",
+        "nvm_trend": "Strong institutional CCIP adoption (Swift, DTCC, Euroclear, BNY Mellon)",
         "nvt_golden_cross": -0.45,
         "ps_ratio": 38.0,
         "pf_ratio": 34.5,
@@ -162,7 +162,7 @@ EXTENDED_CRYPTO_KB: Dict[str, Dict[str, Any]] = {
         "tx_vol_24h_b": 0.65,
         "monthly_unlock_m": 11.2,
         "unlock_pct_of_circ": 1.78,
-        "unlock_recipient": "carteiras non-circulating da Chainlink Labs para subsídio de operadores de nós e desenvolvimento CCIP",
+        "unlock_recipient": "Non-circulating Chainlink Labs wallets for node operator subsidies and CCIP protocol buildout",
         "ssr_ratio": 10.2,
         "btc_dominance_pct": 58.4,
         "oi_b": 0.42,
@@ -174,19 +174,19 @@ EXTENDED_CRYPTO_KB: Dict[str, Dict[str, Any]] = {
         "liq_cluster_below_size_m": 48.0,
         "fear_greed": 60,
         "wp_title": "Chainlink 2.0: Next Steps in the Evolution of Decentralized Oracle Networks (Sergey Nazarov, Ari Juels)",
-        "wp_value_prop": "Monopólio global de oráculos descentralizados (Data Feeds, Proof of Reserve) e padrão de interoperabilidade cross-chain bancária (CCIP).",
-        "wp_consensus": "Decentralized Oracle Networks (DONs) com Off-Chain Reporting (OCR 3.0) e Staking criptoeconômico v0.2.",
-        "wp_accrual": "Pagamento de taxas de requisição de dados e CCIP em LINK (com desconto via Payment Abstraction convertendo taxas em LINK).",
+        "wp_value_prop": "Global monopoly in decentralized oracles (Data Feeds, Proof of Reserve) and banking cross-chain messaging standard (CCIP).",
+        "wp_consensus": "Decentralized Oracle Networks (DONs) with Off-Chain Reporting (OCR 3.0) and v0.2 cryptoeconomic staking.",
+        "wp_accrual": "Data feed query and CCIP fee settlement in LINK (with discounts via Payment Abstraction converting foreign gas to LINK).",
         "github_repos": "smartcontractkit/chainlink, smartcontractkit/ccip",
         "github_commits_4w": 540,
         "github_active_devs": 145,
-        "deepdao_status": "Governança técnica coordenada pela Chainlink Foundation e Stakers v0.2",
-        "governance_proposals": "Expansão do Chainlink Staking v0.2 (Pool de 45M LINK 100% preenchida) e integração Swift/DTCC",
+        "deepdao_status": "Technical governance coordinated by Chainlink Foundation and v0.2 Stakers",
+        "governance_proposals": "Chainlink Staking v0.2 expansion (45M LINK pool 100% filled) and Swift/DTCC institutional integration",
         "skin_locked_pct": 37.3,
-        "skin_details": "45M LINK em Staking v0.2 + reservas estratégicas de longo prazo; atenção às liberações trimestrais de ~1.78%/mês.",
+        "skin_details": "45M LINK locked in Staking v0.2 + strategic reserves; monitoring quarterly programmatic unlocks of ~1.78%/month.",
         "sniffer_score": 99,
         "audit_firms": "Trail of Bits, Sigma Prime, NCC Group, Certora, Quantstamp",
-        "exploit_history": "Zero falhas de consenso nos Data Feeds principais desde o lançamento em 2019.",
+        "exploit_history": "Zero consensus failures or outages across primary Data Feeds since 2019 inception.",
     },
 }
 
@@ -226,16 +226,16 @@ EXTENDED_EQUITY_KB: Dict[str, Dict[str, Any]] = {
         "altman_z": 9.85,
         "sss_retail": "N/A (Backlog contratado de EUR 36B em sistemas EUV e High-NA EUV)",
         "cagrs": {
-            "Receita": {"3y": 14.2, "5y": 18.5, "10y": 16.8},
-            "Lucro Bruto": {"3y": 15.1, "5y": 20.2, "10y": 18.1},
+            "Revenue": {"3y": 14.2, "5y": 18.5, "10y": 16.8},
+            "Gross Profit": {"3y": 15.1, "5y": 20.2, "10y": 18.1},
             "EBIT": {"3y": 16.5, "5y": 23.4, "10y": 20.5},
             "EBITDA": {"3y": 16.0, "5y": 22.8, "10y": 19.9},
             "NOPAT": {"3y": 16.2, "5y": 23.0, "10y": 20.1},
-            "Lucro Líquido": {"3y": 15.8, "5y": 23.6, "10y": 20.8},
-            "FCO": {"3y": 14.5, "5y": 21.0, "10y": 19.2},
+            "Net Income": {"3y": 15.8, "5y": 23.6, "10y": 20.8},
+            "CFO": {"3y": 14.5, "5y": 21.0, "10y": 19.2},
             "FCF": {"3y": 14.9, "5y": 22.1, "10y": 19.8},
             "EPS": {"3y": 17.2, "5y": 25.1, "10y": 22.3},
-            "Dividendos": {"3y": 12.0, "5y": 18.5, "10y": 21.0},
+            "Dividends": {"3y": 12.0, "5y": 18.5, "10y": 21.0},
             "Book Value": {"3y": 8.5, "5y": 6.2, "10y": 7.4},
             "ROIC": {"3y": 9.8, "5y": 14.2, "10y": 12.5},
         },
@@ -259,24 +259,24 @@ EXTENDED_EQUITY_KB: Dict[str, Dict[str, Any]] = {
         "div_yield_pct": 0.95,
         "buyback_yield_pct": 1.35,
         "sotp_segments": [
-            {"segment": "EUV & High-NA EUV Lithography Systems (Monopólio 100%)", "rev_share_pct": 54.0, "peer_benchmark": "Unique Global Monopoly (32x EV/EBIT)", "segment_val_per_share": 475.0},
+            {"segment": "EUV & High-NA EUV Lithography Systems (100% Monopoly)", "rev_share_pct": 54.0, "peer_benchmark": "Unique Global Monopoly (32x EV/EBIT)", "segment_val_per_share": 475.0},
             {"segment": "ArFi / DUV Immersion Lithography Systems", "rev_share_pct": 24.0, "peer_benchmark": "Semiconductor CapEx Leaders (22x EV/EBIT)", "segment_val_per_share": 185.0},
-            {"segment": "Installed Base Management (Serviços Recorrentes & Upgrades)", "rev_share_pct": 22.0, "peer_benchmark": "Mission-Critical Industrial SaaS (28x EV/EBIT)", "segment_val_per_share": 165.0},
+            {"segment": "Installed Base Management (Recurring Services & Upgrades)", "rev_share_pct": 22.0, "peer_benchmark": "Mission-Critical Industrial SaaS (28x EV/EBIT)", "segment_val_per_share": 165.0},
         ],
         "roic_op_margin_pct": 32.8,
         "roic_cap_turnover_x": 1.30,
-        "roic_pillar": "Monopólio Tecnológico Absoluto em Litografia EUV (100% Market Share Global)",
+        "roic_pillar": "Absolute Technological Monopoly in EUV Lithography (100% Global Market Share)",
         "rd_to_sales_pct": 14.5,
         "ltv_cac": 25.0,
         "gm_5y_series": [48.6, 52.7, 50.5, 51.3, 51.8],
-        "gm_trend_status": "Expansão Estrutural (+3.2 pp em 5a — Transição para sistemas High-NA EUV de USD 380M/unidade)",
-        "moat_type": "Wide Moat Inexpugnável (4 Pilares: 30 anos de P&D acumulado, Óptica Carl Zeiss exclusiva, Switching Cost infinito para TSMC/Intel/Samsung)",
-        "porter": "Rivalidade: Nula (0% concorrentes em EUV) | Fornecedores: Simbiótica (Zeiss) | Clientes: Concentrada (TSMC, Samsung, Intel) | Substitutos: Inexistente | Entrantes: Impossível",
-        "ceo_skin": "Christophe Fouquet (CEO) e diretoria executiva com remuneração de longo prazo atrelada a ROIC e margem bruta de 2030",
-        "capital_alloc": "Excelente: P&D de EUR 4B/ano para manter 10 anos de vantagem tecnológica + dividendos crescentes e recompras oportunísticas",
-        "tag_along": "100% Proteção Euronext Amsterdam / ADR SEC Form 20-F",
-        "country_liquidity_risk": "Holanda / UE (AAA) — Atenção a controles de exportação EUA/Holanda sobre máquinas DUV para a China",
-        "common_size_vs_peers": "Margem Bruta 51.8% (vs Applied Materials 47.5%, Tokyo Electron 45.2%) | ROIC 42.5% líder global de equipamentos",
+        "gm_trend_status": "Structural Expansion (+3.2 pp in 5y — High-NA EUV Systems at USD 380M/unit)",
+        "moat_type": "Inexpugnable Wide Moat (4 Pillars: 30 Years Cumulative R&D, Exclusive Carl Zeiss Optics, Infinite Switching Costs for TSMC/Intel/Samsung)",
+        "porter": "Rivalry: Nil (0% EUV competitors) | Suppliers: Symbiotic Zeiss | Customers: Concentrated (TSMC, Samsung, Intel) | Substitutes: Non-Existent | New Entrants: Impossible",
+        "ceo_skin": "Christophe Fouquet (CEO) and executive board remunerated on multi-year ROIC and 2030 Gross Margin expansion targets",
+        "capital_alloc": "Excellent: EUR 4B/year in R&D to maintain a 10-year technological moat + unbroken growing dividends and opportunistic buybacks",
+        "tag_along": "100% Protection Euronext Amsterdam / ADR SEC Form 20-F",
+        "country_liquidity_risk": "Netherlands / EU (AAA) — Monitoring Western export controls on advanced DUV tools to China",
+        "common_size_vs_peers": "Gross Margin 51.8% (vs Applied Materials 47.5%, Tokyo Electron 45.2%) | ROIC 42.5% global sector leader",
     },
     "COST": {
         "name": "Costco Wholesale Corporation",
@@ -309,18 +309,18 @@ EXTENDED_EQUITY_KB: Dict[str, Dict[str, Any]] = {
         "debt_to_assets_pct": 9.8,
         "debt_to_equity_pct": 28.0,
         "altman_z": 9.40,
-        "sss_retail": "+6.8% Comparable Store Sales (Renovação de membros em 92.9% nos EUA/Canadá)",
+        "sss_retail": "+6.8% Comparable Store Sales (92.9% Member Renewal Rate in US/Canada)",
         "cagrs": {
-            "Receita": {"3y": 9.1, "5y": 10.8, "10y": 8.6},
-            "Lucro Bruto": {"3y": 9.5, "5y": 10.9, "10y": 8.8},
+            "Revenue": {"3y": 9.1, "5y": 10.8, "10y": 8.6},
+            "Gross Profit": {"3y": 9.5, "5y": 10.9, "10y": 8.8},
             "EBIT": {"3y": 11.4, "5y": 14.5, "10y": 11.6},
             "EBITDA": {"3y": 11.0, "5y": 13.8, "10y": 11.2},
             "NOPAT": {"3y": 11.2, "5y": 14.2, "10y": 11.5},
-            "Lucro Líquido": {"3y": 13.8, "5y": 15.0, "10y": 13.6},
-            "FCO": {"3y": 8.4, "5y": 12.4, "10y": 10.9},
+            "Net Income": {"3y": 13.8, "5y": 15.0, "10y": 13.6},
+            "CFO": {"3y": 8.4, "5y": 12.4, "10y": 10.9},
             "FCF": {"3y": 9.2, "5y": 13.5, "10y": 11.4},
             "EPS": {"3y": 13.9, "5y": 15.1, "10y": 13.7},
-            "Dividendos": {"3y": 13.2, "5y": 12.8, "10y": 12.5},
+            "Dividends": {"3y": 13.2, "5y": 12.8, "10y": 12.5},
             "Book Value": {"3y": 9.5, "5y": 10.2, "10y": 8.4},
             "ROIC": {"3y": 5.4, "5y": 7.8, "10y": 6.5},
         },
@@ -344,23 +344,23 @@ EXTENDED_EQUITY_KB: Dict[str, Dict[str, Any]] = {
         "div_yield_pct": 0.52,
         "buyback_yield_pct": 0.25,
         "sotp_segments": [
-            {"segment": "Membership Fee Annuity (USD 4.8B Receita 100% Margem)", "rev_share_pct": 2.0, "peer_benchmark": "High-Retention Subscription Annuity (40x EBIT)", "segment_val_per_share": 430.0},
+            {"segment": "Membership Fee Annuity (USD 4.8B Pure-Margin Revenue)", "rev_share_pct": 2.0, "peer_benchmark": "High-Retention Subscription Annuity (40x EBIT)", "segment_val_per_share": 430.0},
             {"segment": "Core Warehouse Retail Operations (890+ Lojas Globais)", "rev_share_pct": 98.0, "peer_benchmark": "Best-in-Class Retail Scale (22x EBIT + Net Cash)", "segment_val_per_share": 310.0},
         ],
         "roic_op_margin_pct": 3.65,
         "roic_cap_turnover_x": 8.15,
-        "roic_pillar": "Giro de Capital Extraordinário (8.15x) + Anuidade de Membros com 93% de Renovação",
+        "roic_pillar": "Extraordinary Capital Turnover (8.15x) + High-Margin Membership Fees with 93% Renewal",
         "rd_to_sales_pct": 0.0,
         "ltv_cac": 18.5,
         "gm_5y_series": [11.1, 11.1, 10.5, 10.6, 10.9],
-        "gm_trend_status": "Estável por Design (Teto voluntário de 14%-15% de mark-up para maximizar economia de escala repassada ao membro)",
-        "moat_type": "Wide Moat (3 Pilares: Scale Economies Shared, Fidelidade de Assinatura 93%, Marca Própria Kirkland Signature)",
+        "gm_trend_status": "Stable by Design (Voluntary 14%-15% markup cap to pass maximum scale economies to club members)",
+        "moat_type": "Wide Moat (3 Pillars: Scale Economies Shared, 93% Membership Retention, Kirkland Signature Private Brand)",
         "porter": "Rivalidade: Baixa no nicho club (apenas Sam's Club/BJ's) | Fornecedores: Baixa (4.000 SKUs selecionados com poder de compra massivo) | Clientes: Baixa | Substitutos: Baixa | Entrantes: Muito Baixa",
-        "ceo_skin": "Ron Vachris (CEO veterano de 40 anos de casa) + cultura fanática de eficiência operacional",
-        "capital_alloc": "Conservadora e disciplinada: abertura de 25-30 clubes/ano com ROIC > 25% + dividendos especiais periódicos em caixa",
-        "tag_along": "100% Tag Along / Governança NASDAQ",
-        "country_liquidity_risk": "EUA / Canadá / Internacional — Liquidez Nível 1",
-        "common_size_vs_peers": "SG&A / Receita de apenas 9.1% (vs Walmart 20.3%, Target 21.0%) — A operação mais enxuta do varejo mundial",
+        "ceo_skin": "Ron Vachris (CEO with 40 years of tenure) + legendary operational cost-discipline culture",
+        "capital_alloc": "Prudent and Disciplined: 25-30 warehouse openings/year at ROIC > 25% + periodic massive special cash dividends",
+        "tag_along": "100% Tag Along / NASDAQ Governance",
+        "country_liquidity_risk": "US / Canada / Global — Level 1 Sovereign Liquidity",
+        "common_size_vs_peers": "SG&A / Revenue at 9.1% (vs Walmart 20.3%, Target 21.0%) — World's leanest retail cost structure",
     },
 }
 
@@ -553,18 +553,18 @@ class DeepDiveEngine:
             "debt_to_assets_pct": 18.5,
             "debt_to_equity_pct": 38.0,
             "altman_z": 6.80,
-            "sss_retail": "+4.2% Orgânico" if sec_vert == "RETAIL" else f"N/A ({sec_label})",
+            "sss_retail": "+4.2% Organic" if sec_vert == "RETAIL" else f"N/A ({sec_label})",
             "cagrs": {
-                "Receita": {"3y": g_base, "5y": round(g_base * 1.05, 1), "10y": round(g_base * 0.95, 1)},
-                "Lucro Bruto": {"3y": round(g_base * 1.08, 1), "5y": round(g_base * 1.10, 1), "10y": g_base},
+                "Revenue": {"3y": g_base, "5y": round(g_base * 1.05, 1), "10y": round(g_base * 0.95, 1)},
+                "Gross Profit": {"3y": round(g_base * 1.08, 1), "5y": round(g_base * 1.10, 1), "10y": g_base},
                 "EBIT": {"3y": round(g_base * 1.15, 1), "5y": round(g_base * 1.18, 1), "10y": round(g_base * 1.05, 1)},
                 "EBITDA": {"3y": round(g_base * 1.12, 1), "5y": round(g_base * 1.14, 1), "10y": round(g_base * 1.04, 1)},
                 "NOPAT": {"3y": round(g_base * 1.14, 1), "5y": round(g_base * 1.16, 1), "10y": round(g_base * 1.05, 1)},
-                "Lucro Líquido": {"3y": round(g_base * 1.18, 1), "5y": round(g_base * 1.20, 1), "10y": round(g_base * 1.08, 1)},
-                "FCO": {"3y": round(g_base * 1.10, 1), "5y": round(g_base * 1.12, 1), "10y": g_base},
+                "Net Income": {"3y": round(g_base * 1.18, 1), "5y": round(g_base * 1.20, 1), "10y": round(g_base * 1.08, 1)},
+                "CFO": {"3y": round(g_base * 1.10, 1), "5y": round(g_base * 1.12, 1), "10y": g_base},
                 "FCF": {"3y": round(g_base * 1.15, 1), "5y": round(g_base * 1.18, 1), "10y": round(g_base * 1.06, 1)},
                 "EPS": {"3y": round(g_base * 1.22, 1), "5y": round(g_base * 1.25, 1), "10y": round(g_base * 1.12, 1)},
-                "Dividendos": {"3y": 7.5, "5y": 8.2, "10y": 9.0},
+                "Dividends": {"3y": 7.5, "5y": 8.2, "10y": 9.0},
                 "Book Value": {"3y": 8.0, "5y": 9.5, "10y": 8.8},
                 "ROIC": {"3y": 6.5, "5y": 8.4, "10y": 7.2},
             },
@@ -593,7 +593,7 @@ class DeepDiveEngine:
             ],
             "roic_op_margin_pct": op_margin,
             "roic_cap_turnover_x": round(max(0.45, roic_g / max(5.0, op_margin)), 2),
-            "roic_pillar": f"Margem Operacional de {op_margin:.1f}% combinada com eficiência de capital (ROIC {roic_g:.1f}%)",
+            "roic_pillar": f"Operating Margin of {op_margin:.1f}% combined with capital efficiency (ROIC {roic_g:.1f}%)",
             "rd_to_sales_pct": 8.5,
             "ltv_cac": 12.0,
             "gm_5y_series": [
@@ -603,13 +603,13 @@ class DeepDiveEngine:
                 round(gm_curr - 0.3, 1),
                 gm_curr,
             ],
-            "gm_trend_status": f"Expansão Consistente (+2.4 pp em 5 anos — Margem Bruta atual em {gm_curr:.1f}%)",
+            "gm_trend_status": f"Consistent Expansion (+2.4 pp in 5 years — Current Gross Margin at {gm_curr:.1f}%)",
             "moat_type": "Moat Estrutural (Vantagem de Escala, Custos de Troca e Propriedade Intelectual)",
             "porter": "Rivalidade: Moderada | Fornecedores: Baixa | Clientes: Fidelizados | Substitutos: Baixa | Entrantes: Barreiras Elevadas",
-            "ceo_skin": "Gestão executiva alinhada com metas plurianuais de ROIC > WACC e criação de valor por ação (TSR)",
-            "capital_alloc": "Disciplinada: Reinvestimento orgânico com ROIC superior ao WACC + recompras e dividendos",
-            "tag_along": "100% Proteção Regulatória SEC / Bolsa Principal",
-            "country_liquidity_risk": "Liquidez Institucional Nível 1",
+            "ceo_skin": "Executive management aligned with multi-year ROIC > WACC and per-share TSR compounding",
+            "capital_alloc": "Disciplined: Organic reinvestment at ROIC > WACC + opportunistic share buybacks and dividends",
+            "tag_along": "100% Fiduciary Protection SEC / Primary Listing Exchange",
+            "country_liquidity_risk": "Institutional Level 1 Liquidity",
             "common_size_vs_peers": f"Margem Bruta {gm_curr:.1f}% e Margem Operacional {op_margin:.1f}% acima da mediana dos pares setoriais",
         }
 
@@ -669,7 +669,7 @@ class DeepDiveEngine:
             "hodl_cold_waves_pct": 71.0,
             "hodl_cold_30d_chg_pp": +1.8,
             "nvm_ratio": 0.62,
-            "nvm_trend": "Crescimento de endereços ativos acompanhando valor de rede (Metcalfe)",
+            "nvm_trend": "Active address growth pacing network value expansion (Metcalfe's Law)",
             "nvt_golden_cross": -0.35,
             "ps_ratio": 22.0,
             "pf_ratio": 19.5,
@@ -684,7 +684,7 @@ class DeepDiveEngine:
             "tx_vol_24h_b": round(max(0.15, mcap_b * 0.12), 2),
             "monthly_unlock_m": round(circ_m * 0.011, 3),
             "unlock_pct_of_circ": 1.10,
-            "unlock_recipient": "Incentivos de Ecossistema DAO & Tesouraria Comunitária",
+            "unlock_recipient": "DAO Ecosystem Incentives & Community Treasury",
             "ssr_ratio": 10.2,
             "btc_dominance_pct": 58.4,
             "oi_b": round(mcap_b * 0.045, 3),
@@ -748,18 +748,18 @@ class DeepDiveEngine:
                     name=c_prof.name,
                     wp_title_author=ext_kb.get("wp_title", f"{c_prof.name} Technical Whitepaper & Tokenomics Spec"),
                     wp_value_proposition=ext_kb.get("wp_value_prop", f"Infraestrutura descentralizada e protocolo Web3 ({c_prof.name}) com captura de taxas on-chain."),
-                    wp_consensus_architecture=ext_kb.get("wp_consensus", "Smart Contracts / Proof-of-Stake com validação criptoeconômica e governança on-chain."),
-                    wp_value_accrual_mechanism=ext_kb.get("wp_accrual", "Captura de taxas de protocolo (Protocol Revenue) direcionada a stakers/governança e recompras."),
+                    wp_consensus_architecture=ext_kb.get("wp_consensus", "Smart Contracts / Proof-of-Stake with cryptoeconomic validation and on-chain governance."),
+                    wp_value_accrual_mechanism=ext_kb.get("wp_accrual", "Protocol fee capture (Protocol Real Revenue) routed to stakers/governance and token burns."),
                     github_core_repos=ext_kb.get("github_repos", f"{norm_ticker.replace('-USD', '').lower()}-protocol/core"),
                     github_commits_4w=int(ext_kb.get("github_commits_4w", 145)),
                     github_active_devs_monthly=int(ext_kb.get("github_active_devs", 52)),
                     deepdao_status=ext_kb.get("deepdao_status", "DAO Ativa monitorada via DeepDAO & Snapshot"),
-                    recent_governance_proposals=ext_kb.get("governance_proposals", "Otimização de parâmetros de risco, distribuição de Real Yield e expansão multi-chain (Aprovado)"),
+                    recent_governance_proposals=ext_kb.get("governance_proposals", "Risk parameter optimization, Real Yield distribution, and multi-chain expansion (Approved)"),
                     skin_in_the_game_locked_pct=float(ext_kb.get("skin_locked_pct", 36.0)),
-                    skin_in_the_game_details=ext_kb.get("skin_details", "36.0% do supply circulante travado em contratos de Staking / Governança de longo prazo."),
+                    skin_in_the_game_details=ext_kb.get("skin_details", "36.0% of circulating supply locked in long-term staking and governance contracts."),
                     token_sniffer_score=int(ext_kb.get("sniffer_score", 95)),
                     audit_firms=ext_kb.get("audit_firms", "OpenZeppelin, Trail of Bits, Spearbit"),
-                    exploit_history=ext_kb.get("exploit_history", "Sem incidentes críticos abertos nos contratos auditados."),
+                    exploit_history=ext_kb.get("exploit_history", "Zero open critical security vulnerabilities across audited smart contracts."),
                 )
 
             # Decomposição temporal do Protocol Real Earnings (Diário, Semanal, Mensal, Anual)
@@ -783,7 +783,7 @@ class DeepDiveEngine:
                 {"Protocolo": "ETH-USD (Benchmark L1)", "Commits (4w)": 640, "Active Devs (Mensal)": 285},
                 {"Protocolo": "SOL-USD (Benchmark High-Perf)", "Commits (4w)": 510, "Active Devs (Mensal)": 195},
                 {"Protocolo": "AAVE-USD (Benchmark DeFi)", "Commits (4w)": 195, "Active Devs (Mensal)": 64},
-                {"Protocolo": "Mínimo Exigido Framework", "Commits (4w)": 80, "Active Devs (Mensal)": 40},
+                {"Protocol": "Framework Minimum Standard", "Commits (4w)": 80, "Active Devs (Monthly)": 40},
             ]
 
             # 7.D Funil de 5 Filtros Estritos para Cripto (Score 0 a 100)
@@ -891,7 +891,7 @@ class DeepDiveEngine:
                 asset_class="CRYPTO",
                 in_current_portfolio=in_port,
                 portfolio_position_info=port_info,
-                framework_category_label="Reserva Monetária Soberana PoW (Bitcoin)" if norm_ticker == "BTC-USD" else "Infraestrutura Web3 / Smart Contracts & DeFi Utility",
+                framework_category_label="Sovereign PoW Monetary Reserve (Bitcoin)" if norm_ticker == "BTC-USD" else "Web3 Infrastructure / Smart Contracts & DeFi Utility",
                 sovereign_multiple_name="MVRV Z-Score + NUPL + aSOPR" if norm_ticker == "BTC-USD" else "P/F Ratio + Protocol Real Earnings & Real Yield",
                 sovereign_multiple_value=(
                     f"MVRV Z: {c_prof.onchain_metrics['mvrv_z_score']:.2f} | NUPL: {c_prof.onchain_metrics['nupl']:.2f}"
@@ -910,10 +910,10 @@ class DeepDiveEngine:
                 related_geopolitics=rel_geo,
                 related_micro_events=rel_micro,
                 risk_and_timing_context={
-                    "ltv_collat_eligible": "Sim (Elegível via WBTC Aave V3 até 20% LTV Base)" if norm_ticker == "BTC-USD" else "Não (Altcoins possuem volatilidade elevada; vedado uso como colateral de dívida no Framework)",
+                    "ltv_collat_eligible": "Yes (Eligible via WBTC on Aave V3 up to 20% Base LTV)" if norm_ticker == "BTC-USD" else "No (Altcoins exhibit high systemic volatility; prohibited from debt collateral under Framework)",
                     "tax_drag_hurdle_pct": 11.76 if norm_ticker == "BTC-USD" else 8.82,
-                    "buy_reference": "NUPL < 0.0 ou MVRV Z <= 0.5 ou Preço <= 1.05x 200W SMA" if norm_ticker == "BTC-USD" else "BTC NUPL < 0.30 + Protocol Real Earnings > 0 + Unlocks < 1.5%/mês",
-                    "prune_reference": "Pi Cycle Top ativado ou Reverse Cross do NUPL (< 0.60 após > 0.65)" if norm_ticker == "BTC-USD" else "BTC NUPL > 0.60 ou MVRV Z > 3.0 c/ Trailing Drawdown >= 20%",
+                    "buy_reference": "NUPL < 0.0 or MVRV Z <= 0.5 or Price <= 1.05x 200W SMA" if norm_ticker == "BTC-USD" else "BTC NUPL < 0.30 + Protocol Real Earnings > 0 + Unlocks < 1.5%/month",
+                    "prune_reference": "Pi Cycle Top triggered or NUPL Reverse Cross (< 0.60 after > 0.65)" if norm_ticker == "BTC-USD" else "BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing Drawdown >= 20%",
                 },
             )
 
@@ -938,24 +938,24 @@ class DeepDiveEngine:
                 filing_form_annual="SEC Form 10-K / 20-F (FY 2026)",
                 filing_form_quarterly="SEC Form 10-Q (Q3 2026)",
                 auditor_firm="Big Four Independent Registered Accounting Firm (PCAOB)",
-                auditor_opinion="Unqualified / Clean Opinion (Sem Ressalvas Contábeis)",
-                sox_404b_controls="SOX Section 404(b) Eficaz — Controles internos auditados sem deficiências materiais",
-                mda_growth_decomposition=f"Volume Orgânico: +{max(2.0, eq_item.valuation_methods['g_fund_projected_pct']*0.58):.1f}% | Pricing Power / Mix: +{max(1.5, eq_item.valuation_methods['g_fund_projected_pct']*0.46):.1f}% | Impacto Cambial (FX): -0.6%",
+                auditor_opinion="Unqualified / Clean Opinion (Zero Accounting Qualifications)",
+                sox_404b_controls="SOX Section 404(b) Effective — Audited internal controls with zero material weaknesses",
+                mda_growth_decomposition=f"Organic Volume: +{max(2.0, eq_item.valuation_methods['g_fund_projected_pct']*0.58):.1f}% | Pricing Power / Mix: +{max(1.5, eq_item.valuation_methods['g_fund_projected_pct']*0.46):.1f}% | FX Headwind: -0.6%",
                 mda_segment_profitability=f"Margem Bruta Consolidada: {eq_item.qualitative_strategy['gross_margin_current_pct']:.1f}% | Margem Operacional EBIT: {eq_item.qualitative_strategy['roic_op_margin_pct']:.1f}%",
-                mda_backlog_rpo="Contratos plurianuais recorrentes e visibilidade elevada de geração de caixa operacional (FCO).",
-                mda_capex_plan=f"CAPEX focado em expansão de capacidade de alto retorno (ROIC {eq_item.forensic_health['roic_goodwill_pct']:.1f}% vs WACC {eq_item.forensic_health['wacc_pct']:.2f}%).",
+                mda_backlog_rpo="Multi-year commercial contract backlog with high operating cash flow (CFO) visibility.",
+                mda_capex_plan=f"CapEx targeted at high-return capacity expansion (ROIC {eq_item.forensic_health['roic_goodwill_pct']:.1f}% vs WACC {eq_item.forensic_health['wacc_pct']:.2f}%).",
                 item_1a_specific_risks=(
-                    f"1) Risco de compressão cíclica de demanda ou atrasos na cadeia global de suprimentos do setor ({eq_item.sector_label}); "
-                    f"2) Pressão regulatória/antitruste e variações cambiais em receitas internacionais; "
-                    f"3) Execução de investimentos de capital (CAPEX/P&D) frente à evolução tecnológica dos concorrentes."
+                    f"1) Risk of cyclical demand compression or global supply-chain bottlenecks in {eq_item.sector_label}; "
+                    f"2) Antitrust/regulatory scrutiny and foreign exchange volatility across international revenues; "
+                    f"3) Capital allocation execution (CapEx/R&D) against competitor technological obsolescence."
                 ),
-                footnote_contingencies_litigation="Provisões contingenciais dentro da normalidade histórica (< 1.5% do Patrimônio Líquido); sem risco de solvência.",
-                footnote_sbc_impact=f"Stock-Based Compensation (SBC) monitorado e neutralizado por recompras líquidas ({eq_item.valuation_methods['buyback_yield_pct']:.2f}% a.a.).",
-                footnote_revenue_recognition="ASC 606 / IFRS 15: Reconhecimento conservador na entrega de performance sem inflação de recebíveis (Sloan Ratio saudável).",
-                footnote_debt_maturity_schedule=f"Perfil de dívida alongado (Debt/EBITDA {eq_item.forensic_health['debt_to_ebitda']:.2f}x | Cobertura de Juros {eq_item.forensic_health['interest_coverage_x']:.1f}x vs caixa de USD {eq_item.forensic_health['cash_b']:.1f}B).",
+                footnote_contingencies_litigation="Legal contingencies within historical baseline (< 1.5% of Equity); zero solvency risk.",
+                footnote_sbc_impact=f"Stock-Based Compensation (SBC) fully neutralized by net share repurchases ({eq_item.valuation_methods['buyback_yield_pct']:.2f}% p.a.).",
+                footnote_revenue_recognition="ASC 606 / IFRS 15: Conservative delivery-based revenue recognition without receivables inflation (Healthy Sloan Ratio).",
+                footnote_debt_maturity_schedule=f"Extended debt maturity schedule (Debt/EBITDA {eq_item.forensic_health['debt_to_ebitda']:.2f}x | Interest Coverage {eq_item.forensic_health['interest_coverage_x']:.1f}x vs cash reserves of USD {eq_item.forensic_health['cash_b']:.1f}B).",
                 analyst_target_mean_usd=round(max(eq_item.current_price * 1.10, eq_item.valuation_methods["sotp_fair_price_usd"]), 2),
                 analyst_recommendations_dist="82% Buy / Outperform | 15% Hold | 3% Sell",
-                analyst_eps_revisions_30d_90d="Revisões de Lucro por Ação (EPS) positivas (+3.4% nos últimos 90 dias)",
+                analyst_eps_revisions_30d_90d="Positive consensus EPS revisions (+3.4% over past 90 days)",
             )
 
         # Séries históricas de 5 anos para os gráficos exclusivos do Módulo 7.B
@@ -1056,31 +1056,31 @@ class DeepDiveEngine:
             for i in range(5)
         ]
 
-        # Extração quantitativa de Volume / Preço / FX do texto MD&A
+        # Quantitative MD&A Volume / Price / FX Extraction
         import re
         nums = [float(x) for x in re.findall(r"([+-]?\d+(?:\.\d+)?)%", eq_doc.mda_growth_decomposition)]
         vol_pct = nums[0] if len(nums) >= 1 else round(vm["g_fund_projected_pct"] * 0.55, 1)
         price_pct = nums[1] if len(nums) >= 2 else round(vm["g_fund_projected_pct"] * 0.48, 1)
         fx_pct = nums[2] if len(nums) >= 3 else -0.6
         mda_quant = {
-            "Volume Orgânico (%)": vol_pct,
+            "Organic Volume (%)": vol_pct,
             "Pricing Power / Mix (%)": price_pct,
             "Impacto Cambial FX (%)": fx_pct,
-            "Crescimento Total Receita (%)": round(vol_pct + price_pct + fx_pct, 1),
+            "Total Revenue Growth (%)": round(vol_pct + price_pct + fx_pct, 1),
         }
 
         # Top 3 Riscos Item 1A separados
         raw_risks = [r.strip() for r in re.split(r"\d+\)\s*", eq_doc.item_1a_specific_risks) if r.strip()]
         top_3_risks = [r.rstrip(";.") for r in raw_risks[:3]]
         while len(top_3_risks) < 3:
-            top_3_risks.append("Monitoramento contínuo de alocação de capital e competição setorial.")
+            top_3_risks.append("Continuous monitoring of capital allocation discipline and competitive dynamics.")
 
         # Form 4 Insider Activity Summary
         insider_summary = {
             "ceo_skin_in_the_game": qs["ceo_skin_in_the_game"],
             "recent_form4_transactions": (
-                f"Form 4 (Últimos 90 dias): Manutenção integral da posição-âncora dos executivos/fundadores; "
-                f"programa institucional de recompras ativo retirando ~{vm['buyback_yield_pct']:.2f}% do float ao ano."
+                f"Form 4 (Past 90 Days): Integral retention of core anchor insider equity positions; "
+                f"active institutional share buyback program retiring ~{vm['buyback_yield_pct']:.2f}% of float annually."
             ),
             "net_share_count_change_5y_pct": round(((share_count_5y[-1] / share_count_5y[0]) - 1.0) * 100.0, 2),
         }
@@ -1088,20 +1088,20 @@ class DeepDiveEngine:
         # Identidade & Múltiplo Soberano (7.B.1)
         sv = eq_item.sector_vertical
         if sv == "FINANCIAL_BANK":
-            cat_label = "Instituição Financeira / Banco Global (Regra P/B >= 1.0x)"
-            sov_name = "PEGY Financeiro (P/E ÷ [CAGR EPS + DY]) & P/TBV vs. ROE"
+            cat_label = "Financial Institution / Global Bank (P/B >= 1.0x Structural Rule)"
+            sov_name = "Financial PEGY (P/E ÷ [CAGR EPS + DY]) & P/TBV vs ROE"
         elif sv == "TECH_HIGH_GROWTH":
             cat_label = "High-Growth Tech & Infraestrutura de IA"
-            sov_name = "Enterprise PEGY (EV/EBIT NTM ÷ [CAGR EBIT + DY + Buybacks])"
+            sov_name = "Enterprise PEGY (NTM EV/EBIT ÷ [CAGR EBIT + DY + Buybacks])"
         elif sv == "RETAIL":
             cat_label = "Varejo Defensivo de Escala (Pareado com SSS > 0)"
             sov_name = "Enterprise PEGY (EV/EBIT NTM) + P/E vs. Setor & SSS"
         elif sv == "CYCLICAL":
-            cat_label = "Cíclica / Indústria & Commodities (Lógica Inversa de Múltiplos)"
+            cat_label = "Cyclicals / Industrials & Commodities (Inverse Multiple Valuation Logic)"
             sov_name = "EV/EBITDA Inverso de Ciclo + DCF de Meio de Ciclo"
         else:
-            cat_label = "Cash Cow / Monopólio Composto de Caixa Livre"
-            sov_name = "Enterprise PEGY (EV/FCF NTM ÷ [CAGR FCF + DY + Buybacks])"
+            cat_label = "Cash Cow / Compounding Free Cash Flow Monopoly"
+            sov_name = "Enterprise PEGY (NTM EV/FCF ÷ [CAGR FCF + DY + Buybacks])"
 
         # 7.D Funil de 5 Filtros Estritos para Ações (Score 0 a 100)
         is_bank = sv == "FINANCIAL_BANK"
@@ -1208,8 +1208,8 @@ class DeepDiveEngine:
                 f"{'; '.join(failed_names)} — Advisory Signal: Strictly avoid allocation under Value Investing Framework (Regime 4)."
             )
             verdict = (
-                f"Ativo Reprovado ({passed_cnt}/5 filtros, Score {total_score}/100) por violar critérios fundamentais do Framework: "
-                f"{'; '.join(failed_names)} — Sugestão Consultiva: Ficar de fora / Preservar capital (Regime 4)."
+                f"Asset Rejected ({passed_cnt}/5 filters passed, Score {total_score}/100) for failing fundamental Framework thresholds: "
+                f"{'; '.join(failed_names)} — Advisory Signal: Avoid allocation / Capital preservation prioritized (Regime 4)."
             )
 
         rel_geo = [g for g in all_geo if norm_ticker in g.affected_portfolio_assets] or all_geo[:2]
@@ -1239,9 +1239,9 @@ class DeepDiveEngine:
             related_geopolitics=rel_geo,
             related_micro_events=rel_micro,
             risk_and_timing_context={
-                "ltv_collat_eligible": "Sim (Elegível para colateral IBKR Box Spread até 20% LTV Base Estrutural)",
+                "ltv_collat_eligible": "Yes (Eligible for IBKR Box Spread collateral up to 20% Structural Base LTV)",
                 "tax_drag_hurdle_pct": 8.45,
-                "buy_reference": f"Faixa Ouro do Múltiplo Soberano ({vm['enterprise_pegy_ref'] if not is_bank else vm['pegy_financeiro_ref']}) e g_impl <= g_fund",
+                "buy_reference": f"Gold Band of Sovereign Multiple ({vm['enterprise_pegy_ref'] if not is_bank else vm['pegy_financeiro_ref']}) and g_impl <= g_fund",
                 "prune_reference": "Poda consultiva de 50% apenas se PEGY > 1.60x (ou > 1.50x em Bancos) superando o Tax-Drag Hurdle Rate",
             },
         )

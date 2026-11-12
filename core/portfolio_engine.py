@@ -1,11 +1,11 @@
 """
-MÓDULO 1.4 & MÓDULO 6: VISÃO GERAL DA CARTEIRA, GESTOR DINÂMICO DE PORTFÓLIO (CRUD SQLite + JSON)
-& DECOMPOSIÇÃO LOOK-THROUGH DE ETFs
+MODULE 1.4 & MODULE 6: PORTFOLIO OVERVIEW, DYNAMIC PORTFOLIO MANAGER (SQLite CRUD + JSON)
+& ETF LOOK-THROUGH DECOMPOSITION
 - Persiste a estrutura da carteira em banco de dados local SQLite (portfolio_store.db) sincronizado
   com portfolio_config.json.
-- Permite Adicionar, Editar, Remover ativos, Normalizar Pesos para 100% e Restaurar Padrão.
-- Calcula P&L por ativo (via Preço Médio de Compra), elegibilidade para LTV Turbo, pesos atuais vs. alvo
-  e decomposição Look-Through completa dos ETFs (SPY, QQQ, SMH, ITA e QLD 2x).
+- Allows Adding, Editing, Removing assets, Normalizing Weights to 100%, and Resetting to Defaults.
+- Calculates asset P&L (via Average Purchase Price), Turbo LTV eligibility, actual vs target weights, alvo
+  and comprehensive Look-Through decomposition of ETFs (SPY, QQQ, SMH, ITA, and 2x QLD).
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ class PortfolioOverviewBundle:
         self.weight_sum_is_valid_100 = bool(self.is_weight_valid_100)
 
 
-# Preços médios de compra padrão (para cálculo realista de P&L quando não informado)
+# Default average purchase prices (for realistic P&L estimation when not provided)
 DEFAULT_AVG_BUY_PRICES: Dict[str, float] = {
     "BTC-USD": 54200.0,
     "ETH-USD": 2380.0,
@@ -148,7 +148,7 @@ DEFAULT_SPOT_PRICES: Dict[str, float] = {
     "NU": 14.20,
 }
 
-# Pesos oficiais das principais holdings dentro de cada ETF da carteira (% do patrimônio do ETF)
+# Official weights of primary holdings within each portfolio ETF (% of ETF AUM)
 ETF_CONSTITUENTS_MAP: Dict[str, Dict[str, Dict[str, Any]]] = {
     "SPY": {
         "AAPL": {"name": "Apple Inc.", "sector": "Big Tech / Consumer", "weight_pct": 7.10},
@@ -249,7 +249,7 @@ class PortfolioEngine:
                 tk = a["ticker"]
                 cat = a.get("category", "Hard-Asset Stock")
                 avg_px = float(a.get("avg_buy_price", DEFAULT_AVG_BUY_PRICES.get(tk, a.get("fair_price", 100.0) * 0.80)))
-                # Por padrão: Ações, ETFs e BTC são elegíveis para LTV Turbo; Altcoins não
+                # By default: Stocks, ETFs, and BTC are eligible for Turbo LTV; Altcoins are not
                 ltv_ok = bool(a.get("ltv_turbo_eligible", cat in ("Hard-Asset Stock", "Hard-Asset ETF", "Crypto BTC")))
                 conn.execute(
                     """
@@ -269,9 +269,9 @@ class PortfolioEngine:
                         1 if ltv_ok else 0,
                         float(a.get("fair_price", DEFAULT_SPOT_PRICES.get(tk, 100.0))),
                         a.get("role_description", "Ativo integrante da carteira monitorada pelo Framework."),
-                        a.get("accumulate_rule", "Referência Consultiva: Acumular nas faixas de desconto do Framework."),
-                        a.get("sell_rule", "Referência Consultiva: Avaliar poda em sobrevalorização extrema."),
-                        a.get("yield_mechanism", "Crescimento composto de valor e distribuição de caixa."),
+                        a.get("accumulate_rule", "Advisory Reference: Accumulate within Framework discount bands."),
+                        a.get("sell_rule", "Advisory Reference: Evaluate pruning under extreme overvaluation."),
+                        a.get("yield_mechanism", "Compounded value growth and cash distribution."),
                         idx,
                     ),
                 )
@@ -342,26 +342,26 @@ class PortfolioEngine:
 
         # Handle UI class / sector translation
         if asset_class_ui:
-            if asset_class_ui == "Ação":
+            if asset_class_ui in ("Stock", "Ação"):
                 s_low = (sector_ui or "").lower()
-                if "banco" in s_low or "financ" in s_low:
+                if any(k in s_low for k in ["banco", "bank", "financ"]):
                     category = "Financial"
                     sector_vertical = "FINANCIAL_BANK"
                 elif "cash cow" in s_low:
                     category = "Tech Stock"
                     sector_vertical = "TECH_CASH_COW"
-                elif "cíclic" in s_low or "defesa" in s_low:
+                elif any(k in s_low for k in ["ciclic", "cíclic", "defense", "defesa", "industrial"]):
                     category = "Cyclical"
                     sector_vertical = "CYCLICAL"
-                elif "defensiv" in s_low or "consumo" in s_low:
+                elif any(k in s_low for k in ["defensiv", "consum", "retail", "sss"]):
                     category = "Retail"
                     sector_vertical = "RETAIL"
                 else:
                     category = "Tech Stock"
                     sector_vertical = "TECH_HIGH_GROWTH"
-            elif asset_class_ui == "Cripto":
+            elif asset_class_ui in ("Crypto", "Cripto"):
                 s_low = (sector_ui or "").lower()
-                if "btc" in tk or "store of value" in s_low or "soberan" in s_low:
+                if "btc" in tk or any(k in s_low for k in ["store of value", "soberan", "sovereign"]):
                     category = "Crypto BTC"
                     sector_vertical = "CRYPTO_SOV"
                 else:
@@ -370,13 +370,13 @@ class PortfolioEngine:
             elif asset_class_ui == "Altcoin":
                 category = "Crypto Altcoin"
                 s_low = (sector_ui or "").lower()
-                if "defi" in s_low or "rendimento" in s_low:
+                if any(k in s_low for k in ["defi", "rendimento", "yield"]):
                     sector_vertical = "CRYPTO_DEFI_YIELD"
-                elif "orác" in s_low or "interop" in s_low:
+                elif any(k in s_low for k in ["orac", "orác", "oracle", "interop"]):
                     sector_vertical = "CRYPTO_ORACLE"
-                elif "layer 2" in s_low or "rollup" in s_low:
+                elif any(k in s_low for k in ["layer 2", "rollup", "l2"]):
                     sector_vertical = "CRYPTO_L2_ROLLUP"
-                elif "ai" in s_low or "depin" in s_low or "compute" in s_low:
+                elif any(k in s_low for k in ["ai", "depin", "compute"]):
                     sector_vertical = "CRYPTO_AI_DEPIN"
                 else:
                     sector_vertical = "CRYPTO_ALT"
@@ -397,51 +397,51 @@ class PortfolioEngine:
 
         default_rules = {
             "TECH_HIGH_GROWTH": (
-                "Referência Consultiva (High-Growth): Enterprise PEGY (EV/EBIT NTM) na Faixa Ouro (0 a 1.2x).",
-                "Referência Consultiva de Poda (50%): Enterprise PEGY (EV/EBIT NTM) > 1.6x.",
+                "Advisory Reference (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
+                "Advisory 50% Trim Reference: Enterprise PEGY (EV/EBIT NTM) > 1.6x.",
             ),
             "TECH_CASH_COW": (
-                "Referência Consultiva (Cash Cow): Enterprise PEGY (EV/FCF NTM) na Faixa Ouro (0 a 1.2x).",
-                "Referência Consultiva de Poda (50%): Enterprise PEGY (EV/FCF NTM) > 1.6x.",
+                "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
+                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.6x.",
             ),
             "FINANCIAL_BANK": (
-                "Referência Consultiva (Bancos): PEGY Financeiro entre 0 e 1.0x COM filtro P/B >= 1.0x.",
-                "Referência Consultiva de Poda (50%): PEGY Financeiro > 1.5x.",
+                "Advisory Reference (Banks): Financial PEGY 0 to 1.0x WITH P/B filter >= 1.0x.",
+                "Advisory 50% Trim Reference: Financial PEGY > 1.5x.",
             ),
             "FINANCIAL_TOLLBOOTH": (
-                "Referência Consultiva (Cash Cow): Enterprise PEGY (EV/FCF NTM) na Faixa Ouro (0 a 1.2x).",
-                "Referência Consultiva de Poda (50%): Enterprise PEGY (EV/FCF NTM) > 1.6x.",
+                "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
+                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.6x.",
             ),
             "RETAIL": (
-                "Referência Consultiva (Defensivas): P/E e EV/EBITDA <= 0.85x Setor + Preço <= 0.85x DCF (com SSS > 0).",
-                "Referência Consultiva de Poda (50%): P/E e EV/EBITDA >= 1.20x Setor ou Preço >= 1.20x DCF.",
+                "Advisory Reference (Defensives): P/E & EV/EBITDA <= 0.85x Sector + Price <= 0.85x DCF (with positive SSS).",
+                "Advisory 50% Trim Reference: P/E & EV/EBITDA >= 1.20x Sector OR Price >= 1.20x DCF.",
             ),
             "CYCLICAL": (
-                "Referência Consultiva (Cíclicas): Múltiplo EV/EBITDA alto (fundo de ciclo) e preço abaixo do DCF de meio de ciclo.",
-                "Referência Consultiva de Poda (50%): Múltiplo EV/EBITDA comprimido no topo de ciclo com margens no pico.",
+                "Advisory Reference (Cyclicals): Elevated EV/EBITDA multiple (cycle trough) and price below mid-cycle DCF.",
+                "Advisory 50% Trim Reference: Compressed EV/EBITDA multiple at cycle peak with peak margins.",
             ),
         }
         acc_rule, sell_rule = default_rules.get(
             sector_vertical,
             (
-                "Referência Consultiva: Acumular quando em desconto fundamentalista / on-chain.",
-                "Referência Consultiva: Poda parcial em euforia de ciclo / múltiplos esticados.",
+                "Advisory Reference: Accumulate when at fundamental / on-chain discount.",
+                "Advisory Reference: Partial trim during cycle euphoria / stretched valuation multiples.",
             ),
         )
         if category == "Crypto BTC":
-            acc_rule = "Referência Consultiva: NUPL < 0.0 ou MVRV Z <= 0.5 ou Preço <= 1.05x 200W SMA."
-            sell_rule = "Referência Consultiva de Poda (50%): Pi Cycle Top ativado ou Reverse Cross do NUPL (< 0.60 após > 0.65)."
+            acc_rule = "Advisory Reference: NUPL < 0.0 OR MVRV Z <= 0.50 OR Price <= 1.05x 200W SMA."
+            sell_rule = "Advisory 50% Trim Reference: Pi Cycle Top active OR NUPL Reverse Cross (< 0.60 after > 0.65)."
         elif category == "Crypto Altcoin":
-            acc_rule = "Referência Consultiva: Fundo Macro (BTC NUPL < 0.30) com P/F saudável e Real Earnings positivo."
-            sell_rule = "Referência Consultiva de Saída Cíclica: BTC NUPL > 0.60 ou MVRV Z > 3.0 combinado com Trailing Drawdown >= 20%."
+            acc_rule = "Advisory Reference: Macro Trough (BTC NUPL < 0.30) with healthy P/F and positive Real Earnings."
+            sell_rule = "Advisory Cyclical Exit Reference: BTC NUPL > 0.60 OR MVRV Z > 3.0 combined with Trailing Drawdown >= 20%."
 
         fp = fair_price if (fair_price and fair_price > 0) else DEFAULT_SPOT_PRICES.get(tk, max(10.0, avg_buy_price * 1.15))
-        role_desc = role_description or f"Posição estratégica ({category} • {sector_vertical}) monitorada pelo Value Investing Framework."
+        role_desc = role_description or f"Strategic position ({category} • {sector_vertical}) monitored by Value Investing Framework."
 
         with sqlite3.connect(self.db_path) as conn:
             existing = conn.execute("SELECT display_order, yield_mechanism FROM portfolio_assets WHERE ticker = ?", (tk,)).fetchone()
             disp_order = existing[0] if existing else 500
-            fallback_yield = "Colateral elegível para LTV Convexa." if ltv_turbo_eligible else "Geração de valor composto / Staking."
+            fallback_yield = "Eligible collateral for Convex LTV." if ltv_turbo_eligible else "Compounded value generation / Staking yield."
             final_yield = yield_mechanism if (yield_mechanism and yield_mechanism.strip()) else (existing[1] if (existing and existing[1]) else fallback_yield)
             conn.execute(
                 """
@@ -529,7 +529,7 @@ class PortfolioEngine:
         etf_weights: Dict[str, float] = {}
         direct_stock_weights: Dict[str, Dict[str, Any]] = {}
 
-        # Simula leve deriva orgânica frente ao peso-alvo para enriquecer a leitura de Shannon Inflow
+        # Simulates minor organic weight drift vs target weight to enrich Shannon Inflow analysis
         drift_simulation = {
             "BTC-USD": +1.10,
             "ETH-USD": -0.65,
@@ -629,17 +629,17 @@ class PortfolioEngine:
         total_pnl_pct = round((total_pnl_usd / total_cost_basis_usd) * 100.0, 2) if total_cost_basis_usd > 0 else 0.0
 
         # ======================================================================
-        # DECOMPOSIÇÃO LOOK-THROUGH DOS ETFs (SPY, QQQ, SMH, ITA e QLD 2x)
+        # ETF LOOK-THROUGH DECOMPOSITION (SPY, QQQ, SMH, ITA, and 2x QLD)
         # ======================================================================
         w_spy = etf_weights.get("SPY", 0.0)
         w_qqq = etf_weights.get("QQQ", 0.0)
         w_smh = etf_weights.get("SMH", 0.0)
         w_ita = etf_weights.get("ITA", 0.0)
-        w_qld = etf_weights.get("QLD", 0.0)  # QLD tem alavancagem 2x sobre o índice Nasdaq-100 (QQQ)
+        w_qld = etf_weights.get("QLD", 0.0)  # QLD provides 2x daily leverage on the Nasdaq-100 (QQQ)
 
-        # Filtra estritamente as ações que o investidor REALMENTE possui na carteira
-        # para mostrar a sobreposição (overlap) dos seus ETFs nas suas ações diretas,
-        # consolidando o restante pulverizado dos índices em uma única linha resumo.
+        # Strictly filters equities that the investor ACTUALLY owns in the portfolio
+        # to highlight the overlap of ETF holdings across direct equities,
+        # consolidating the residual index basket into a single summary row.
         all_lookthrough_tickers = list(direct_stock_weights.keys())
 
         sector_labels_map = {
@@ -721,7 +721,7 @@ class PortfolioEngine:
 
         lookthrough_list.sort(key=lambda x: x.total_effective_lookthrough_pct, reverse=True)
 
-        # Linha única consolidada para a parcela residual pulverizada dos ETFs da carteira
+        # Consolidated row for residual diversified ETF holdings
         rem_spy = round(max(0.0, w_spy - owned_spy_sum), 3)
         rem_qqq = round(max(0.0, w_qqq - owned_qqq_sum), 3)
         rem_smh = round(max(0.0, w_smh - owned_smh_sum), 3)
@@ -764,42 +764,42 @@ class PortfolioEngine:
         total_hard_pct = round(target_weight_sum - total_crypto_pct, 2)
         eff_gross_pct = round(target_weight_sum + w_qld, 2)
 
-        # Consolidação Setorial Look-Through dinâmica
+        # Dynamic Look-Through Sector Consolidation
         sector_summary = [
             {
-                "Bloco / Setor Look-Through": "Bitcoin (Sovereign Monetary Reserve PoW)",
-                "Peso Nominal (%)": btc_w,
-                "Exposição Efetiva Look-Through (%)": btc_w,
-                "Exposição Financeira (USD)": round(capital_usd * (btc_w / 100.0), 2),
-                "Principais Ativos Contribuintes": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto BTC") or "None",
+                "Sector / Look-Through Block": "Bitcoin (Sovereign Monetary Reserve PoW)",
+                "Nominal Weight (%)": btc_w,
+                "Effective Look-Through Exposure (%)": btc_w,
+                "Financial Exposure ($)": round(capital_usd * (btc_w / 100.0), 2),
+                "Primary Contributing Assets": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto BTC") or "None",
             },
             {
-                "Bloco / Setor Look-Through": "Web3 Infrastructure, Smart Contracts & DeFi",
-                "Peso Nominal (%)": alt_w,
-                "Exposição Efetiva Look-Through (%)": alt_w,
-                "Exposição Financeira (USD)": round(capital_usd * (alt_w / 100.0), 2),
-                "Principais Ativos Contribuintes": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto Altcoin") or "None",
+                "Sector / Look-Through Block": "Web3 Infrastructure, Smart Contracts & DeFi",
+                "Nominal Weight (%)": alt_w,
+                "Effective Look-Through Exposure (%)": alt_w,
+                "Financial Exposure ($)": round(capital_usd * (alt_w / 100.0), 2),
+                "Primary Contributing Assets": ", ".join(f"{p.ticker} ({p.target_weight_pct:.2f}%)" for p in positions if p.category == "Crypto Altcoin") or "None",
             },
             {
-                "Bloco / Setor Look-Through": "Big Tech, Cloud, Semiconductors & AI",
-                "Peso Nominal (%)": round(sum(p.target_weight_pct for p in positions if p.sector_vertical in ("TECH_CASH_COW", "TECH_HIGH_GROWTH")) + w_qqq + w_smh + w_qld, 2),
-                "Exposição Efetiva Look-Through (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads"))), 2),
-                "Exposição Financeira (USD)": round(sum(h.effective_exposure_usd for h in lookthrough_list if any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads"))), 2),
-                "Principais Ativos Contribuintes": ", ".join(f"{h.ticker} ({h.total_effective_lookthrough_pct:.2f}%)" for h in lookthrough_list[:6]),
+                "Sector / Look-Through Block": "Big Tech, Cloud, Semiconductors & AI",
+                "Nominal Weight (%)": round(sum(p.target_weight_pct for p in positions if p.sector_vertical in ("TECH_CASH_COW", "TECH_HIGH_GROWTH")) + w_qqq + w_smh + w_qld, 2),
+                "Effective Look-Through Exposure (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads"))), 2),
+                "Financial Exposure ($)": round(sum(h.effective_exposure_usd for h in lookthrough_list if any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads"))), 2),
+                "Primary Contributing Assets": ", ".join(f"{h.ticker} ({h.total_effective_lookthrough_pct:.2f}%)" for h in lookthrough_list[:6]),
             },
             {
-                "Bloco / Setor Look-Through": "Financial Sector, Global Banks & Payments",
-                "Peso Nominal (%)": round(sum(p.target_weight_pct for p in positions if p.sector_vertical in ("FINANCIAL_BANK", "FINANCIAL_TOLLBOOTH")), 2),
-                "Exposição Efetiva Look-Through (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if "Financial" in h.sector), 2),
-                "Exposição Financeira (USD)": round(sum(h.effective_exposure_usd for h in lookthrough_list if "Financial" in h.sector), 2),
-                "Principais Ativos Contribuintes": ", ".join(f"{h.ticker} ({h.total_effective_lookthrough_pct:.2f}%)" for h in lookthrough_list if "Financial" in h.sector),
+                "Sector / Look-Through Block": "Financial Sector, Global Banks & Payments",
+                "Nominal Weight (%)": round(sum(p.target_weight_pct for p in positions if p.sector_vertical in ("FINANCIAL_BANK", "FINANCIAL_TOLLBOOTH")), 2),
+                "Effective Look-Through Exposure (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if "Financial" in h.sector), 2),
+                "Financial Exposure ($)": round(sum(h.effective_exposure_usd for h in lookthrough_list if "Financial" in h.sector), 2),
+                "Primary Contributing Assets": ", ".join(f"{h.ticker} ({h.total_effective_lookthrough_pct:.2f}%)" for h in lookthrough_list if "Financial" in h.sector),
             },
             {
-                "Bloco / Setor Look-Through": "Aerospace, NATO Defense, Retail & Broad S&P",
-                "Peso Nominal (%)": round(w_ita + w_spy + sum(p.target_weight_pct for p in positions if p.sector_vertical in ("RETAIL", "CYCLICAL", "OTHER") and p.category == "Hard-Asset Stock"), 2),
-                "Exposição Efetiva Look-Through (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if not any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads", "Financial"))), 2),
-                "Exposição Financeira (USD)": round(sum(h.effective_exposure_usd for h in lookthrough_list if not any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads", "Financial"))), 2),
-                "Principais Ativos Contribuintes": "ITA (Defense), WMT, SPY Core & Diversified",
+                "Sector / Look-Through Block": "Aerospace, NATO Defense, Retail & Broad S&P",
+                "Nominal Weight (%)": round(w_ita + w_spy + sum(p.target_weight_pct for p in positions if p.sector_vertical in ("RETAIL", "CYCLICAL", "OTHER") and p.category == "Hard-Asset Stock"), 2),
+                "Effective Look-Through Exposure (%)": round(sum(h.total_effective_lookthrough_pct for h in lookthrough_list if not any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads", "Financial"))), 2),
+                "Financial Exposure ($)": round(sum(h.effective_exposure_usd for h in lookthrough_list if not any(k in h.sector for k in ("Tech", "Semi", "Cloud", "Search", "Ads", "Financial"))), 2),
+                "Primary Contributing Assets": "ITA (Defense), WMT, SPY Core & Diversified",
             },
         ]
 
