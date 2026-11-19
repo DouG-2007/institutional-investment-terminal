@@ -16,10 +16,14 @@ MODULE 2: IN-DEPTH FORENSIC DOCUMENTARY INTELLIGENCE
 from __future__ import annotations
 
 import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, fields
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+import tempfile
+import threading
+import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -568,6 +572,12 @@ CRYPTO_FILINGS_DB: List[CryptoDocumentaryDossier] = [
 
 _ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUSTOM_FILINGS_CACHE_PATH = os.path.join(_ROOT_DIR, "data_cache", "custom_filings_cache.json")
+_FILINGS_CACHE_LOCK = threading.Lock()
+
+
+def _db_path() -> str:
+    candidate = os.path.join(_ROOT_DIR, "portfolio_store.db")
+    return candidate if os.path.exists(candidate) else "portfolio_store.db"
 
 
 class EquityDocumentaryDossierSchema(BaseModel):
@@ -627,7 +637,7 @@ class CryptoDocumentaryDossierSchema(BaseModel):
     exploit_history: str = Field(description="Historical exploit/incident record or security track record stated.")
 
 
-def _load_custom_filings_cache() -> Dict[str, Dict[str, Dict[str, Any]]]:
+def _load_custom_filings_cache_unlocked() -> Dict[str, Dict[str, Dict[str, Any]]]:
     base: Dict[str, Dict[str, Dict[str, Any]]] = {"equities": {}, "cryptos": {}}
     if not os.path.exists(CUSTOM_FILINGS_CACHE_PATH):
         return base
@@ -642,15 +652,41 @@ def _load_custom_filings_cache() -> Dict[str, Dict[str, Dict[str, Any]]]:
     return base
 
 
-def _save_custom_filing_cache(kind: str, key: str, dossier_obj: Any) -> None:
-    try:
-        os.makedirs(os.path.dirname(CUSTOM_FILINGS_CACHE_PATH), exist_ok=True)
-        cache = _load_custom_filings_cache()
-        cache.setdefault(kind, {})[key] = asdict(dossier_obj)
-        with open(CUSTOM_FILINGS_CACHE_PATH, "w", encoding="utf-8") as f:
-            json.dump(cache, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
+def _load_custom_filings_cache() -> Dict[str, Dict[str, Dict[str, Any]]]:
+    with _FILINGS_CACHE_LOCK:
+        return _load_custom_filings_cache_unlocked()
+
+
+def _save_custom_filing_cache(
+    kind: str,
+    key: str,
+    dossier_obj: Any,
+    source_summary: str = "",
+) -> None:
+    with _FILINGS_CACHE_LOCK:
+        try:
+            cache_dir = os.path.dirname(CUSTOM_FILINGS_CACHE_PATH)
+            os.makedirs(cache_dir, exist_ok=True)
+            cache = _load_custom_filings_cache_unlocked()
+            payload = asdict(dossier_obj)
+            payload["_ai_generated"] = True
+            payload["_extracted_at"] = time.time()
+            if source_summary:
+                payload["_source_summary"] = source_summary
+            cache.setdefault(kind, {})[key] = payload
+            fd, tmp_path = tempfile.mkstemp(prefix=".filings_cache_", suffix=".tmp", dir=cache_dir)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(cache, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, CUSTOM_FILINGS_CACHE_PATH)
+            finally:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+        except Exception:
+            pass
 
 
 class FilingsEngine:
@@ -661,12 +697,19 @@ class FilingsEngine:
         if tickers is None:
             try:
                 import sqlite3
-                with sqlite3.connect("portfolio_store.db") as conn:
+                with sqlite3.connect(_db_path()) as conn:
                     rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 tickers = [r[0] for r in rows if "Crypto" not in r[1] and "ETF" not in r[1]]
             except Exception:
                 tickers = ["NVDA", "AAPL", "MSFT", "JPM", "ASML", "TSM", "MELI", "AVGO", "MA", "NU"]
-        tk_set = {t.upper() for t in tickers}
+
+        ordered_tks: List[str] = []
+        seen_tks = set()
+        for t in tickers:
+            tu = t.strip().upper()
+            if tu and tu not in seen_tks:
+                seen_tks.add(tu)
+                ordered_tks.append(tu)
 
         cache = _load_custom_filings_cache()
         eq_map: Dict[str, EquityDocumentaryDossier] = {d.ticker.upper(): d for d in EQUITY_FILINGS_DB}
@@ -690,18 +733,25 @@ class FilingsEngine:
         except Exception:
             pass
 
-        return [d for tk, d in eq_map.items() if tk in tk_set]
+        return [eq_map[tk] for tk in ordered_tks if tk in eq_map]
 
     def get_crypto_dossiers(self, symbols: List[str] | None = None) -> List[CryptoDocumentaryDossier]:
         if symbols is None:
             try:
                 import sqlite3
-                with sqlite3.connect("portfolio_store.db") as conn:
+                with sqlite3.connect(_db_path()) as conn:
                     rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 symbols = [r[0] for r in rows if "Crypto" in r[1] or r[0].endswith("-USD")]
             except Exception:
                 symbols = ["BTC-USD", "ETH-USD", "PENDLE-USD", "LINK-USD", "MKR-USD", "UNI-USD"]
-        sym_set = {s.upper() for s in symbols}
+
+        ordered_syms: List[str] = []
+        seen_syms = set()
+        for s in symbols:
+            su = s.strip().upper()
+            if su and su not in seen_syms:
+                seen_syms.add(su)
+                ordered_syms.append(su)
 
         cache = _load_custom_filings_cache()
         cr_map: Dict[str, CryptoDocumentaryDossier] = {c.symbol.upper(): c for c in CRYPTO_FILINGS_DB}
@@ -713,7 +763,173 @@ class FilingsEngine:
             except Exception:
                 pass
 
-        return [c for sym, c in cr_map.items() if sym in sym_set]
+        return [cr_map[sym] for sym in ordered_syms if sym in cr_map]
+
+    def get_ai_dossier_coverage(
+        self,
+        equity_tickers: List[str],
+        crypto_symbols: List[str],
+        ttl_days: float = 7.0,
+    ) -> Dict[str, Any]:
+        """Reports which portfolio assets already have fresh AI-extracted dossiers in cache."""
+        cache = _load_custom_filings_cache()
+        now = time.time()
+        ttl_sec = max(60.0, float(ttl_days) * 86400.0)
+
+        def _is_fresh(entry: Any) -> bool:
+            if not isinstance(entry, dict):
+                return False
+            if entry.get("_ai_generated") is False:
+                return False
+            ts = entry.get("_extracted_at")
+            if ts is None:
+                return True
+            try:
+                return (now - float(ts)) < ttl_sec
+            except Exception:
+                return False
+
+        eq_cache = cache.get("equities", {})
+        cr_cache = cache.get("cryptos", {})
+
+        eq_norm = [t.strip().upper() for t in equity_tickers if t and t.strip()]
+        cr_norm = [
+            (s.strip().upper() if "-" in s else f"{s.strip().upper()}-USD")
+            for s in crypto_symbols
+            if s and s.strip()
+        ]
+
+        fresh_eq = [t for t in eq_norm if _is_fresh(eq_cache.get(t))]
+        stale_eq = [t for t in eq_norm if t not in fresh_eq]
+        fresh_cr = [s for s in cr_norm if _is_fresh(cr_cache.get(s))]
+        stale_cr = [s for s in cr_norm if s not in fresh_cr]
+
+        return {
+            "fresh_equities": fresh_eq,
+            "stale_equities": stale_eq,
+            "fresh_cryptos": fresh_cr,
+            "stale_cryptos": stale_cr,
+            "ai_equity_count": len(fresh_eq),
+            "total_equity_count": len(eq_norm),
+            "ai_crypto_count": len(fresh_cr),
+            "total_crypto_count": len(cr_norm),
+        }
+
+    def hydrate_portfolio_dossiers_ai(
+        self,
+        equity_tickers: List[str],
+        crypto_symbols: List[str],
+        force_refresh: bool = False,
+        ttl_days: float = 7.0,
+        max_workers: int = 2,
+        progress_cb: Optional[Callable[[str, int, int], None]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Automatically fetches & AI-structures SEC EDGAR and Crypto protocol dossiers
+        across the entire active portfolio, persisting every result to `custom_filings_cache.json`.
+        """
+        try:
+            from core.gemini_client import is_gemini_configured
+
+            if not is_gemini_configured():
+                return {
+                    "hydrated_equities": [],
+                    "hydrated_cryptos": [],
+                    "failed": {},
+                    "skipped_reason": "GEMINI_API_KEY not configured",
+                    "total_ai_equities": 0,
+                    "total_ai_cryptos": 0,
+                }
+        except Exception as exc:
+            return {
+                "hydrated_equities": [],
+                "hydrated_cryptos": [],
+                "failed": {"init": str(exc)},
+                "total_ai_equities": 0,
+                "total_ai_cryptos": 0,
+            }
+
+        coverage = self.get_ai_dossier_coverage(equity_tickers, crypto_symbols, ttl_days=ttl_days)
+        if force_refresh:
+            target_eq = [t.strip().upper() for t in equity_tickers if t and t.strip()]
+            target_cr = [
+                (s.strip().upper() if "-" in s else f"{s.strip().upper()}-USD")
+                for s in crypto_symbols
+                if s and s.strip()
+            ]
+        else:
+            target_eq = coverage["stale_equities"]
+            target_cr = coverage["stale_cryptos"]
+
+        tasks: List[Tuple[str, str]] = [("eq", tk) for tk in target_eq] + [("cr", sym) for sym in target_cr]
+        hydrated_eq: List[str] = []
+        hydrated_cr: List[str] = []
+        failed: Dict[str, str] = {}
+
+        if not tasks:
+            return {
+                "hydrated_equities": hydrated_eq,
+                "hydrated_cryptos": hydrated_cr,
+                "failed": failed,
+                "total_ai_equities": coverage["ai_equity_count"],
+                "total_ai_cryptos": coverage["ai_crypto_count"],
+                "from_cache": True,
+            }
+
+        total_tasks = len(tasks)
+        completed = 0
+
+        def _run_one(kind: str, symbol: str) -> Tuple[str, str, bool, str]:
+            if kind == "eq":
+                dos, msg, _ = self.auto_fetch_and_extract_equity_dossier(
+                    ticker=symbol,
+                    persist=True,
+                    use_search_supplement=True,
+                )
+                ok = dos is not None and "Successfully extracted" in msg
+                return kind, symbol, ok, msg
+            dos, msg, _ = self.auto_fetch_and_extract_crypto_dossier(
+                symbol=symbol,
+                persist=True,
+                use_search_supplement=False,
+            )
+            ok = dos is not None and "Successfully extracted" in msg
+            return kind, symbol, ok, msg
+
+        with ThreadPoolExecutor(max_workers=max(1, min(int(max_workers), 3))) as pool:
+            futures = []
+            for idx, (kind, sym) in enumerate(tasks):
+                if idx > 0:
+                    time.sleep(0.35)
+                futures.append(pool.submit(_run_one, kind, sym))
+
+            for fut in as_completed(futures):
+                completed += 1
+                try:
+                    kind, sym, ok, msg = fut.result()
+                    if ok:
+                        if kind == "eq":
+                            hydrated_eq.append(sym)
+                        else:
+                            hydrated_cr.append(sym)
+                    else:
+                        failed[sym] = msg
+                    if progress_cb is not None:
+                        progress_cb(sym, completed, total_tasks)
+                except Exception as exc:
+                    failed[f"task_{completed}"] = str(exc)
+                    if progress_cb is not None:
+                        progress_cb("error", completed, total_tasks)
+
+        final_cov = self.get_ai_dossier_coverage(equity_tickers, crypto_symbols, ttl_days=ttl_days)
+        return {
+            "hydrated_equities": hydrated_eq,
+            "hydrated_cryptos": hydrated_cr,
+            "failed": failed,
+            "total_ai_equities": final_cov["ai_equity_count"],
+            "total_ai_cryptos": final_cov["ai_crypto_count"],
+            "from_cache": False,
+        }
 
     def extract_equity_dossier_from_document(
         self,
@@ -781,6 +997,7 @@ class FilingsEngine:
             system_instruction=system_instruction,
             temperature=0.05,
             max_output_tokens=3000,
+            timeout_sec=50.0,
         )
         if parsed is None:
             if static_match is not None:
@@ -794,7 +1011,7 @@ class FilingsEngine:
 
         dossier = EquityDocumentaryDossier(**dossier_dict)
         if persist:
-            _save_custom_filing_cache("equities", tk_norm, dossier)
+            _save_custom_filing_cache("equities", tk_norm, dossier, source_summary="Gemini Structured SEC Extraction")
         return dossier, f"Successfully extracted & structured SEC filing dossier for {tk_norm} via Gemini Structured Outputs."
 
     def extract_crypto_dossier_from_document(
@@ -862,6 +1079,7 @@ class FilingsEngine:
             system_instruction=system_instruction,
             temperature=0.05,
             max_output_tokens=3000,
+            timeout_sec=50.0,
         )
         if parsed is None and pdf_bytes and raw_text and raw_text.strip():
             # Fallback to text-only bundle if inline PDF attachment was too large or rejected
@@ -872,6 +1090,7 @@ class FilingsEngine:
                 system_instruction=system_instruction,
                 temperature=0.05,
                 max_output_tokens=3000,
+                timeout_sec=50.0,
             )
         if parsed is None:
             if static_match is not None:
@@ -885,7 +1104,7 @@ class FilingsEngine:
 
         dossier = CryptoDocumentaryDossier(**dossier_dict)
         if persist:
-            _save_custom_filing_cache("cryptos", sym_norm, dossier)
+            _save_custom_filing_cache("cryptos", sym_norm, dossier, source_summary="Gemini Structured Protocol Extraction")
         return dossier, f"Successfully extracted & structured protocol dossier for {sym_norm} via Gemini Structured Outputs."
 
     def _google_search_fallback_text(self, query_prompt: str) -> Optional[str]:
@@ -929,6 +1148,7 @@ class FilingsEngine:
         ticker: str,
         form_preference: str = "10-K",
         persist: bool = True,
+        use_search_supplement: bool = True,
     ) -> Tuple[Optional[EquityDocumentaryDossier], str, Dict[str, Any]]:
         """
         Automatically fetches ALL relevant documentary sources for an equity:
@@ -950,7 +1170,8 @@ class FilingsEngine:
         bundle_text, meta = fetch_complete_equity_document_bundle(tk_norm, preferred_forms=pref_order)
 
         # Supplement via Google Search grounding when ticker is non-SEC or analyst revisions/targets need enrichment
-        if not meta.get("sec_found") or meta.get("needs_search_enrichment"):
+        needs_search = not meta.get("sec_found") or meta.get("needs_search_enrichment")
+        if (use_search_supplement and needs_search) or not bundle_text:
             search_prompt = (
                 f"Search official latest annual report (10-K, 20-F, or audited annual filing), latest quarterly "
                 f"filing (10-Q/6-K), recent 8-K material events, and Wall Street analyst consensus for ticker '{tk_norm}'. "
@@ -995,6 +1216,7 @@ class FilingsEngine:
         self,
         symbol: str,
         persist: bool = True,
+        use_search_supplement: bool = True,
     ) -> Tuple[Optional[CryptoDocumentaryDossier], str, Dict[str, Any]]:
         """
         Automatically fetches ALL relevant documentary sources for a cryptoasset:
@@ -1014,28 +1236,29 @@ class FilingsEngine:
 
         ctx_text, wp_pdf, meta = fetch_complete_crypto_document_bundle(sym_norm)
 
-        # Supplement with Google Search grounding for Token Sniffer score, audit firms, DeepDAO, & ve-token lockups
-        search_prompt = (
-            f"Search authoritative protocol documentation for cryptoasset '{sym_norm}'"
-            + (f" ({meta.get('name')})" if meta.get("name") else "")
-            + ": white paper title/authors/year, value proposition, consensus architecture, token value accrual, "
-            "core GitHub repositories (4-week commit activity & monthly active devs), DeepDAO / Snapshot governance status, "
-            "notable recent governance proposals, % of circulating/total supply staked or locked (Skin in the Game), "
-            "Token Sniffer security score (0-100), security audit firms (e.g., Trail of Bits, OpenZeppelin, Spearbit, CertiK), "
-            "and historical exploit/hack record."
-        )
-        grounded_text = self._google_search_fallback_text(search_prompt)
-        if grounded_text:
-            sources_list = list(meta.get("sources_fetched") or [])
-            sources_list.append("Google Search Grounded Protocol & Audit Supplement")
-            meta["sources_fetched"] = sources_list
-            ctx_text = (
-                (ctx_text + "\n\n=== GOOGLE SEARCH GROUNDED AUDIT / GOVERNANCE SUPPLEMENT ===\n" + grounded_text)
-                if ctx_text
-                else grounded_text
+        # Supplement with Google Search grounding when requested or when fetched text context is sparse
+        if use_search_supplement or len((ctx_text or "").strip()) < 2000:
+            search_prompt = (
+                f"Search authoritative protocol documentation for cryptoasset '{sym_norm}'"
+                + (f" ({meta.get('name')})" if meta.get("name") else "")
+                + ": white paper title/authors/year, value proposition, consensus architecture, token value accrual, "
+                "core GitHub repositories (4-week commit activity & monthly active devs), DeepDAO / Snapshot governance status, "
+                "notable recent governance proposals, % of circulating/total supply staked or locked (Skin in the Game), "
+                "Token Sniffer security score (0-100), security audit firms (e.g., Trail of Bits, OpenZeppelin, Spearbit, CertiK), "
+                "and historical exploit/hack record."
             )
-            if not meta.get("source_url"):
-                meta["source_url"] = "Google Search Grounding + Public APIs"
+            grounded_text = self._google_search_fallback_text(search_prompt)
+            if grounded_text:
+                sources_list = list(meta.get("sources_fetched") or [])
+                sources_list.append("Google Search Grounded Protocol & Audit Supplement")
+                meta["sources_fetched"] = sources_list
+                ctx_text = (
+                    (ctx_text + "\n\n=== GOOGLE SEARCH GROUNDED AUDIT / GOVERNANCE SUPPLEMENT ===\n" + grounded_text)
+                    if ctx_text
+                    else grounded_text
+                )
+                if not meta.get("source_url"):
+                    meta["source_url"] = "Google Search Grounding + Public APIs"
 
         if ctx_text or wp_pdf:
             dossier, msg = self.extract_crypto_dossier_from_document(

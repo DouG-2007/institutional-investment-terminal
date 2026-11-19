@@ -119,8 +119,21 @@ def get_default_model(fast: bool = False) -> str:
     return os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_GEMINI_MODEL
 
 
-def get_genai_client() -> Optional[Any]:
-    """Instantiates `google.genai.Client` with fast-fail HTTP options so fallback triggers promptly."""
+def _strip_json_fences(raw: str) -> str:
+    """Removes optional leading/trailing markdown code fences around JSON output."""
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].lstrip().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
+def get_genai_client(timeout_sec: float = 45.0) -> Optional[Any]:
+    """Instantiates `google.genai.Client` with configurable HTTP timeout so fallback triggers cleanly."""
     api_key = get_gemini_api_key()
     if not api_key:
         return None
@@ -128,10 +141,11 @@ def get_genai_client() -> Optional[Any]:
         from google import genai
         from google.genai import types as genai_types
 
+        timeout_ms = max(1_000, int(float(timeout_sec) * 1000))
         return genai.Client(
             api_key=api_key,
             http_options=genai_types.HttpOptions(
-                timeout=18_000,
+                timeout=timeout_ms,
                 retry_options=genai_types.HttpRetryOptions(attempts=1),
             ),
         )
@@ -147,9 +161,10 @@ def generate_text_interaction(
     fast: bool = False,
     temperature: float = 0.2,
     max_output_tokens: int = 1200,
+    timeout_sec: float = 25.0,
 ) -> Optional[str]:
     """Executes a stateless Interactions API text generation call (`store=False`) with cooldown fallback."""
-    client = get_genai_client()
+    client = get_genai_client(timeout_sec=timeout_sec)
     if client is None:
         return None
 
@@ -164,7 +179,7 @@ def generate_text_interaction(
                     "max_output_tokens": max_output_tokens,
                 },
                 store=False,
-                timeout=18.0,
+                timeout=timeout_sec,
             )
             text = (getattr(interaction, "output_text", None) or "").strip()
             if text:
@@ -186,9 +201,10 @@ def _generate_structured_with_model(
     fast: bool = False,
     temperature: float = 0.1,
     max_output_tokens: int = 3000,
+    timeout_sec: float = 45.0,
 ) -> Tuple[Optional[T], Optional[str]]:
     """Internal helper returning `(parsed_model, winning_model_name)` with automatic fallback."""
-    client = get_genai_client()
+    client = get_genai_client(timeout_sec=timeout_sec)
     if client is None:
         return None, None
 
@@ -208,9 +224,9 @@ def _generate_structured_with_model(
                     "max_output_tokens": max_output_tokens,
                 },
                 store=False,
-                timeout=18.0,
+                timeout=timeout_sec,
             )
-            raw_json = (getattr(interaction, "output_text", None) or "").strip()
+            raw_json = _strip_json_fences(getattr(interaction, "output_text", None) or "")
             if raw_json:
                 return schema_cls.model_validate_json(raw_json), chosen_model
         except Exception as exc:
@@ -235,6 +251,7 @@ def generate_structured_interaction(
     fast: bool = False,
     temperature: float = 0.1,
     max_output_tokens: int = 3000,
+    timeout_sec: float = 45.0,
 ) -> Optional[T]:
     """
     Executes a stateless Interactions API call enforcing a Pydantic JSON schema
@@ -248,6 +265,7 @@ def generate_structured_interaction(
         fast=fast,
         temperature=temperature,
         max_output_tokens=max_output_tokens,
+        timeout_sec=timeout_sec,
     )
     return parsed
 

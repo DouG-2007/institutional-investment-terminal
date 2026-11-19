@@ -7,16 +7,16 @@ This file defines the architectural invariants, module responsibilities, persist
 ## 1. High-Level Architecture & Strict Deterministic/AI Separation
 
 - **Front-End:** Streamlit (`app.py`) — 5-tab institutional workspace:
-  1. `📄 1. Master Consolidated Report (.PDF)` — Portfolio allocation summary, 7-section master A4 vector PDF export, and optional Executive AI Thesis toggle.
+  1. `📄 1. Master Consolidated Report (.PDF)` — Portfolio allocation summary, 7-section master A4 vector PDF export, and **AI-Powered Master Report** toggle (ON by default when `GEMINI_API_KEY` is present) automatically orchestrating full-portfolio SEC/Crypto filing hydration plus ALL qualitative insights/matrices/events across Sections 1, 3, 4 & 5.
   2. `⚙️ 2. Portfolio Manager (SQLite CRUD)` — Asset upsert/delete, target weight 100% normalization, and live holdings ledger.
-  3. `🔎 3. Single-Asset Deep Dive (Stock & Crypto Picker)` — On-demand 5-filter forensic/valuation audit, individual 2-page PDF export, and optional Gemini Structured Filing Dossier Extractor (text or PDF).
+  3. `🔎 3. Single-Asset Deep Dive (Stock & Crypto Picker)` — On-demand 5-filter forensic/valuation audit, individual 2-page PDF export, and ad-hoc Gemini Structured Filing Dossier Extractor (shares `data_cache/custom_filings_cache.json` with Tab 1).
   4. `🎛️ 4. Simulators (Inflow & LTV) & Notifier (ON/OFF)` — Shannon's Demon cash inflow simulator, Convex LTV / Aave V3 Health Factor stress-tester, and passive morning notifier (Telegram / Discord) with optional AI executive briefing toggle.
   5. `🤖 5. AI Portfolio Analyst` — Conversational AI analyst powered by Google Antigravity SDK in **strictly read-only mode**.
 
 - **Ironclad Separation Rule (Deterministic Math vs. AI Layer):**
   - All financial, accounting, valuation, on-chain, macro, risk, and look-through calculations live strictly inside deterministic Python modules in `core/`.
   - **AI never computes, interpolates, extrapolates, or invents financial figures.** AI components either:
-    - (**Front A — `core/gemini_client.py`**, direct `google-genai` Interactions API): Structure unstructured filing text/PDFs into Pydantic schemas, synthesize executive prose strictly from pre-computed deterministic JSON payloads, or interpret morning alert lists.
+    - (**Front A — `core/gemini_client.py` + `core/ai_report_orchestrator.py`**, direct `google-genai` Interactions API): Automatically hydrate SEC/Crypto filings (`custom_filings_cache.json`, 7-day TTL) across the entire portfolio and synthesize ALL qualitative matrices, moats, Porter 5 Forces, Calls Q&A, M&A, DeFi narratives/cycle commentary, micro events, and executive thesis (`ai_master_insights_cache.json`, 24-hour TTL) strictly from pre-computed deterministic JSON payloads, plus morning notifier briefing interpretation.
     - (**Front B — `core/ai_analyst.py`**, `google-antigravity` SDK): Orchestrate **read-only Python Custom Tools** wired directly to the deterministic `core/` engines and reason strictly over tool outputs.
 
 ---
@@ -42,6 +42,7 @@ This file defines the architectural invariants, module responsibilities, persist
 | `core/background_notifier.py` | Windows Task Scheduler (`Antigravity_Quant_Morning_Notifier`) ON/OFF passive alerting daemon (Telegram / Discord) with optional Gemini executive interpretation. |
 | `core/integrity_guard.py` | Plotly anti-overlap sanitizer (`sanitize_plotly_figure_against_overlaps`) and 33-criterion ecosystem data preservation auditor (`run_complete_ecosystem_integrity_audit`). |
 | `core/gemini_client.py` | Direct `google-genai` Interactions API wrapper (`store=False`), `.env` loader, Structured Outputs (Pydantic), PDF executive synthesis, and graceful fallback when `GEMINI_API_KEY` is absent. |
+| `core/ai_report_orchestrator.py` | Full-portfolio AI Master Report orchestrator: coordinates `FilingsEngine.hydrate_portfolio_dossiers_ai` (7d cache) and batched Gemini Structured Outputs across all qualitative sections/matrices (`data_cache/ai_master_insights_cache.json`, 24h cache) while preserving 100% deterministic math. |
 | `core/ai_analyst.py` | Read-only `google-antigravity` SDK agent with 6 custom tools linked to deterministic `core/` engines, explicit session persistence, and strict tool-grounding prompt constraints. |
 
 ---
@@ -94,7 +95,8 @@ This file defines the architectural invariants, module responsibilities, persist
 - Compiles HTML -> A4 Landscape PDF (`@page { size: A4 landscape; margin: 9mm 10mm 10mm 10mm; }`) via headless Chrome or Edge (`--headless=new --print-to-pdf`).
 - Inline SVG chart generators (`_build_svg_*`) are intentionally disabled (returning `""`). Do not re-enable unless explicitly requested.
 - Dense tables MUST stay split into Part A / Part B (max 5–6 columns per table) with `word-break: normal` to prevent clipping or squeezed typography.
-- The optional **Executive AI Thesis & Cross-Asset Risk Synthesis** block (`ai_executive_summary`) renders cleanly in Section 1 right below `.kpi-row` using `break-inside: avoid` and HTML-escaped strings (`_esc`), and is 100% omitted when `None` or disabled.
+- When `GEMINI_API_KEY` is configured and Tab 1's **AI-Powered Master Report** toggle is ON (default), ALL qualitative insights, matrices, events, and portfolio SEC/Crypto dossiers across Sections 1, 3, 4, and 5 are automatically generated by Gemini (dual disk cache: `data_cache/custom_filings_cache.json` 7d TTL + `data_cache/ai_master_insights_cache.json` 24h TTL) and cleanly embedded into the A4 landscape PDF while leaving mechanical numbers (e.g., DeFi cycle `current_reading`, `roic_op_margin_pct`, `roic_cap_turnover_x`, spot prices, unlocks, Real Earnings) 100% deterministic. When `GEMINI_API_KEY` is missing or the toggle is OFF, the exporter degrades gracefully to deterministic/static baselines.
+- The optional **Executive AI Thesis & Cross-Asset Risk Synthesis** block (`ai_executive_summary`) and provenance banner render cleanly in Section 1 right below `.kpi-row` using `break-inside: avoid` and HTML-escaped strings (`_esc`), and are 100% omitted when `None` or disabled.
 
 ---
 
@@ -127,11 +129,11 @@ This file defines the architectural invariants, module responsibilities, persist
 3. **Graceful Degradation Check (Zero Key):** Verify `GEMINI_API_KEY=""` leaves PDF generation, `FilingsEngine` fallback, `BackgroundNotifierEngine`, and `InstitutionalAIAnalyst.is_available()` clean without exceptions.
 4. **Antigravity Read-Only Lockdown Check:** Verify `LocalAgentConfig` has `capabilities.enable_subagents is False` and `capabilities.enabled_tools == []`.
 5. **Streamlit Boot / UI Smoke Test:** Verify `AppTest.from_file("app.py")` / `streamlit run app.py --server.headless true` runs cleanly under `protobuf>=7` across all 5 tabs.
-6. **Git Hygiene:** Run `git status` and confirm `.env`, `notifier_config.json`, `data_cache/ai_sessions/`, and `data_cache/custom_filings_cache.json` are untracked/ignored.
+6. **Git Hygiene:** Run `git status` and confirm `.env`, `notifier_config.json`, `data_cache/ai_sessions/`, `data_cache/custom_filings_cache.json`, and `data_cache/ai_master_insights_cache.json` are untracked/ignored.
 
 ---
 
 ## 8. Documentation & Git Sync Policy
 
 - **Default Git & Documentation Synchronization Rule:** Whenever any feature, module, tab, dependency, or financial invariant is added or modified in `app.py` or `core/`, ALWAYS keep [README.md](README.md), [GEMINI.md](GEMINI.md), and [.env.example](.env.example) synchronized and commit + push the verified changes cleanly to `origin` after passing Section 7 checks.
-- **Secret Protection:** Double-check `git status --short` and `git check-ignore` before every commit so `.env`, `notifier_config.json`, `data_cache/sec_tickers.json`, `data_cache/custom_filings_cache.json`, and `data_cache/ai_sessions/` never enter Git history.
+- **Secret Protection:** Double-check `git status --short` and `git check-ignore` before every commit so `.env`, `notifier_config.json`, `data_cache/sec_tickers.json`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, and `data_cache/ai_sessions/` never enter Git history.

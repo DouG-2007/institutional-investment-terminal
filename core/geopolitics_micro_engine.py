@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
+import os
 from typing import Any, Dict, List
 import yfinance as yf
+
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 @dataclass
@@ -194,14 +197,32 @@ class GeopoliticsMicroEngine:
     def __init__(self) -> None:
         pass
 
-    def get_geopolitical_matrix(self) -> List[GeopoliticalImpactRow]:
+    def get_geopolitical_matrix(self, prefer_ai_cache: bool = True) -> List[GeopoliticalImpactRow]:
+        if prefer_ai_cache:
+            try:
+                from core.ai_report_orchestrator import load_cached_ai_master_insights
+
+                ai_cache = load_cached_ai_master_insights() or {}
+                raw_geo = ai_cache.get("geo_matrix") or []
+                parsed = [GeopoliticalImpactRow(**item) for item in raw_geo if isinstance(item, dict)]
+                if parsed:
+                    return parsed
+            except Exception:
+                pass
         return GEOPOLITICAL_MATRIX_DB
 
-    def get_micro_events(self, tickers: List[str] | None = None) -> List[MicroCorporateProtocolEvent]:
+    def get_micro_events(
+        self,
+        tickers: List[str] | None = None,
+        prefer_ai_cache: bool = True,
+    ) -> List[MicroCorporateProtocolEvent]:
         if tickers is None:
             try:
                 import sqlite3
-                with sqlite3.connect("portfolio_store.db") as conn:
+                db_path = os.path.join(_ROOT_DIR, "portfolio_store.db")
+                if not os.path.exists(db_path):
+                    db_path = "portfolio_store.db"
+                with sqlite3.connect(db_path) as conn:
                     rows = conn.execute("SELECT ticker FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 tickers = [r[0].upper() for r in rows]
             except Exception:
@@ -211,6 +232,21 @@ class GeopoliticsMicroEngine:
                     "NVDA", "AAPL", "MSFT", "JPM", "ASML", "TSM", "MELI", "AVGO", "MA", "NU",
                 ]
         tk_set = {t.upper() for t in tickers}
+
+        if prefer_ai_cache:
+            try:
+                from core.ai_report_orchestrator import load_cached_ai_master_insights
+
+                ai_cache = load_cached_ai_master_insights() or {}
+                raw_events = ai_cache.get("micro_events") or []
+                parsed = [MicroCorporateProtocolEvent(**item) for item in raw_events if isinstance(item, dict)]
+                if parsed:
+                    filtered = [m for m in parsed if m.asset_ticker.upper() in tk_set]
+                    if filtered:
+                        return filtered
+            except Exception:
+                pass
+
         return [m for m in MICRO_EVENTS_DB if m.asset_ticker.upper() in tk_set]
 
     def fetch_live_ticker_headlines(self, ticker: str, max_items: int = 3) -> List[Dict[str, str]]:

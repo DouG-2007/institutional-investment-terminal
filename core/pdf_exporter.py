@@ -106,15 +106,23 @@ class InstitutionalPDFExporter:
         crypto_screener: List[CryptoScreenerRow],
         risk_timing: RiskLeverageTimingBundle,
         ai_executive_summary: Optional[Dict[str, Any]] = None,
+        ai_report_bundle: Optional[Dict[str, Any]] = None,
     ) -> str:
         from core.intelligence_reports_engine import IntelligenceReportsEngine
 
         intel = IntelligenceReportsEngine()
-        disruptions = intel.get_industry_tech_disruptions()
-        sens_rows = intel.build_hard_asset_macro_sensitivity_matrix(portfolio.positions)
+        ai_b = ai_report_bundle if isinstance(ai_report_bundle, dict) and ai_report_bundle.get("enabled") else None
+        ai_executive_summary = (ai_b.get("executive_summary") if ai_b else None) or ai_executive_summary
+        eq_filings = (ai_b.get("eq_filings") if ai_b else None) or eq_filings
+        cr_filings = (ai_b.get("cr_filings") if ai_b else None) or cr_filings
+        geo_matrix = (ai_b.get("geo_matrix") if ai_b else None) or geo_matrix
+        micro_events = (ai_b.get("micro_events") if ai_b else None) or micro_events
+
+        disruptions = (ai_b.get("disruptions") if ai_b else None) or intel.get_industry_tech_disruptions()
+        sens_rows = (ai_b.get("macro_sensitivity") if ai_b else None) or intel.build_hard_asset_macro_sensitivity_matrix(portfolio.positions)
         llama_stats = intel.fetch_live_defillama_macro_stats()
-        cycle_rows = intel.build_defi_cycle_indicators(cryptos)
-        narratives = intel.get_defi_narratives()
+        cycle_rows = (ai_b.get("defi_cycle_rows") if ai_b else None) or intel.build_defi_cycle_indicators(cryptos)
+        narratives = (ai_b.get("defi_narratives") if ai_b else None) or intel.get_defi_narratives()
 
         sp = macro.sahm_paired
         sos = macro.sos_indicator
@@ -322,6 +330,28 @@ class InstitutionalPDFExporter:
             for s in sens_rows
         )
 
+        ai_prov_html = ""
+        if ai_b is not None:
+            sec_stat = ai_b.get("section_status") or {}
+            ai_secs = [k for k, v in sec_stat.items() if "AI" in str(v)]
+            mdls = ", ".join(ai_b.get("models_used") or []) or "gemini-4-hydrogen"
+            fh = ai_b.get("filings_hydration") or {}
+            prov_text = (
+                f"AI-Synthesized Qualitative Sections ({len(ai_secs)}/{max(len(sec_stat), 1)} pipelines): "
+                f"Executive Thesis, Geopolitics, Tech Disruptions, Macro Sensitivity, DeFi Cycles/Narratives, "
+                f"Equity Moats/Porter/Calls/M&amp;A, Crypto Core Dev/Governance &amp; Live Micro Events | "
+                f"Portfolio AI Dossiers: {fh.get('total_ai_equities', len(eq_filings))} Equities, "
+                f"{fh.get('total_ai_cryptos', len(cr_filings))} Cryptos | "
+                f"100% Deterministic Python Math: Prices, Look-Through, Forensics, 8-Method Valuation, Screener, Risk &amp; LTV | "
+                f"Model(s): {_esc(mdls)}"
+            )
+            ai_prov_html = (
+                f'<div style="break-inside:avoid; background:#ECFDF5; border:1px solid #A7F3D0; '
+                f'border-left:4px solid #059669; border-radius:5px; padding:4px 9px; margin-bottom:7px; '
+                f'font-size:6.7pt; color:#065F46; line-height:1.3;">'
+                f'<strong>PROVENANCE ARCHITECTURE:</strong> {prov_text}</div>'
+            )
+
         ai_exec_html = ""
         if isinstance(ai_executive_summary, dict) and (
             ai_executive_summary.get("macro_regime_thesis") or ai_executive_summary.get("cross_asset_risk_synthesis")
@@ -352,6 +382,8 @@ class InstitutionalPDFExporter:
                 )
                 + f'</div>'
             )
+
+        ai_header_block = f"{ai_prov_html}{ai_exec_html}"
 
         sec1_html = f"""
         <div class="page-section">
@@ -389,7 +421,7 @@ class InstitutionalPDFExporter:
                 </div>
             </div>
 
-            {ai_exec_html}<div class="section-banner">SECTION 1: GLOBAL MACROECONOMICS, MARKET CYCLES, INDUSTRIAL DISRUPTIONS &amp; HARD-ASSET GEOPOLITICS</div>
+            {ai_header_block}<div class="section-banner">SECTION 1: GLOBAL MACROECONOMICS, MARKET CYCLES, INDUSTRIAL DISRUPTIONS &amp; HARD-ASSET GEOPOLITICS</div>
 
             
 
@@ -1020,21 +1052,26 @@ class InstitutionalPDFExporter:
             for d in eq_filings
         )
 
-        qual_rows_html = "".join(
-            f"<tr>"
-            f"<td class='mono'><strong>{_esc(e.ticker)}</strong><br><span style='font-size:6.8pt;color:#64748b;'>{_esc(getattr(e, 'company_name', getattr(e, 'name', e.ticker)))}</span></td>"
-            f"<td>{_esc(e.qualitative_strategy['sector_particularity_lens'])}<br><strong>ROIC Pillar:</strong> {_esc(e.qualitative_strategy['roic_central_pillar'])} ({e.qualitative_strategy['roic_op_margin_pct']:.1f}% × {e.qualitative_strategy['roic_cap_turnover_x']:.2f}x)</td>"
-            f"<td>{_esc(e.qualitative_strategy['moat_classification'])}</td>"
-            f"<td>{_esc(e.qualitative_strategy['porter_5_forces'])}</td>"
-            f"<td>{_esc(e.qualitative_strategy['common_size_peer_comparison'])}</td>"
-            f"<td><strong>Skin in the Game:</strong> {_esc(e.qualitative_strategy['ceo_skin_in_the_game'])}<br><strong>Allocation:</strong> {_esc(e.qualitative_strategy['capital_allocation_history'])}<br><strong>Governance:</strong> {_esc(e.qualitative_strategy['tag_along_governance'])}</td>"
-            f"</tr>"
-            for e in equities
-        )
+        eq_qual_ov = (ai_b.get("equity_qualitative_overrides") or {}) if ai_b else {}
+        qual_rows_html = ""
+        for e in equities:
+            ov = eq_qual_ov.get(e.ticker.upper(), {}) if isinstance(eq_qual_ov, dict) else {}
+            qs = e.qualitative_strategy
+            qual_rows_html += (
+                f"<tr>"
+                f"<td class='mono'><strong>{_esc(e.ticker)}</strong><br><span style='font-size:6.8pt;color:#64748b;'>{_esc(getattr(e, 'company_name', getattr(e, 'name', e.ticker)))}</span></td>"
+                f"<td>{_esc(ov.get('sector_particularity_lens') or qs['sector_particularity_lens'])}<br><strong>ROIC Pillar:</strong> {_esc(ov.get('roic_central_pillar') or qs['roic_central_pillar'])} ({qs['roic_op_margin_pct']:.1f}% × {qs['roic_cap_turnover_x']:.2f}x)</td>"
+                f"<td>{_esc(ov.get('moat_classification') or qs['moat_classification'])}</td>"
+                f"<td>{_esc(ov.get('porter_5_forces') or qs['porter_5_forces'])}</td>"
+                f"<td>{_esc(ov.get('common_size_peer_comparison') or qs['common_size_peer_comparison'])}</td>"
+                f"<td><strong>Skin in the Game:</strong> {_esc(ov.get('ceo_skin_in_the_game') or qs['ceo_skin_in_the_game'])}<br><strong>Allocation:</strong> {_esc(ov.get('capital_allocation_history') or qs['capital_allocation_history'])}<br><strong>Governance:</strong> {_esc(ov.get('tag_along_governance') or qs['tag_along_governance'])}</td>"
+                f"</tr>"
+            )
 
+        sig_ma_ov = (ai_b.get("corporate_signal_ma") or {}) if ai_b else {}
         signal_ma_rows = ""
         for e in equities:
-            sm = intel.get_corporate_signal_and_ma_dossier(e.ticker, e.company_name)
+            sm = (sig_ma_ov.get(e.ticker.upper()) if isinstance(sig_ma_ov, dict) else None) or intel.get_corporate_signal_and_ma_dossier(e.ticker, e.company_name)
             signal_ma_rows += (
                 f"<tr>"
                 f"<td class='mono'><strong>{_esc(sm.ticker)}</strong><br><span style='font-size:6.6pt;'>{_esc(sm.company_name)}</span></td>"
@@ -1135,9 +1172,16 @@ class InstitutionalPDFExporter:
             for c in cr_filings
         )
 
+        cr_dev_ov = (ai_b.get("crypto_dev_dossiers") or {}) if ai_b else {}
         dev_internal_rows = ""
         for sym, cp in cryptos.items():
-            dv = intel.get_crypto_internal_dev_dossier(sym, cp.name)
+            su = sym.upper()
+            norm_su = su if "-" in su else f"{su}-USD"
+            dv = (
+                (cr_dev_ov.get(su) or cr_dev_ov.get(norm_su))
+                if isinstance(cr_dev_ov, dict)
+                else None
+            ) or intel.get_crypto_internal_dev_dossier(sym, cp.name)
             ss = cp.supply_structure
             tv = cp.tokenomics_valuation
             dev_internal_rows += (
@@ -1416,6 +1460,7 @@ class InstitutionalPDFExporter:
         risk_timing: RiskLeverageTimingBundle,
         output_pdf_path: Optional[str] = None,
         ai_executive_summary: Optional[Dict[str, Any]] = None,
+        ai_report_bundle: Optional[Dict[str, Any]] = None,
     ) -> bytes:
         html_str = self.build_complete_html_report(
             macro=macro,
@@ -1430,6 +1475,7 @@ class InstitutionalPDFExporter:
             crypto_screener=crypto_screener,
             risk_timing=risk_timing,
             ai_executive_summary=ai_executive_summary,
+            ai_report_bundle=ai_report_bundle,
         )
         return self._compile_html_to_pdf_bytes(html_str, "relatorio_master_multi_completo_360", output_pdf_path)
 

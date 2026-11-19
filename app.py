@@ -13,6 +13,7 @@ Arquitetura Enxuta e Sem Redundâncias:
 
 from __future__ import annotations
 
+import datetime
 import html
 from typing import Any, Dict, List, Optional
 
@@ -31,8 +32,9 @@ from core.risk_timing_engine import RiskTimingEngine, RiskLeverageTimingBundle
 from core.deep_dive_engine import DeepDiveEngine, DeepDiveResultBundle
 from core.pdf_exporter import InstitutionalPDFExporter
 from core.background_notifier import BackgroundNotifierEngine
-from core.gemini_client import generate_pdf_executive_synthesis, is_gemini_configured
+from core.gemini_client import is_gemini_configured
 from core.ai_analyst import InstitutionalAIAnalyst
+from core.ai_report_orchestrator import AIReportOrchestrator, clear_ai_master_insights_cache
 
 
 st.set_page_config(
@@ -292,8 +294,8 @@ def load_full_intelligence_bundle(
     cr_filings = fil_eng.get_crypto_dossiers()
 
     geo_eng = GeopoliticsMicroEngine()
-    geo_matrix = geo_eng.get_geopolitical_matrix()
-    micro_events = geo_eng.get_micro_events()
+    geo_matrix = geo_eng.get_geopolitical_matrix(prefer_ai_cache=False)
+    micro_events = geo_eng.get_micro_events(prefer_ai_cache=False)
 
     scr_eng = ScreenerEngine()
     stk_screener = scr_eng.run_stock_screener()
@@ -304,21 +306,6 @@ def load_full_intelligence_bundle(
         portfolio=port_bundle,
         equities=eq_list,
         cryptos=cr_dict,
-    )
-
-    pdf_exp = InstitutionalPDFExporter()
-    master_pdf_bytes = pdf_exp.generate_pdf_bytes(
-        macro=macro_bundle,
-        portfolio=port_bundle,
-        equities=eq_list,
-        cryptos=cr_dict,
-        eq_filings=eq_filings,
-        cr_filings=cr_filings,
-        geo_matrix=geo_matrix,
-        micro_events=micro_events,
-        stock_screener=stk_screener,
-        crypto_screener=cr_screener,
-        risk_timing=rt_bundle,
     )
 
     return {
@@ -333,7 +320,6 @@ def load_full_intelligence_bundle(
         "stock_screener": stk_screener,
         "crypto_screener": cr_screener,
         "risk_timing": rt_bundle,
-        "master_pdf_bytes": master_pdf_bytes,
     }
 
 
@@ -352,6 +338,8 @@ def main() -> None:
         st.session_state["ai_pending_prompt"] = None
     if "ai_pdf_cache" not in st.session_state:
         st.session_state["ai_pdf_cache"] = {}
+    if "det_pdf_cache" not in st.session_state:
+        st.session_state["det_pdf_cache"] = {}
 
     port_eng_live = PortfolioEngine()
     db_assets_live = port_eng_live.get_all_assets()
@@ -373,10 +361,12 @@ def main() -> None:
         )
         if st.button("🔄 Refresh Live Quotes & Recalculate PDF", use_container_width=True, type="primary"):
             st.cache_data.clear()
+            st.session_state["ai_pdf_cache"] = {}
+            st.session_state["det_pdf_cache"] = {}
             st.session_state["refresh_token"] += 1
             st.rerun()
 
-    with st.spinner("Compiling 360° Master Institutional Report (7 Sections + Vector Charts)..."):
+    with st.spinner("Loading 360° Quantitative & Forensic Engine Bundle..."):
         bundle = load_full_intelligence_bundle(
             capital_usd=capital_usd,
             db_sig=db_sig,
@@ -388,17 +378,9 @@ def main() -> None:
     equities: List[EquityFullAnalysis] = bundle["equities"]
     cryptos: Dict[str, CryptoFullProfile] = bundle["cryptos"]
     risk_timing: RiskLeverageTimingBundle = bundle["risk_timing"]
-    master_pdf_bytes: bytes = bundle["master_pdf_bytes"]
 
     with st.sidebar:
-        st.download_button(
-            label="📥 DOWNLOAD 360° MASTER REPORT (.PDF)",
-            data=master_pdf_bytes,
-            file_name="Master_Institutional_Report_360.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            type="primary",
-        )
+        sidebar_dl_placeholder = st.empty()
         st.caption(
             f"Last synchronization: **{macro.timestamp}** | "
             f"**{len(portfolio.positions)} Holdings** in SQLite Portfolio."
@@ -422,7 +404,7 @@ def main() -> None:
     ])
 
     gemini_ready = is_gemini_configured()
-    active_master_pdf_bytes = master_pdf_bytes
+    active_master_pdf_bytes: Optional[bytes] = None
 
     # ==========================================================================
     # TAB 1: MASTER CONSOLIDATED REPORT CENTRAL EMISSION (.PDF)
@@ -437,61 +419,147 @@ def main() -> None:
 
         st.markdown("<div style='height:0.65rem;'></div>", unsafe_allow_html=True)
 
-        include_ai_summary = st.toggle(
-            "✨ Include Executive AI Thesis & Cross-Asset Risk Synthesis in Master PDF",
-            value=False,
+        include_ai_master = st.toggle(
+            "✨ AI-Powered Master Report (All Insights, Matrices, Events & Portfolio Dossiers)",
+            value=gemini_ready,
             disabled=not gemini_ready,
             key="toggle_include_ai_pdf",
             help=(
-                "Generates a concise Gemini executive synthesis grounded strictly in pre-computed "
-                "deterministic metrics and embeds it in Section 1 of the PDF."
+                "Automatically hydrates SEC EDGAR & Crypto protocol dossiers for your entire active portfolio "
+                "(7d cache) and synthesizes ALL qualitative insights, geopolitical/macro matrices, moats, "
+                "calls Q&A, M&A, and live micro events via Gemini (24h cache), while keeping 100% of "
+                "financial calculations deterministic in Python."
                 if gemini_ready
-                else "Configure GEMINI_API_KEY in .env to enable optional AI executive synthesis."
+                else "Configure GEMINI_API_KEY in .env to enable automatic full-portfolio AI insights and dossiers."
             ),
         )
         if not gemini_ready:
             st.caption("ℹ️ `GEMINI_API_KEY` not detected in `.env` — Master PDF runs in 100% deterministic mode.")
 
+        force_refresh_insights = False
+        force_refresh_filings = False
+        if include_ai_master and gemini_ready:
+            ai_ctrl_c1, ai_ctrl_c2 = st.columns(2)
+            with ai_ctrl_c1:
+                if st.button(
+                    "🧠 Regenerate All AI Insights (Matrices, Moats, Events & Thesis)",
+                    key="btn_regen_all_ai_insights",
+                    use_container_width=True,
+                ):
+                    force_refresh_insights = True
+                    clear_ai_master_insights_cache()
+                    st.session_state["ai_pdf_cache"] = {}
+            with ai_ctrl_c2:
+                if st.button(
+                    "📑 Force Re-Fetch All Portfolio SEC & Crypto Filings",
+                    key="btn_refetch_all_filings",
+                    use_container_width=True,
+                ):
+                    force_refresh_filings = True
+                    force_refresh_insights = True
+                    clear_ai_master_insights_cache()
+                    st.session_state["ai_pdf_cache"] = {}
+
+        ai_bundle: Optional[Dict[str, Any]] = None
         ai_exec_summary: Optional[Dict[str, Any]] = None
-        if include_ai_summary and gemini_ready:
+        if include_ai_master and gemini_ready:
             ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}"
-            cached_entry = st.session_state["ai_pdf_cache"].get(ai_cache_key)
+            cached_entry = None if (force_refresh_insights or force_refresh_filings) else st.session_state["ai_pdf_cache"].get(ai_cache_key)
             if cached_entry is None:
-                with st.spinner("Generating grounded Executive AI Thesis for Master PDF..."):
-                    ai_exec_summary = generate_pdf_executive_synthesis(
+                with st.status("Running Full-Portfolio AI Intelligence & Compiling 360° Master PDF...", expanded=True) as status_box:
+                    prog_bar = st.progress(0.0)
+                    prog_label = st.empty()
+
+                    def _on_ai_progress(msg: str, frac: float) -> None:
+                        prog_bar.progress(max(0.0, min(1.0, float(frac))))
+                        prog_label.caption(msg)
+
+                    ai_bundle = AIReportOrchestrator().build_complete_ai_master_bundle(
                         macro=macro,
                         portfolio=portfolio,
                         equities=equities,
                         cryptos=cryptos,
-                        geo_matrix=bundle["geo_matrix"],
                         risk_timing=risk_timing,
+                        portfolio_sig=db_sig,
+                        force_refresh_insights=force_refresh_insights,
+                        force_refresh_filings=force_refresh_filings,
+                        progress_cb=_on_ai_progress,
                     )
-                    if ai_exec_summary:
+                    if ai_bundle and ai_bundle.get("enabled"):
+                        prog_label.caption("Compiling 7-Section Vector PDF with AI Insights & Portfolio Dossiers...")
+                        ai_exec_summary = ai_bundle.get("executive_summary")
                         ai_pdf_exp = InstitutionalPDFExporter()
                         ai_pdf_bytes = ai_pdf_exp.generate_pdf_bytes(
                             macro=macro,
                             portfolio=portfolio,
                             equities=equities,
                             cryptos=cryptos,
-                            eq_filings=bundle["eq_filings"],
-                            cr_filings=bundle["cr_filings"],
-                            geo_matrix=bundle["geo_matrix"],
-                            micro_events=bundle["micro_events"],
+                            eq_filings=ai_bundle.get("eq_filings") or bundle["eq_filings"],
+                            cr_filings=ai_bundle.get("cr_filings") or bundle["cr_filings"],
+                            geo_matrix=ai_bundle.get("geo_matrix") or bundle["geo_matrix"],
+                            micro_events=ai_bundle.get("micro_events") or bundle["micro_events"],
                             stock_screener=bundle["stock_screener"],
                             crypto_screener=bundle["crypto_screener"],
                             risk_timing=risk_timing,
                             ai_executive_summary=ai_exec_summary,
+                            ai_report_bundle=ai_bundle,
                         )
                         st.session_state["ai_pdf_cache"][ai_cache_key] = {
+                            "ai_bundle": ai_bundle,
                             "summary": ai_exec_summary,
                             "pdf_bytes": ai_pdf_bytes,
                         }
                         active_master_pdf_bytes = ai_pdf_bytes
+                        fh_info = ai_bundle.get("filings_hydration") or {}
+                        if fh_info.get("hydrated_equities") or fh_info.get("hydrated_cryptos"):
+                            load_full_intelligence_bundle.clear()
+                        status_box.update(
+                            label="✅ AI-Powered 360° Master Report Ready (All Qualitative Sections & Portfolio Dossiers Hydrated)",
+                            state="complete",
+                            expanded=False,
+                        )
                     else:
-                        st.warning("⚠️ Could not reach Gemini API for executive summary — falling back gracefully to standard deterministic PDF.")
+                        status_box.update(
+                            label="⚠️ Gemini API unreachable — fell back gracefully to deterministic Master PDF.",
+                            state="error",
+                            expanded=False,
+                        )
             else:
-                ai_exec_summary = cached_entry["summary"]
-                active_master_pdf_bytes = cached_entry["pdf_bytes"]
+                ai_bundle = cached_entry.get("ai_bundle")
+                ai_exec_summary = cached_entry.get("summary")
+                active_master_pdf_bytes = cached_entry.get("pdf_bytes")
+
+        if active_master_pdf_bytes is None:
+            det_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}"
+            det_pdf_bytes = st.session_state["det_pdf_cache"].get(det_cache_key)
+            if det_pdf_bytes is None:
+                with st.spinner("Compiling 360° Deterministic Master Report (.PDF)..."):
+                    det_pdf_bytes = InstitutionalPDFExporter().generate_pdf_bytes(
+                        macro=macro,
+                        portfolio=portfolio,
+                        equities=equities,
+                        cryptos=cryptos,
+                        eq_filings=bundle["eq_filings"],
+                        cr_filings=bundle["cr_filings"],
+                        geo_matrix=bundle["geo_matrix"],
+                        micro_events=bundle["micro_events"],
+                        stock_screener=bundle["stock_screener"],
+                        crypto_screener=bundle["crypto_screener"],
+                        risk_timing=risk_timing,
+                    )
+                    st.session_state["det_pdf_cache"][det_cache_key] = det_pdf_bytes
+            active_master_pdf_bytes = det_pdf_bytes
+
+        with sidebar_dl_placeholder.container():
+            st.download_button(
+                label="📥 DOWNLOAD 360° MASTER REPORT (.PDF)",
+                data=active_master_pdf_bytes,
+                file_name="Master_Institutional_Report_360.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary",
+                key="btn_sidebar_master_pdf",
+            )
 
         c_dl1, c_dl2 = st.columns([2, 1])
         with c_dl1:
@@ -508,16 +576,42 @@ def main() -> None:
             if st.button("🔄 Recalculate with Live Market Quotes", use_container_width=True, key="btn_main_refresh"):
                 st.cache_data.clear()
                 st.session_state["ai_pdf_cache"] = {}
+                st.session_state["det_pdf_cache"] = {}
                 st.session_state["refresh_token"] += 1
                 st.rerun()
 
-        if ai_exec_summary:
-            with st.expander("🧠 Preview Embedded Executive AI Thesis", expanded=False):
-                st.markdown(f"**Macro Regime Thesis:** {ai_exec_summary.get('macro_regime_thesis', '')}")
-                st.markdown(f"**Cross-Asset Risk & LTV Synthesis:** {ai_exec_summary.get('cross_asset_risk_synthesis', '')}")
-                for item in ai_exec_summary.get("key_actionable_priorities", []):
-                    st.markdown(f"- {item}")
-                st.caption(f"Model: `{ai_exec_summary.get('model_used', 'gemini-4-hydrogen')}` — Grounded strictly in deterministic bundle metrics.")
+        if ai_bundle and ai_bundle.get("enabled"):
+            with st.expander("🧠 AI Insights Coverage & Executive Thesis Preview", expanded=False):
+                sec_status = ai_bundle.get("section_status") or {}
+                fh_info = ai_bundle.get("filings_hydration") or {}
+                gen_ts = ai_bundle.get("generated_at")
+                gen_str = (
+                    datetime.datetime.fromtimestamp(float(gen_ts)).strftime("%Y-%m-%d %H:%M:%S")
+                    if gen_ts
+                    else "N/A"
+                )
+                cov_rows = [
+                    {"Pipeline / Section": k, "Mode": v}
+                    for k, v in sec_status.items()
+                ]
+                cov_rows.append({
+                    "Pipeline / Section": "portfolio_sec_filings_hydrated",
+                    "Mode": f"{fh_info.get('total_ai_equities', len(ai_bundle.get('eq_filings') or []))}/{len(equities)} AI Dossiers",
+                })
+                cov_rows.append({
+                    "Pipeline / Section": "portfolio_crypto_dossiers_hydrated",
+                    "Mode": f"{fh_info.get('total_ai_cryptos', len(ai_bundle.get('cr_filings') or []))}/{len(cryptos)} AI Dossiers",
+                })
+                render_clean_table(pd.DataFrame(cov_rows), badge_cols=["Mode"])
+                st.caption(
+                    f"Models used: `{', '.join(ai_bundle.get('models_used') or []) or 'gemini-4-hydrogen'}` | "
+                    f"Generated: `{gen_str}` | Cache Hit: `{bool(ai_bundle.get('from_cache'))}`"
+                )
+                if ai_exec_summary:
+                    st.markdown(f"**Macro Regime Thesis:** {ai_exec_summary.get('macro_regime_thesis', '')}")
+                    st.markdown(f"**Cross-Asset Risk & LTV Synthesis:** {ai_exec_summary.get('cross_asset_risk_synthesis', '')}")
+                    for item in ai_exec_summary.get("key_actionable_priorities", []):
+                        st.markdown(f"- {item}")
 
         render_section_header(
             "Internal Architecture of the 360° Master Report (.PDF)",
@@ -848,7 +942,12 @@ def main() -> None:
             ])
             render_clean_table(df_cr_full)
 
-        with st.expander("📄 Dynamic Filing Dossier Extractor (Auto-Fetch All SEC / Crypto Docs or Upload PDF)", expanded=False):
+        with st.expander("📄 Dynamic Filing Dossier Extractor (Ad-Hoc Assets / Custom PDFs)", expanded=False):
+            st.caption(
+                "💡 Note: All active holdings in your SQLite portfolio are already auto-hydrated in **Tab 1** "
+                "and share `data_cache/custom_filings_cache.json`. Use this tool below to inspect non-portfolio candidates "
+                "or upload custom local PDFs/earnings transcripts."
+            )
             if not gemini_ready:
                 st.info(
                     "ℹ️ `GEMINI_API_KEY` is not set in `.env`. Static verified filings remain active; "

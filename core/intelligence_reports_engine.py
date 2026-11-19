@@ -393,10 +393,19 @@ class IntelligenceReportsEngine:
 
     def get_corporate_signal_and_ma_dossier(self, ticker: str, company_name: str = "") -> CorporateSignalAndMADossier:
         clean_t = ticker.strip().upper()
-        if clean_t in CORPORATE_SIGNAL_MA_DB:
-            return CORPORATE_SIGNAL_MA_DB[clean_t]
 
-        # Check dynamically extracted SEC dossiers in custom_filings_cache.json before generic fallback
+        # 1. Check live AI Master Insights cache first so fresh AI dossiers supersede static DB
+        try:
+            from core.ai_report_orchestrator import load_cached_ai_master_insights
+
+            ai_cache = load_cached_ai_master_insights() or {}
+            ai_item = (ai_cache.get("corporate_signal_ma") or {}).get(clean_t)
+            if isinstance(ai_item, dict) and ai_item.get("guidance_delta_summary"):
+                return CorporateSignalAndMADossier(**ai_item)
+        except Exception:
+            pass
+
+        # 2. Check dynamically extracted SEC dossiers in custom_filings_cache.json before static DB
         try:
             from core.filings_engine import _load_custom_filings_cache
 
@@ -417,6 +426,9 @@ class IntelligenceReportsEngine:
         except Exception:
             pass
 
+        if clean_t in CORPORATE_SIGNAL_MA_DB:
+            return CORPORATE_SIGNAL_MA_DB[clean_t]
+
         return CorporateSignalAndMADossier(
             ticker=clean_t,
             company_name=company_name or clean_t,
@@ -432,9 +444,23 @@ class IntelligenceReportsEngine:
 
     def get_crypto_internal_dev_dossier(self, symbol: str, protocol_name: str = "") -> CryptoInternalDevAndUpgradeDossier:
         clean_s = symbol.strip().upper()
+        norm_s = clean_s if "-" in clean_s else f"{clean_s}-USD"
+
+        # 1. Check live AI Master Insights cache first so fresh AI synthesis supersedes static DB
+        try:
+            from core.ai_report_orchestrator import load_cached_ai_master_insights
+
+            ai_cache = load_cached_ai_master_insights() or {}
+            cr_map = ai_cache.get("crypto_dev_dossiers") or {}
+            ai_item = cr_map.get(clean_s) or cr_map.get(norm_s)
+            if isinstance(ai_item, dict) and ai_item.get("founder_core_dev_signals"):
+                return CryptoInternalDevAndUpgradeDossier(**ai_item)
+        except Exception:
+            pass
+
         if not clean_s.endswith("-USD") and clean_s not in CRYPTO_INTERNAL_DEV_DB:
-            if f"{clean_s}-USD" in CRYPTO_INTERNAL_DEV_DB:
-                clean_s = f"{clean_s}-USD"
+            if norm_s in CRYPTO_INTERNAL_DEV_DB:
+                clean_s = norm_s
         if clean_s in CRYPTO_INTERNAL_DEV_DB:
             return CRYPTO_INTERNAL_DEV_DB[clean_s]
         return CryptoInternalDevAndUpgradeDossier(
