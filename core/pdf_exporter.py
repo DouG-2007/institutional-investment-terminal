@@ -105,6 +105,7 @@ class InstitutionalPDFExporter:
         stock_screener: List[StockScreenerRow],
         crypto_screener: List[CryptoScreenerRow],
         risk_timing: RiskLeverageTimingBundle,
+        ai_executive_summary: Optional[Dict[str, Any]] = None,
     ) -> str:
         from core.intelligence_reports_engine import IntelligenceReportsEngine
 
@@ -321,6 +322,37 @@ class InstitutionalPDFExporter:
             for s in sens_rows
         )
 
+        ai_exec_html = ""
+        if isinstance(ai_executive_summary, dict) and (
+            ai_executive_summary.get("macro_regime_thesis") or ai_executive_summary.get("cross_asset_risk_synthesis")
+        ):
+            priorities_li = "".join(
+                f"<li style='margin-bottom:2px;'>{_esc(item)}</li>"
+                for item in (ai_executive_summary.get("key_actionable_priorities") or [])[:4]
+            )
+            model_tag = _esc(ai_executive_summary.get("model_used", "gemini-4-hydrogen"))
+            ai_exec_html = (
+                f'<div style="break-inside:avoid; background:#EEF2FF; border:1px solid #C7D2FE; '
+                f'border-left:4px solid #4F46E5; border-radius:6px; padding:7px 10px; margin-bottom:9px;">'
+                f'<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">'
+                f'<span style="font-size:7.6pt; font-weight:800; color:#312E81; letter-spacing:0.3px;">'
+                f'EXECUTIVE AI THESIS &amp; CROSS-ASSET RISK SYNTHESIS (GROUNDED IN DETERMINISTIC METRICS)</span>'
+                f'<span style="font-size:6.6pt; color:#4338CA; font-weight:700;">Model: {model_tag} | Consultative Only</span>'
+                f'</div>'
+                f'<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:7.2pt; color:#1E293B; line-height:1.35;">'
+                f'<div><strong>Macro Regime Thesis:</strong> {_esc(ai_executive_summary.get("macro_regime_thesis", ""))}</div>'
+                f'<div><strong>Cross-Asset Risk &amp; LTV Synthesis:</strong> {_esc(ai_executive_summary.get("cross_asset_risk_synthesis", ""))}</div>'
+                f'</div>'
+                + (
+                    f'<div style="margin-top:4px; font-size:7.0pt; color:#1E293B;">'
+                    f'<strong>Consultative Priorities (Non-Binding):</strong>'
+                    f'<ul style="margin:2px 0 0 15px; padding:0;">{priorities_li}</ul></div>'
+                    if priorities_li
+                    else ""
+                )
+                + f'</div>'
+            )
+
         sec1_html = f"""
         <div class="page-section">
             <div class="report-header">
@@ -357,7 +389,7 @@ class InstitutionalPDFExporter:
                 </div>
             </div>
 
-            <div class="section-banner">SECTION 1: GLOBAL MACROECONOMICS, MARKET CYCLES, INDUSTRIAL DISRUPTIONS &amp; HARD-ASSET GEOPOLITICS</div>
+            {ai_exec_html}<div class="section-banner">SECTION 1: GLOBAL MACROECONOMICS, MARKET CYCLES, INDUSTRIAL DISRUPTIONS &amp; HARD-ASSET GEOPOLITICS</div>
 
             
 
@@ -980,7 +1012,9 @@ class InstitutionalPDFExporter:
             f"<td><strong>{_esc(d.auditor_firm)}</strong><br>{_auto_badge(d.auditor_opinion)}<br>{_esc(d.sox_404b_controls)}</td>"
             f"<td><strong>Growth:</strong> {_esc(d.mda_growth_decomposition)}<br><strong>Margins:</strong> {_esc(d.mda_segment_profitability)}<br><strong>Backlog:</strong> {_esc(d.mda_backlog_rpo)}<br><strong>CAPEX:</strong> {_esc(d.mda_capex_plan)}</td>"
             f"<td>{_esc(d.item_1a_specific_risks)}</td>"
-            f"<td><strong>Litigation:</strong> {_esc(d.footnote_contingencies_litigation)}<br><strong>SBC:</strong> {_esc(d.footnote_sbc_impact)}<br><strong>ASC 606:</strong> {_esc(d.footnote_revenue_recognition)}<br><strong>Debt:</strong> {_esc(d.footnote_debt_maturity_schedule)}</td>"
+            f"<td><strong>Litigation:</strong> {_esc(d.footnote_contingencies_litigation)}<br><strong>SBC:</strong> {_esc(d.footnote_sbc_impact)}<br><strong>ASC 606:</strong> {_esc(d.footnote_revenue_recognition)}<br><strong>Debt:</strong> {_esc(d.footnote_debt_maturity_schedule)}"
+            + (f"<br><strong>M&amp;A:</strong> {_esc(d.ma_and_strategic_deals)}" if getattr(d, "ma_and_strategic_deals", "") else "")
+            + "</td>"
             f"<td class='mono'><strong>Target: ${d.analyst_target_mean_usd:,.2f}</strong><br>{_esc(d.analyst_recommendations_dist)}<br>{_esc(d.analyst_eps_revisions_30d_90d)}</td>"
             f"</tr>"
             for d in eq_filings
@@ -1381,6 +1415,7 @@ class InstitutionalPDFExporter:
         crypto_screener: List[CryptoScreenerRow],
         risk_timing: RiskLeverageTimingBundle,
         output_pdf_path: Optional[str] = None,
+        ai_executive_summary: Optional[Dict[str, Any]] = None,
     ) -> bytes:
         html_str = self.build_complete_html_report(
             macro=macro,
@@ -1394,6 +1429,7 @@ class InstitutionalPDFExporter:
             stock_screener=stock_screener,
             crypto_screener=crypto_screener,
             risk_timing=risk_timing,
+            ai_executive_summary=ai_executive_summary,
         )
         return self._compile_html_to_pdf_bytes(html_str, "relatorio_master_multi_completo_360", output_pdf_path)
 
@@ -1456,6 +1492,40 @@ class InstitutionalPDFExporter:
             for m in (dd.related_micro_events or [])
         )
         rt_ctx = dd.risk_and_timing_context or {}
+        rt_governance_html = f"""
+        <div class="sub-banner">Consultative Timing Rules, Convex LTV Collateral &amp; Tax-Drag Governance</div>
+        <table class="inst-table">
+            <thead>
+                <tr><th>Convex LTV Collateral Eligibility</th><th>Tax-Drag Hurdle Rate</th><th>Accumulation Reference (Consultative)</th><th>Prune / Trim Trigger (Consultative)</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{_esc(rt_ctx.get('ltv_collat_eligible', 'N/A'))}</td>
+                    <td class="mono">{rt_ctx.get('tax_drag_hurdle_pct', 0):.2f}%</td>
+                    <td>{_esc(rt_ctx.get('buy_reference', 'N/A'))}</td>
+                    <td>{_esc(rt_ctx.get('prune_reference', 'N/A'))}</td>
+                </tr>
+            </tbody>
+        </table>
+        """
+
+        geo_micro_block_html = ""
+        if geo_rows_html:
+            geo_micro_block_html += f"""
+            <div class="sub-banner">Related Geopolitical Impact Matrix &amp; Tail-Risk Exposure</div>
+            <table class="inst-table">
+                <thead><tr><th>Global Geopolitical Vector</th><th>Severity</th><th>Affected Assets</th><th>Fundamental Mechanism</th></tr></thead>
+                <tbody>{geo_rows_html}</tbody>
+            </table>
+            """
+        if micro_rows_html:
+            geo_micro_block_html += f"""
+            <div class="sub-banner">Recent Corporate / Protocol Material Events (8-K, Form 4, DAO Governance)</div>
+            <table class="inst-table">
+                <thead><tr><th>Asset</th><th>Category</th><th>Event Headline</th><th>Fundamental Impact</th></tr></thead>
+                <tbody>{micro_rows_html}</tbody>
+            </table>
+            """
 
         if dd.asset_class == "CRYPTO" and dd.crypto_profile and dd.crypto_dossier:
             cp = dd.crypto_profile
@@ -1468,11 +1538,33 @@ class InstitutionalPDFExporter:
             ms = cp.derivatives_sentiment
             re_brk = dd.real_earnings_period_breakdown or {}
             gh_peers = dd.github_peers_comparison or []
+            c_dev = dd.crypto_internal_dev
 
             gh_rows = "".join(
-                f"<tr><td><strong>{_esc(p['Protocolo'])}</strong></td><td class='mono'>{p['Commits (4w)']}</td><td class='mono'>{p['Active Devs (Mensal)']}</td></tr>"
+                f"<tr><td><strong>{_esc(p.get('Protocolo', p.get('Protocol', '')))}</strong></td>"
+                f"<td class='mono'>{p.get('Commits (4w)', 0)}</td>"
+                f"<td class='mono'>{p.get('Active Devs (Mensal)', p.get('Active Devs (Monthly)', 0))}</td></tr>"
                 for p in gh_peers
             )
+
+            dev_upgrade_block = ""
+            if c_dev:
+                dev_upgrade_block = f"""
+                <div class="sub-banner">Core Devs Signals, Protocol Upgrades &amp; 30/60/90d Unlock Forensic Schedule</div>
+                <table class="inst-table">
+                    <thead>
+                        <tr><th>Core Devs &amp; Founders Signals</th><th>Upcoming Upgrades &amp; Fee Switch</th><th>Unlock Schedule (30/60/90d)</th><th>Whale/VC Concentration &amp; DAO Impact</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{_esc(c_dev.founder_core_dev_signals)}</td>
+                            <td><strong>Upgrades:</strong> {_esc(c_dev.upcoming_protocol_upgrades)}<br><strong>Fee Switch:</strong> {_esc(c_dev.architecture_and_fee_switch_changes)}</td>
+                            <td>{_esc(c_dev.unlock_schedule_30_60_90d)}<br><strong>Recipient:</strong> {_esc(ss.get('unlock_recipient', 'N/A'))}</td>
+                            <td><strong>Concentration:</strong> {_esc(c_dev.whale_and_vc_concentration)}<br><strong>DAO Impact:</strong> {_esc(c_dev.active_dao_proposals_impact)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                """
 
             body_html = f"""
             <div class="page-section">
@@ -1494,7 +1586,7 @@ class InstitutionalPDFExporter:
                     <div class="kpi-box"><div class="lbl">Security &amp; GitHub Engineering</div><div class="val">Sniffer {cd.token_sniffer_score}/100 | {cd.github_active_devs_monthly} Devs</div><div class="sub">{cd.github_commits_4w} Commits (4w) | Circ: {cp.circulating_pct:.1f}%</div></div>
                 </div>
 
-                <div class="insight-box"><strong>Automated Verdict &amp; Consultative Regime:</strong> {_esc(dd.automated_consultative_verdict)}</div>
+                <div class="insight-box"><strong>Automated Verdict &amp; Consultative Regime:</strong> {_esc(dd.automated_consultative_verdict)}<br><strong>Protocol Value Proposition:</strong> {_esc(cd.wp_value_proposition)}</div>
 
                 <div class="section-banner">1. 5-FILTER QUANTITATIVE &amp; ON-CHAIN FUNNEL MATRIX (SCORE {dd.screener_score_0_100}/100)</div>
                 <table class="inst-table">
@@ -1505,15 +1597,15 @@ class InstitutionalPDFExporter:
                 <div class="section-banner">2. ON-CHAIN TIMING &amp; TOKENOMICS / UNLOCKS</div>
                 <table class="inst-table">
                     <thead>
-                        <tr><th>MVRV Z &amp; NUPL</th><th>aSOPR (1.0 Line)</th><th>Pi Cycle &amp; 200W SMA</th><th>Hash Ribbon &amp; MMC</th><th>Flows &amp; HODL Waves</th></tr>
+                        <tr><th>MVRV Z &amp; NUPL</th><th>aSOPR (1.0 Line)</th><th>Pi Cycle &amp; 200W SMA</th><th>Hash Ribbon &amp; MMC</th><th>Flows, CDD &amp; HODL Waves</th></tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td class="mono"><strong>MVRV Z: {om['mvrv_z_score']:.2f}</strong> ({_esc(om['mvrv_z_status'])})<br><strong>NUPL: {om['nupl']:.2f}</strong> ({_esc(om['nupl_status'])})</td>
                             <td class="mono"><strong>{om['asopr']:.3f}</strong><br>{_esc(om['asopr_status'])}</td>
                             <td class="mono">111d: ${om['pi_cycle_111d_sma_usd']:,.0f} vs 2x350d: ${om['pi_cycle_350d_x2_sma_usd']:,.0f}<br>200W SMA: ${om['sma_200w_usd']:,.0f} ({om['price_to_200w_sma_x']:.2f}x)</td>
-                            <td class="mono">{_esc(mm['hash_ribbon_status'])}<br>MMC: ${mm['mmc_minimum_mining_cost_usd']:,.0f}</td>
-                            <td class="mono">Hot: {cf['hodl_hot_waves_pct']:.1f}% | Cold: {cf['hodl_cold_waves_pct']:.1f}%<br>Stablecoin Netflow: USD {cf['stablecoins_netflow_24h_m']:+,.0f}M/24h</td>
+                            <td class="mono">{_esc(mm['hash_ribbon_status'])}<br>MMC: ${mm['mmc_minimum_mining_cost_usd']:,.0f}<br>{_esc(mm.get('mmc_status', ''))}</td>
+                            <td class="mono">Hot: {cf['hodl_hot_waves_pct']:.1f}% | Cold: {cf['hodl_cold_waves_pct']:.1f}%<br>Stablecoin Netflow: USD {cf['stablecoins_netflow_24h_m']:+,.0f}M/24h<br>Exch Inflow: {om['exchange_inflow_24h']:+,.0f} | {_esc(om.get('inflow_cdd_status', ''))}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1525,13 +1617,47 @@ class InstitutionalPDFExporter:
                     <tbody>
                         <tr>
                             <td class="mono">Day: <strong>${re_brk.get('daily_real_earnings_usd', 0):+,.0f}</strong> | Wk: <strong>${re_brk.get('weekly_real_earnings_usd', 0):+,.0f}</strong><br>Yr: <strong>USD {re_brk.get('annual_real_earnings_m', 0):+,.1f}M</strong></td>
-                            <td class="mono">NVM: <strong>{tv['nvm_ratio']:.2f}</strong> | NVT GC: {tv['nvt_golden_cross']:+.2f}<br>P/S: {tv['ps_ratio']:.1f}x | P/F: <strong>{tv['pf_ratio']:.1f}x</strong></td>
+                            <td class="mono">Nom NVT: {tv.get('nvt_nominal', 0):.1f}x ({_esc(tv.get('nvt_nominal_status', ''))})<br>NVM: <strong>{tv['nvm_ratio']:.2f}</strong> | NVT GC: {tv['nvt_golden_cross']:+.2f}<br>P/S: {tv['ps_ratio']:.1f}x | P/F: <strong>{tv['pf_ratio']:.1f}x</strong></td>
                             <td class="mono">TVL: ${tv['tvl_b']:.2f}B | 24h Vol: ${tv['tx_vol_24h_b']:.2f}B</td>
                             <td class="mono">Unlock 30d: <strong>{ss['unlock_pct_of_circ']:.2f}% Circ</strong><br>Post-Dilution Px: <strong>${ss['theoretical_post_unlock_price_usd']:,.2f}</strong></td>
-                            <td class="mono">OI/MCap: {ms['oi_to_mcap_pct']:.1f}% | Funding: {ms['funding_rate_8h_pct']:+.4f}%<br>Above: ${ms['liq_heatmap_above_price_usd']:,.0f} | Below: ${ms['liq_heatmap_below_price_usd']:,.0f}</td>
+                            <td class="mono">SSR: {ss['ssr_stablecoin_supply_ratio']:.1f}x | BTC.D: {ss['btc_dominance_pct']:.1f}%<br>OI/MCap: {ms['oi_to_mcap_pct']:.1f}% | Funding: {ms['funding_rate_8h_pct']:+.4f}%<br>Above: ${ms['liq_heatmap_above_price_usd']:,.0f} | Below: ${ms['liq_heatmap_below_price_usd']:,.0f}</td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="page-section">
+                <div class="section-banner">3. PROTOCOL TECHNICAL DOSSIER (WHITEPAPER, GITHUB ENGINEERING, DEEDAO &amp; SECURITY AUDITS)</div>
+                <table class="inst-table">
+                    <thead>
+                        <tr><th>White Paper Summary</th><th>Consensus &amp; Value Accrual</th><th>GitHub Engineering</th><th>DeepDAO Governance &amp; Lockups</th><th>Security Audits &amp; Exploits</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>{_esc(cd.wp_title_author)}</strong><br>{_esc(cd.wp_value_proposition)}</td>
+                            <td><strong>Consensus:</strong> {_esc(cd.wp_consensus_architecture)}<br><strong>Value Accrual:</strong> {_esc(cd.wp_value_accrual_mechanism)}</td>
+                            <td class="mono">Repos: {_esc(cd.github_core_repos)}<br><strong>{cd.github_commits_4w} commits (4w)</strong><br><strong>{cd.github_active_devs_monthly} Monthly Devs</strong></td>
+                            <td>{_esc(cd.deepdao_status)}<br><strong>Proposals:</strong> {_esc(cd.recent_governance_proposals)}<br><strong>Skin in Game ({cd.skin_in_the_game_locked_pct:.1f}%):</strong> {_esc(cd.skin_in_the_game_details)}</td>
+                            <td>{_auto_badge(f'Token Sniffer: {cd.token_sniffer_score}/100')}<br><strong>Audits:</strong> {_esc(cd.audit_firms)}<br><strong>Exploits:</strong> {_esc(cd.exploit_history)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="grid-2">
+                    <div>
+                        <div class="sub-banner">GitHub Developer Velocity Comparison Across Peers</div>
+                        <table class="inst-table">
+                            <thead><tr><th>Protocol</th><th>Commits (4w)</th><th>Monthly Active Devs</th></tr></thead>
+                            <tbody>{gh_rows}</tbody>
+                        </table>
+                    </div>
+                    <div>
+                        {rt_governance_html}
+                    </div>
+                </div>
+
+                {dev_upgrade_block}
+                {geo_micro_block_html}
             </div>
             """
         else:
@@ -1545,6 +1671,7 @@ class InstitutionalPDFExporter:
             top_risks = dd.top_3_item1a_risks or []
             ins = dd.insider_form4_summary or {}
             shares_5y = dd.share_count_5y_b or []
+            corp_ma = dd.corporate_signal_ma
 
             years_5 = fh5.get("years", ["2022", "2023", "2024", "2025", "2026 (LTM)"])
             hist_5y_rows = ""
@@ -1581,6 +1708,31 @@ class InstitutionalPDFExporter:
             )
             risks_html = "".join(f"<li>{_esc(r)}</li>" for r in top_risks)
 
+            ma_deals_text = getattr(ed, "ma_and_strategic_deals", "") or (corp_ma.ma_and_strategic_deals if corp_ma else "")
+            ma_pay_goodwill_text = getattr(ed, "ma_payment_and_goodwill", "") or (
+                f"{corp_ma.payment_structure_and_dilution} | {corp_ma.goodwill_and_impairment_risk}" if corp_ma else ""
+            )
+
+            signal_ma_html = ""
+            if corp_ma or ma_deals_text:
+                signal_ma_html = f"""
+                <div class="sub-banner">4.1. M&amp;A, Strategic Partnerships, Payment Dilution, Goodwill &amp; Earnings Call Signal vs. Noise</div>
+                <table class="inst-table">
+                    <thead>
+                        <tr><th>M&amp;A &amp; Strategic Deals</th><th>Payment Structure &amp; Goodwill</th><th>Guidance Delta &amp; Moat Shifts</th><th>CEO/CFO Remarks &amp; Analyst Q&amp;A</th><th>Antitrust &amp; Regulatory Status</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{_esc(ma_deals_text or 'N/A')}</td>
+                            <td>{_esc(ma_pay_goodwill_text or 'N/A')}</td>
+                            <td><strong>Guidance:</strong> {_esc(corp_ma.guidance_delta_summary if corp_ma else 'N/A')}<br><strong>Moat Shifts:</strong> {_esc(corp_ma.operational_moat_shifts if corp_ma else 'N/A')}</td>
+                            <td><strong>Exec:</strong> {_esc(corp_ma.ceo_cfo_internal_commentary if corp_ma else 'N/A')}<br><strong>Q&amp;A:</strong> {_esc(corp_ma.qa_analyst_clashes if corp_ma else 'N/A')}</td>
+                            <td>{_esc(corp_ma.antitrust_and_regulatory_status if corp_ma else ed.footnote_contingencies_litigation)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                """
+
             body_html = f"""
             <div class="page-section">
                 <div class="report-header">
@@ -1595,7 +1747,7 @@ class InstitutionalPDFExporter:
                 </div>
 
                 <div class="kpi-row">
-                    <div class="kpi-box"><div class="lbl">Current Spot Price &amp; Market Cap</div><div class="val">${eq.current_price:,.2f}</div><div class="sub">Market Cap: USD {eq.market_cap_b:,.1f}B | Sector: {_esc(eq.sector_label)}</div></div>
+                    <div class="kpi-box"><div class="lbl">Current Spot Price &amp; Market Cap</div><div class="val">${eq.current_price:,.2f}</div><div class="sub">MCap: USD {eq.market_cap_b:,.1f}B | EV: USD {eq.enterprise_value_b:,.1f}B | Sector: {_esc(eq.sector_label)}</div></div>
                     <div class="kpi-box"><div class="lbl">Forward Sovereign Multiple (NTM)</div><div class="val">{_esc(dd.sovereign_multiple_value)}</div><div class="sub">{_esc(dd.sovereign_multiple_status)}</div></div>
                     <div class="kpi-box"><div class="lbl">Fair Value Grid (DCF / SOTP / Gold PEGY)</div><div class="val">DCF: ${vm['dcf_fair_mos10_usd']:,.2f} | SOTP: ${vm['sotp_fair_price_usd']:,.2f}</div><div class="sub">Gold PEGY Fair Price: ${vm['pegy_gold_fair_price_usd']:,.2f}</div></div>
                     <div class="kpi-box"><div class="lbl">Forensic Health &amp; Solvency</div><div class="val">ROIC {fh['roic_goodwill_pct']:.1f}% vs WACC {fh['wacc_pct']:.2f}%</div><div class="sub">Sloan: {fh['sloan_ratio_pct']:+.1f}% | CFO/EBITDA: {fh['fco_to_ebitda']:.2f}x | IntCov: {fh['interest_coverage_x']:.1f}x</div></div>
@@ -1609,12 +1761,26 @@ class InstitutionalPDFExporter:
                     <tbody>{funnel_rows_html}</tbody>
                 </table>
 
-                <div class="section-banner">2. 5-YEAR FORENSIC HISTORICAL SERIES &amp; CAGR MATRIX (12 KPIS SPLIT INTO 2 READABLE TABLES)</div>
+                <div class="section-banner">2. 5-YEAR FORENSIC HISTORICAL SERIES, SOLVENCY &amp; 12-KPI CAGR MATRIX</div>
                 <table class="inst-table">
                     <thead>
                         <tr><th>Year</th><th>Sloan Ratio</th><th>CFO / EBITDA &amp; CFO</th><th>NWC (USD B)</th><th>ROIC vs WACC</th><th>DuPont Identity (M × T × L = ROE)</th><th>Gross Margin &amp; Shares</th></tr>
                     </thead>
                     <tbody>{hist_5y_rows}</tbody>
+                </table>
+
+                <table class="inst-table">
+                    <thead>
+                        <tr><th>Solvency &amp; Coverage</th><th>Liquidity &amp; Cash Reserves</th><th>Leverage Structure</th><th>Cash Conversion Quality</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="mono">Current Ratio: <strong>{fh['current_ratio']:.2f}x</strong> | Int. Coverage: <strong>{fh['interest_coverage_x']:.1f}x</strong></td>
+                            <td class="mono">Cash: USD {fh['cash_b']:,.1f}B | Goodwill: USD {fh['goodwill_b']:,.1f}B | Post-Exp Cash: {'POSITIVE' if fh['cash_after_annual_exp_positive'] else 'STRESS'}</td>
+                            <td class="mono">Debt/EBITDA: {fh['debt_to_ebitda']:.2f}x | Debt/Assets: {fh['debt_to_assets_pct']:.1f}% | Debt/Eq: {fh['debt_to_equity_pct']:.1f}%</td>
+                            <td class="mono">FCF Yield: {vm['fcf_yield_pct']:.2f}% | CFO CV: {fh['fco_cv']:.2f}x | Op Margin: {qs['roic_op_margin_pct']:.1f}%</td>
+                        </tr>
+                    </tbody>
                 </table>
 
                 <table class="inst-table">
@@ -1628,7 +1794,7 @@ class InstitutionalPDFExporter:
             </div>
 
             <div class="page-section">
-                <div class="section-banner">3. FORWARD MULTI-METHOD VALUATION COCKPIT (NTM) &amp; SEC 10-K DOCUMENTARY EXTRACTION</div>
+                <div class="section-banner">3. FORWARD MULTI-METHOD VALUATION COCKPIT (NTM) &amp; FULL SEC DOCUMENTARY SUITE</div>
                 <table class="inst-table">
                     <thead>
                         <tr><th>Spot Price &amp; WACC</th><th>Forward DCF (Cons / Base / Bull)</th><th>Fair DCF (10% MoS)</th><th>Reverse DCF (g_impl vs g_fund)</th><th>Owner Earnings vs US 10Y</th></tr>
@@ -1659,6 +1825,21 @@ class InstitutionalPDFExporter:
                     </tbody>
                 </table>
 
+                <div class="sub-banner">Full SEC EDGAR Extraction (10-K / 10-Q / Footnotes / Wall Street Consensus)</div>
+                <table class="inst-table">
+                    <thead>
+                        <tr><th>Filings, Audit &amp; SOX 404(b)</th><th>MD&amp;A Item 7 Dissection</th><th>Forensic Footnotes (Litigation, SBC, ASC 606, Debt)</th><th>Wall Street Analysts &amp; Form 4 Insiders</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Annual:</strong> {_esc(ed.filing_form_annual)}<br><strong>Quarterly:</strong> {_esc(ed.filing_form_quarterly)}<br><strong>Firm:</strong> {_esc(ed.auditor_firm)}<br>{_auto_badge(ed.auditor_opinion)}<br>{_esc(ed.sox_404b_controls)}</td>
+                            <td><strong>Growth:</strong> {_esc(ed.mda_growth_decomposition)}<br><strong>Quant:</strong> Vol {mda_q.get('Volume Orgânico (%)', 0):+.1f}% | Px {mda_q.get('Pricing Power / Mix (%)', 0):+.1f}% | FX {mda_q.get('Impacto Cambial FX (%)', 0):+.1f}%<br><strong>Segments:</strong> {_esc(ed.mda_segment_profitability)}<br><strong>Backlog/RPO:</strong> {_esc(ed.mda_backlog_rpo)}<br><strong>CapEx:</strong> {_esc(ed.mda_capex_plan)}</td>
+                            <td><strong>Litigation:</strong> {_esc(ed.footnote_contingencies_litigation)}<br><strong>SBC Dilution:</strong> {_esc(ed.footnote_sbc_impact)}<br><strong>ASC 606:</strong> {_esc(ed.footnote_revenue_recognition)}<br><strong>Debt Ladder:</strong> {_esc(ed.footnote_debt_maturity_schedule)}</td>
+                            <td class="mono"><strong>Target Mean: ${ed.analyst_target_mean_usd:,.2f}</strong><br>{_esc(ed.analyst_recommendations_dist)}<br>{_esc(ed.analyst_eps_revisions_30d_90d)}<br><strong>Insiders:</strong> {_esc(ins.get('ceo_skin_in_the_game', ''))} (5y Sh Chg: {ins.get('net_share_count_change_5y_pct', 0):+.2f}%)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
                 <div class="grid-2">
                     <div>
                         <div class="sub-banner">Sum of the Parts (SOTP) Decomposition by Business Unit</div>
@@ -1668,18 +1849,38 @@ class InstitutionalPDFExporter:
                         </table>
                     </div>
                     <div>
-                        <div class="sub-banner">SEC 10-K / 10-Q Documentary Spotlight: MD&amp;A, SOX 404(b) &amp; Top 3 Item 1A Risks</div>
+                        <div class="sub-banner">Item 1A Top Risks &amp; SEC Regulatory Disclosures</div>
                         <table class="inst-table">
-                            <thead><tr><th>SEC Dimension</th><th>Quantitative &amp; Forensic Extraction</th></tr></thead>
+                            <thead><tr><th>SEC Item 1A Risk Vector</th><th>Extracted Risk Disclosures</th></tr></thead>
                             <tbody>
-                                <tr><td><strong>Auditor &amp; SOX 404(b)</strong></td><td>{_auto_badge(ed.auditor_opinion)} | {_esc(ed.auditor_firm)}</td></tr>
-                                <tr><td><strong>MD&amp;A Dissection</strong></td><td class="mono">Vol: <strong>{mda_q.get('Volume Orgânico (%)', 0):+.1f}%</strong> | Price: <strong>{mda_q.get('Pricing Power / Mix (%)', 0):+.1f}%</strong> | FX: <strong>{mda_q.get('Impacto Cambial FX (%)', 0):+.1f}%</strong></td></tr>
-                                <tr><td><strong>Top 3 Item 1A Risks</strong></td><td><ol style="margin:0;padding-left:14px;">{risks_html}</ol></td></tr>
-                                <tr><td><strong>Form 4 &amp; Buybacks</strong></td><td>{_esc(ins.get('ceo_skin_in_the_game', ''))} (5y Share Count Var: <strong>{ins.get('net_share_count_change_5y_pct', 0):+.2f}%</strong>)</td></tr>
+                                <tr><td><strong>Top 3 Prioritized</strong></td><td><ol style="margin:0;padding-left:14px;">{risks_html}</ol></td></tr>
+                                <tr><td><strong>Full 10-K / 10-Q Synthesis</strong></td><td>{_esc(ed.item_1a_specific_risks)}</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
+            </div>
+
+            <div class="page-section">
+                <div class="section-banner">4. COMPETITIVE MOAT, PORTER'S 5 FORCES, M&amp;A / GOODWILL, GEOPOLITICS &amp; GOVERNANCE</div>
+                <table class="inst-table">
+                    <thead>
+                        <tr><th>Sector Lens &amp; ROIC Pillar</th><th>4-Pillar Moat Classification</th><th>Porter's 5 Forces Analysis</th><th>Common Size vs. Peers</th><th>Capital Allocation &amp; Tag-Along Governance</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{_esc(qs['sector_particularity_lens'])}<br><strong>ROIC Pillar:</strong> {_esc(qs['roic_central_pillar'])} ({qs['roic_op_margin_pct']:.1f}% × {qs['roic_cap_turnover_x']:.2f}x)</td>
+                            <td>{_esc(qs['moat_classification'])}</td>
+                            <td>{_esc(qs['porter_5_forces'])}</td>
+                            <td>{_esc(qs['common_size_peer_comparison'])}</td>
+                            <td><strong>Skin in Game:</strong> {_esc(qs['ceo_skin_in_the_game'])}<br><strong>Alloc:</strong> {_esc(qs['capital_allocation_history'])}<br><strong>Gov:</strong> {_esc(qs['tag_along_governance'])}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {signal_ma_html}
+                {geo_micro_block_html}
+                {rt_governance_html}
             </div>
             """
 

@@ -46,6 +46,11 @@ from core.geopolitics_micro_engine import (
     MicroCorporateProtocolEvent,
 )
 from core.portfolio_engine import PortfolioOverviewBundle
+from core.intelligence_reports_engine import (
+    IntelligenceReportsEngine,
+    CorporateSignalAndMADossier,
+    CryptoInternalDevAndUpgradeDossier,
+)
 
 
 # Base expandida de Criptoativos para Deep Dive (além de BTC, ETH, SOL, AAVE)
@@ -406,10 +411,12 @@ class DeepDiveResultBundle:
     crypto_dossier: Optional[CryptoDocumentaryDossier] = None
     real_earnings_period_breakdown: Optional[Dict[str, float]] = None
     github_peers_comparison: Optional[List[Dict[str, Any]]] = None
-    # Contexto Geopolítico, Micro e Risco/Tax-Drag (Regra Absoluta)
+    # Contexto Geopolítico, Micro, Inteligência Corporativa/M&A/Upgrades e Risco/Tax-Drag
     related_geopolitics: Optional[List[GeopoliticalImpactRow]] = None
     related_micro_events: Optional[List[MicroCorporateProtocolEvent]] = None
     risk_and_timing_context: Optional[Dict[str, Any]] = None
+    corporate_signal_ma: Optional[CorporateSignalAndMADossier] = None
+    crypto_internal_dev: Optional[CryptoInternalDevAndUpgradeDossier] = None
 
 
 class DeepDiveEngine:
@@ -896,7 +903,7 @@ class DeepDiveEngine:
                 sovereign_multiple_value=(
                     f"MVRV Z: {c_prof.onchain_metrics['mvrv_z_score']:.2f} | NUPL: {c_prof.onchain_metrics['nupl']:.2f}"
                     if norm_ticker == "BTC-USD"
-                    else f"P/F: {c_prof.tokenomics_valuation['pf_ratio']:.1f}x | Real Earn: USD {annual_re_m:+.1f}M/ano"
+                    else f"P/F: {c_prof.tokenomics_valuation['pf_ratio']:.1f}x | Real Earn: USD {annual_re_m:+.1f}M/yr"
                 ),
                 sovereign_multiple_status=c_prof.onchain_metrics["mvrv_z_status"],
                 screener_score_0_100=total_score,
@@ -909,6 +916,7 @@ class DeepDiveEngine:
                 github_peers_comparison=github_peers,
                 related_geopolitics=rel_geo,
                 related_micro_events=rel_micro,
+                crypto_internal_dev=IntelligenceReportsEngine().get_crypto_internal_dev_dossier(norm_ticker, c_prof.name),
                 risk_and_timing_context={
                     "ltv_collat_eligible": "Yes (Eligible via WBTC on Aave V3 up to 20% Base LTV)" if norm_ticker == "BTC-USD" else "No (Altcoins exhibit high systemic volatility; prohibited from debt collateral under Framework)",
                     "tax_drag_hurdle_pct": 11.76 if norm_ticker == "BTC-USD" else 8.82,
@@ -928,6 +936,7 @@ class DeepDiveEngine:
         )
         eq_item = next((x for x in full_eq_list if x.ticker == norm_ticker), eq_list[0])
 
+        corp_ma = IntelligenceReportsEngine().get_corporate_signal_and_ma_dossier(norm_ticker, eq_item.company_name)
         eq_dossiers = {d.ticker: d for d in self.fil_engine.get_equity_dossiers()}
         if norm_ticker in eq_dossiers:
             eq_doc = eq_dossiers[norm_ticker]
@@ -941,7 +950,7 @@ class DeepDiveEngine:
                 auditor_opinion="Unqualified / Clean Opinion (Zero Accounting Qualifications)",
                 sox_404b_controls="SOX Section 404(b) Effective — Audited internal controls with zero material weaknesses",
                 mda_growth_decomposition=f"Organic Volume: +{max(2.0, eq_item.valuation_methods['g_fund_projected_pct']*0.58):.1f}% | Pricing Power / Mix: +{max(1.5, eq_item.valuation_methods['g_fund_projected_pct']*0.46):.1f}% | FX Headwind: -0.6%",
-                mda_segment_profitability=f"Margem Bruta Consolidada: {eq_item.qualitative_strategy['gross_margin_current_pct']:.1f}% | Margem Operacional EBIT: {eq_item.qualitative_strategy['roic_op_margin_pct']:.1f}%",
+                mda_segment_profitability=f"Consolidated Gross Margin: {eq_item.qualitative_strategy['gross_margin_current_pct']:.1f}% | Operating EBIT Margin: {eq_item.qualitative_strategy['roic_op_margin_pct']:.1f}%",
                 mda_backlog_rpo="Multi-year commercial contract backlog with high operating cash flow (CFO) visibility.",
                 mda_capex_plan=f"CapEx targeted at high-return capacity expansion (ROIC {eq_item.forensic_health['roic_goodwill_pct']:.1f}% vs WACC {eq_item.forensic_health['wacc_pct']:.2f}%).",
                 item_1a_specific_risks=(
@@ -956,6 +965,8 @@ class DeepDiveEngine:
                 analyst_target_mean_usd=round(max(eq_item.current_price * 1.10, eq_item.valuation_methods["sotp_fair_price_usd"]), 2),
                 analyst_recommendations_dist="82% Buy / Outperform | 15% Hold | 3% Sell",
                 analyst_eps_revisions_30d_90d="Positive consensus EPS revisions (+3.4% over past 90 days)",
+                ma_and_strategic_deals=corp_ma.ma_and_strategic_deals,
+                ma_payment_and_goodwill=f"{corp_ma.payment_structure_and_dilution} | {corp_ma.goodwill_and_impairment_risk}",
             )
 
         # Séries históricas de 5 anos para os gráficos exclusivos do Módulo 7.B
@@ -1098,7 +1109,7 @@ class DeepDiveEngine:
             sov_name = "Enterprise PEGY (EV/EBIT NTM) + P/E vs. Setor & SSS"
         elif sv == "CYCLICAL":
             cat_label = "Cyclicals / Industrials & Commodities (Inverse Multiple Valuation Logic)"
-            sov_name = "EV/EBITDA Inverso de Ciclo + DCF de Meio de Ciclo"
+            sov_name = "Mid-Cycle EV/EBITDA + Inverse Cycle Logic"
         else:
             cat_label = "Cash Cow / Compounding Free Cash Flow Monopoly"
             sov_name = "Enterprise PEGY (NTM EV/FCF ÷ [CAGR FCF + DY + Buybacks])"
@@ -1242,6 +1253,7 @@ class DeepDiveEngine:
                 "ltv_collat_eligible": "Yes (Eligible for IBKR Box Spread collateral up to 20% Structural Base LTV)",
                 "tax_drag_hurdle_pct": 8.45,
                 "buy_reference": f"Gold Band of Sovereign Multiple ({vm['enterprise_pegy_ref'] if not is_bank else vm['pegy_financeiro_ref']}) and g_impl <= g_fund",
-                "prune_reference": "Poda consultiva de 50% apenas se PEGY > 1.60x (ou > 1.50x em Bancos) superando o Tax-Drag Hurdle Rate",
+                "prune_reference": "Consultative 50% prune only if PEGY > 1.60x (or > 1.50x for Banks) exceeding Tax-Drag Hurdle Rate",
             },
+            corporate_signal_ma=corp_ma,
         )

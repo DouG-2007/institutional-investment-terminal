@@ -36,6 +36,7 @@ class NotifierSettings:
     notify_sec_8k_and_ma: bool = True
     notify_crypto_unlocks_and_dao: bool = True
     notify_macro_and_cycle_extremes: bool = True
+    enable_ai_briefing: bool = False
     last_updated: str = ""
     scheduler_status: str = "DISABLED (Zero Background Processes)"
 
@@ -73,6 +74,7 @@ class BackgroundNotifierEngine:
                     notify_sec_8k_and_ma=bool(data.get("notify_sec_8k_and_ma", True)),
                     notify_crypto_unlocks_and_dao=bool(data.get("notify_crypto_unlocks_and_dao", True)),
                     notify_macro_and_cycle_extremes=bool(data.get("notify_macro_and_cycle_extremes", True)),
+                    enable_ai_briefing=bool(data.get("enable_ai_briefing", False)),
                     last_updated=str(data.get("last_updated", "")),
                     scheduler_status=str(
                         data.get(
@@ -136,6 +138,51 @@ class BackgroundNotifierEngine:
             pass
         return True, "Background task removed successfully"
 
+    def interpret_briefing_with_ai(
+        self,
+        alerts_list: List[str],
+        portfolio: Any,
+        macro: Any,
+    ) -> Optional[str]:
+        """
+        Uses direct Gemini Interactions API (`fast=True`) to write a crisp executive
+        interpretation strictly grounded in pre-computed deterministic alert signals.
+        Returns None cleanly if unconfigured or if API call fails.
+        """
+        try:
+            from core.gemini_client import generate_text_interaction, is_gemini_configured
+        except Exception:
+            return None
+
+        if not is_gemini_configured():
+            return None
+
+        sp = getattr(macro, "sahm_paired", {}) or {}
+        yc = getattr(macro, "yield_curve", {}) or {}
+        snapshot = {
+            "capital_usd": round(float(getattr(portfolio, "capital_usd", 0.0)), 2),
+            "holdings_count": len(getattr(portfolio, "positions", [])),
+            "portfolio_pnl_pct": round(float(getattr(portfolio, "total_portfolio_pnl_pct", 0.0)), 2),
+            "macro_cycle_phase": getattr(macro, "cycle_phase", ""),
+            "sahm_pct": sp.get("sahm_current_pct"),
+            "spread_10y_2y_bps": yc.get("spread_10y_2y_bps"),
+            "deterministic_alerts": alerts_list[:8],
+        }
+        system_instruction = (
+            "You are an Institutional Portfolio Risk Briefer. Write a 3 to 4 sentence executive "
+            "interpretation for a daily Telegram/Discord alert strictly summarizing ONLY the numbers "
+            "and alerts provided in the JSON payload. NEVER invent figures or suggest automated trades; "
+            "keep guidance consultative. Write plain Markdown suitable for Telegram/Discord."
+        )
+        prompt = f"Interpret these pre-computed morning signals:\n{json.dumps(snapshot, ensure_ascii=False)}"
+        return generate_text_interaction(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            fast=True,
+            temperature=0.15,
+            max_output_tokens=450,
+        )
+
     def build_morning_briefing_payload(
         self,
         macro: Any,
@@ -144,26 +191,31 @@ class BackgroundNotifierEngine:
         cryptos: Dict[str, Any],
         micro_events: List[Any],
         risk_timing: Any,
+        use_ai: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Analisa silenciosamente todos os vetores da carteira e filtra APENAS sinais de alta
         relevância (8-Ks, M&As, Unlocks > 2.5%, Extremos de Ciclo e Oportunidades PEGY/DCF).
+        Optionally enriches the message with an executive AI interpretation without
+        altering or recomputing any deterministic signals.
         """
         critical_alerts: List[str] = []
         settings = self.load_settings()
 
-        # 1. Auditoria de Eventos Corporativos, 8-K, M&A e Valuation (Faixa Ouro)
+        # 1. Auditoria de Eventos Corporativos, 8-K, M&A e Valuation (Gold Band / Faixa Ouro)
         if settings.notify_sec_8k_and_ma:
             for m in micro_events[:4]:
-                if "Positivo" in m.classification or "Alerta" in m.classification:
+                cls_low = str(m.classification).lower()
+                if any(k in cls_low for k in ["positive", "positivo", "warning", "alerta", "red flag"]):
                     critical_alerts.append(
                         f"📑 [{m.asset_ticker}] ({m.source_type}): {m.headline} -> {m.classification}"
                     )
             for e in equities:
                 vm = e.valuation_methods
-                if vm.get("dcf_upside_pct", 0.0) >= 12.0 or "Ouro" in str(vm.get("primary_pegy_status", "")):
+                pegy_stat = str(vm.get("primary_pegy_status", ""))
+                if vm.get("dcf_upside_pct", 0.0) >= 12.0 or any(k in pegy_stat.lower() for k in ["gold", "ouro", "optimal", "ótimo"]):
                     critical_alerts.append(
-                        f"🏛️ [{e.ticker}] Active Opportunity Window: Spot ${e.current_price:,.2f} vs SOTP ${vm['sotp_fair_price_usd']:,.2f} (PEGY: {vm['primary_pegy_status']})"
+                        f"🏛️ [{e.ticker}] Active Opportunity Window: Spot ${e.current_price:,.2f} vs SOTP ${vm['sotp_fair_price_usd']:,.2f} (PEGY: {pegy_stat})"
                     )
 
         # 2. Auditoria de Criptoativos (Unlocks 30d, Governança DAO & Real Yield)
@@ -198,6 +250,19 @@ class BackgroundNotifierEngine:
         for item in critical_alerts[:8]:
             lines.append(f"• {item}")
 
+        should_use_ai = settings.enable_ai_briefing if use_ai is None else bool(use_ai)
+        ai_summary: Optional[str] = None
+        if should_use_ai:
+            ai_summary = self.interpret_briefing_with_ai(
+                alerts_list=critical_alerts,
+                portfolio=portfolio,
+                macro=macro,
+            )
+            if ai_summary:
+                lines.append("")
+                lines.append("🧠 *EXECUTIVE AI INTERPRETATION (CONSULTATIVE):*")
+                lines.append(ai_summary)
+
         lines.append("")
         lines.append("📄 _The Consolidated 360° Master PDF Report is available in the Intelligence Hub._")
         full_text = "\n".join(lines)
@@ -206,6 +271,8 @@ class BackgroundNotifierEngine:
             "timestamp": now_str,
             "alerts_count": len(critical_alerts),
             "alerts_list": critical_alerts,
+            "ai_enhanced": bool(ai_summary),
+            "ai_summary": ai_summary,
             "formatted_message": full_text,
         }
 

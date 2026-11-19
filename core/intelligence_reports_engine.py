@@ -395,6 +395,28 @@ class IntelligenceReportsEngine:
         clean_t = ticker.strip().upper()
         if clean_t in CORPORATE_SIGNAL_MA_DB:
             return CORPORATE_SIGNAL_MA_DB[clean_t]
+
+        # Check dynamically extracted SEC dossiers in custom_filings_cache.json before generic fallback
+        try:
+            from core.filings_engine import _load_custom_filings_cache
+
+            cached_eq = _load_custom_filings_cache().get("equities", {}).get(clean_t)
+            if isinstance(cached_eq, dict) and (cached_eq.get("ma_and_strategic_deals") or cached_eq.get("mda_growth_decomposition")):
+                return CorporateSignalAndMADossier(
+                    ticker=clean_t,
+                    company_name=str(cached_eq.get("company_name") or company_name or clean_t),
+                    guidance_delta_summary=str(cached_eq.get("analyst_eps_revisions_30d_90d") or "Extracted from live 10-K/10-Q/8-K filings."),
+                    ceo_cfo_internal_commentary=str(cached_eq.get("mda_capex_plan") or "Extracted from SEC Item 7 MD&A management commentary."),
+                    qa_analyst_clashes=str(cached_eq.get("item_1a_specific_risks") or "Key institutional debates anchored in SEC Item 1A Risk Factors."),
+                    operational_moat_shifts=str(cached_eq.get("mda_segment_profitability") or "Tracked via SEC segment profitability disclosures."),
+                    ma_and_strategic_deals=str(cached_eq.get("ma_and_strategic_deals") or "No material acquisitions or divestitures disclosed in recent 10-K/10-Q/8-K."),
+                    payment_structure_and_dilution=str(cached_eq.get("ma_payment_and_goodwill") or cached_eq.get("footnote_sbc_impact") or "Cash/FCF-funded capital allocation."),
+                    goodwill_and_impairment_risk=str(cached_eq.get("ma_payment_and_goodwill") or "Monitored via SEC Business Combinations & Goodwill footnotes."),
+                    antitrust_and_regulatory_status=str(cached_eq.get("footnote_contingencies_litigation") or "Monitored via SEC Commitments & Contingencies."),
+                )
+        except Exception:
+            pass
+
         return CorporateSignalAndMADossier(
             ticker=clean_t,
             company_name=company_name or clean_t,

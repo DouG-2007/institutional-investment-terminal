@@ -238,7 +238,7 @@ def run_complete_ecosystem_integrity_audit(
     add_chk("3. Contabilidade Forense & CAGR", "NWC Giro Líquido pareado com Desvio-Padrão do FCO", "App M1/M4 & PDF 3", "nwc_b" in fh0 and "fco_cv" in fh0, f"NWC ${fh0.get('nwc_b')}B (CV {fh0.get('fco_cv')})")
     add_chk("3. Contabilidade Forense & CAGR", "ROIC (via NOPAT c/ Goodwill) vs. WACC & Spread", "App M1/M4 & PDF 3", "roic_goodwill_pct" in fh0 and "wacc_pct" in fh0, f"ROIC {fh0.get('roic_goodwill_pct')}% vs WACC {fh0.get('wacc_pct')}%")
     add_chk("3. Contabilidade Forense & CAGR", "Identidade DuPont 3 Pilares (Margem × Giro × Alavancagem)", "App M1/M4 & PDF 3", "roe_dupont_pct" in fh0, f"ROE DuPont {fh0.get('roe_dupont_pct')}%")
-    add_chk("3. Contabilidade Forense & CAGR", "Solvência: Liquidez Corrente, Caixa Pós-OpEx, Int. Coverage, Dívida & Altman Z", "App M1/M4 & PDF 3", "altman_z" in fh0 and "interest_coverage_x" in fh0, f"Altman Z {fh0.get('altman_z')} | IC {fh0.get('interest_coverage_x')}x")
+    add_chk("3. Contabilidade Forense & CAGR", "Solvência (Sem Altman Z): Liquidez Corrente, Caixa Pós-OpEx, Int. Coverage & Debt/EBITDA", "App M1/M4 & PDF 3", "current_ratio" in fh0 and "interest_coverage_x" in fh0 and "debt_to_ebitda" in fh0, f"CR {fh0.get('current_ratio')}x | IC {fh0.get('interest_coverage_x')}x | D/EB {fh0.get('debt_to_ebitda')}x")
     add_chk("3. Contabilidade Forense & CAGR", "SSS (Same Store Sales) & Matriz CAGR 12 KPIs (3y, 5y, 10y)", "App M1/M4 & PDF 3", len(cagr0) == 12, f"{len(cagr0)} KPIs auditados em 3 horizontes")
 
     # 4. VALUATION MULTI-MÉTODOS (8 MÉTODOS), BANCOS & ESTRATÉGIA QUALITATIVA (M1, M4 & PDF 3)

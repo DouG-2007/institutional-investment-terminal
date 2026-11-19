@@ -15,8 +15,13 @@ MODULE 2: IN-DEPTH FORENSIC DOCUMENTARY INTELLIGENCE
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List
+import base64
+from dataclasses import asdict, dataclass, fields
+import json
+import os
+from typing import Any, Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, Field
 
 
 @dataclass
@@ -44,6 +49,9 @@ class EquityDocumentaryDossier:
     analyst_target_mean_usd: float
     analyst_recommendations_dist: str
     analyst_eps_revisions_30d_90d: str
+    # M&A, Strategic Deals, Payment Dilution & Goodwill (defaults keep static KB backward compatible)
+    ma_and_strategic_deals: str = ""
+    ma_payment_and_goodwill: str = ""
 
 
 @dataclass
@@ -558,6 +566,93 @@ CRYPTO_FILINGS_DB: List[CryptoDocumentaryDossier] = [
 ]
 
 
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CUSTOM_FILINGS_CACHE_PATH = os.path.join(_ROOT_DIR, "data_cache", "custom_filings_cache.json")
+
+
+class EquityDocumentaryDossierSchema(BaseModel):
+    """Pydantic schema matching EquityDocumentaryDossier 1-to-1 for Gemini Structured Outputs."""
+
+    ticker: str = Field(description="Official uppercase stock ticker symbol, e.g., NVDA or COST.")
+    company_name: str = Field(description="Official legal company name.")
+    filing_form_annual: str = Field(description="Annual filing form & fiscal period cited, e.g., SEC Form 10-K (FY 2026).")
+    filing_form_quarterly: str = Field(description="Quarterly filing form & period cited, e.g., SEC Form 10-Q (Q3 2026).")
+    auditor_firm: str = Field(description="Independent registered public accounting firm (e.g., PwC LLP, EY LLP, Deloitte).")
+    auditor_opinion: str = Field(description="Audit opinion classification (e.g., Unqualified / Clean Opinion or Qualified).")
+    sox_404b_controls: str = Field(description="SOX Section 404(b) internal control over financial reporting assessment.")
+    mda_growth_decomposition: str = Field(description="Item 7 MD&A quantitative revenue breakdown: organic volume vs pricing/mix vs FX.")
+    mda_segment_profitability: str = Field(description="Segment operating or gross margins extracted from MD&A / segment notes.")
+    mda_backlog_rpo: str = Field(description="Remaining Performance Obligations (RPO), contracted backlog, or deferred revenue.")
+    mda_capex_plan: str = Field(description="Capital expenditure guidance, allocation focus, and expansion capacity notes.")
+    item_1a_specific_risks: str = Field(description="Top 3–4 company-specific Item 1A Risk Factors concisely enumerated.")
+    footnote_contingencies_litigation: str = Field(description="Legal contingencies, antitrust/tax investigations, and solvency materiality.")
+    footnote_sbc_impact: str = Field(description="Stock-Based Compensation (SBC) dollar amount, % of revenue/CFO, and buyback offset.")
+    footnote_revenue_recognition: str = Field(description="ASC 606 / IFRS 15 revenue recognition policy and receivables quality notes.")
+    footnote_debt_maturity_schedule: str = Field(description="Total debt, coupon structure, maturity ladder, and cash coverage.")
+    analyst_target_mean_usd: float = Field(description="Consensus target price in USD if stated in document; 0.0 if not stated.")
+    analyst_recommendations_dist: str = Field(description="Rating distribution or 'Not disclosed in source filing' if absent.")
+    analyst_eps_revisions_30d_90d: str = Field(description="30d/90d EPS revision notes or forward guidance comparison from document.")
+    ma_and_strategic_deals: str = Field(
+        description=(
+            "Acquisitions, divestitures, joint ventures, strategic alliances, and antitrust/regulatory status "
+            "disclosed in 10-K/10-Q/8-K business combination notes (or state 'No material M&A disclosed in period')."
+        )
+    )
+    ma_payment_and_goodwill: str = Field(
+        description=(
+            "M&A financing structure (all-cash vs stock dilution) and Goodwill/intangibles impairment balance "
+            "from footnotes."
+        )
+    )
+
+
+class CryptoDocumentaryDossierSchema(BaseModel):
+    """Pydantic schema matching CryptoDocumentaryDossier 1-to-1 for Gemini Structured Outputs."""
+
+    symbol: str = Field(description="Normalized token ticker symbol with -USD suffix (e.g., PENDLE-USD, LINK-USD).")
+    name: str = Field(description="Official protocol or network name.")
+    wp_title_author: str = Field(description="White paper title and primary author(s) / year.")
+    wp_value_proposition: str = Field(description="Core architectural thesis and economic problem solved.")
+    wp_consensus_architecture: str = Field(description="Consensus mechanism, security model, and smart contract execution layer.")
+    wp_value_accrual_mechanism: str = Field(description="Token value accrual: fee switch, buyback/burn, staking Real Yield, or gas utility.")
+    github_core_repos: str = Field(description="Primary GitHub organization/repository paths mentioned; 'Not specified' if absent.")
+    github_commits_4w: int = Field(description="Estimated 4-week core commits as integer (0 if not stated).")
+    github_active_devs_monthly: int = Field(description="Monthly active developers as integer (0 if not stated).")
+    deepdao_status: str = Field(description="DAO governance activity, voting mechanism, and treasury scale.")
+    recent_governance_proposals: str = Field(description="Notable recent governance proposals (EIPs/PIPs/MIPs) and status.")
+    skin_in_the_game_locked_pct: float = Field(description="Percentage (0–100) of circulating or total supply locked/staked by long-term holders.")
+    skin_in_the_game_details: str = Field(description="Summary of staking locks, ve-token commitments, or founder/insider vesting.")
+    token_sniffer_score: int = Field(description="Security/audit score 0–100 (or estimated 85 if reputable audits verified; 0 if unverified).")
+    audit_firms: str = Field(description="Security audit firms / formal verification partners cited in document.")
+    exploit_history: str = Field(description="Historical exploit/incident record or security track record stated.")
+
+
+def _load_custom_filings_cache() -> Dict[str, Dict[str, Dict[str, Any]]]:
+    base: Dict[str, Dict[str, Dict[str, Any]]] = {"equities": {}, "cryptos": {}}
+    if not os.path.exists(CUSTOM_FILINGS_CACHE_PATH):
+        return base
+    try:
+        with open(CUSTOM_FILINGS_CACHE_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        if isinstance(raw, dict):
+            base["equities"] = dict(raw.get("equities", {}))
+            base["cryptos"] = dict(raw.get("cryptos", {}))
+    except Exception:
+        pass
+    return base
+
+
+def _save_custom_filing_cache(kind: str, key: str, dossier_obj: Any) -> None:
+    try:
+        os.makedirs(os.path.dirname(CUSTOM_FILINGS_CACHE_PATH), exist_ok=True)
+        cache = _load_custom_filings_cache()
+        cache.setdefault(kind, {})[key] = asdict(dossier_obj)
+        with open(CUSTOM_FILINGS_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
 class FilingsEngine:
     def __init__(self) -> None:
         pass
@@ -572,7 +667,30 @@ class FilingsEngine:
             except Exception:
                 tickers = ["NVDA", "AAPL", "MSFT", "JPM", "ASML", "TSM", "MELI", "AVGO", "MA", "NU"]
         tk_set = {t.upper() for t in tickers}
-        return [d for d in EQUITY_FILINGS_DB if d.ticker.upper() in tk_set]
+
+        cache = _load_custom_filings_cache()
+        eq_map: Dict[str, EquityDocumentaryDossier] = {d.ticker.upper(): d for d in EQUITY_FILINGS_DB}
+        valid_fields = {f.name for f in fields(EquityDocumentaryDossier)}
+        for tk_key, d_dict in cache.get("equities", {}).items():
+            try:
+                filtered = {k: v for k, v in d_dict.items() if k in valid_fields}
+                eq_map[tk_key.upper()] = EquityDocumentaryDossier(**filtered)
+            except Exception:
+                pass
+
+        # Hydrate M&A fields for static dossiers that don't yet specify them
+        try:
+            from core.intelligence_reports_engine import CORPORATE_SIGNAL_MA_DB
+
+            for tk_key, dos in eq_map.items():
+                if not dos.ma_and_strategic_deals and tk_key in CORPORATE_SIGNAL_MA_DB:
+                    sm = CORPORATE_SIGNAL_MA_DB[tk_key]
+                    dos.ma_and_strategic_deals = f"{sm.ma_and_strategic_deals} ({sm.antitrust_and_regulatory_status})"
+                    dos.ma_payment_and_goodwill = f"{sm.payment_structure_and_dilution} | {sm.goodwill_and_impairment_risk}"
+        except Exception:
+            pass
+
+        return [d for tk, d in eq_map.items() if tk in tk_set]
 
     def get_crypto_dossiers(self, symbols: List[str] | None = None) -> List[CryptoDocumentaryDossier]:
         if symbols is None:
@@ -584,4 +702,356 @@ class FilingsEngine:
             except Exception:
                 symbols = ["BTC-USD", "ETH-USD", "PENDLE-USD", "LINK-USD", "MKR-USD", "UNI-USD"]
         sym_set = {s.upper() for s in symbols}
-        return [c for c in CRYPTO_FILINGS_DB if c.symbol.upper() in sym_set]
+
+        cache = _load_custom_filings_cache()
+        cr_map: Dict[str, CryptoDocumentaryDossier] = {c.symbol.upper(): c for c in CRYPTO_FILINGS_DB}
+        valid_fields = {f.name for f in fields(CryptoDocumentaryDossier)}
+        for sym_key, d_dict in cache.get("cryptos", {}).items():
+            try:
+                filtered = {k: v for k, v in d_dict.items() if k in valid_fields}
+                cr_map[sym_key.upper()] = CryptoDocumentaryDossier(**filtered)
+            except Exception:
+                pass
+
+        return [c for sym, c in cr_map.items() if sym in sym_set]
+
+    def extract_equity_dossier_from_document(
+        self,
+        ticker: str,
+        company_name: str = "",
+        raw_text: Optional[str] = None,
+        pdf_bytes: Optional[bytes] = None,
+        persist: bool = True,
+    ) -> Tuple[Optional[EquityDocumentaryDossier], str]:
+        """
+        Extracts a structured `EquityDocumentaryDossier` from raw filing text or PDF
+        bytes (10-K, 10-Q, 20-F, earnings release) via Gemini Structured Outputs.
+        Safely falls back to static `EQUITY_FILINGS_DB` if GEMINI_API_KEY is absent or fails.
+        """
+        tk_norm = (ticker or "").strip().upper()
+        if not tk_norm:
+            return None, "Ticker symbol is required for dynamic filing extraction."
+        if not (raw_text and raw_text.strip()) and not pdf_bytes:
+            return None, "Provide filing text or upload a PDF/TXT document to extract."
+
+        static_match = next((d for d in EQUITY_FILINGS_DB if d.ticker.upper() == tk_norm), None)
+
+        try:
+            from core.gemini_client import generate_structured_interaction, is_gemini_configured
+        except Exception:
+            if static_match is not None:
+                return static_match, "Gemini client unavailable — fell back to static SEC filings database."
+            return None, "Gemini client unavailable and ticker not in static filings database."
+
+        if not is_gemini_configured():
+            if static_match is not None:
+                return static_match, "GEMINI_API_KEY not configured — fell back to verified static SEC filings database."
+            return None, "GEMINI_API_KEY not configured — configure .env to extract new dynamic filings."
+
+        instruction_prompt = (
+            f"Extract an institutional SEC forensic dossier in English for ticker '{tk_norm}'"
+            + (f" ({company_name})" if company_name else "")
+            + ". Strictly cite ONLY facts, figures, risks, audit opinions, SOX 404(b) status, MD&A volume/price/FX "
+            "drivers, RPO/backlog, CapEx, contingencies, SBC, ASC 606, debt maturities, M&A/acquisitions/goodwill/payment structure, "
+            "and analyst consensus present in the source bundle. "
+            "Never reference Altman Z-Score. If a field is not present in the source bundle, state 'Not disclosed in provided excerpt' "
+            "(or 0.0 / 0 for numeric fields)."
+        )
+
+        if pdf_bytes:
+            b64_doc = base64.b64encode(pdf_bytes).decode("utf-8")
+            combined_text = instruction_prompt
+            if raw_text and raw_text.strip():
+                combined_text += f"\n\n--- SUPPLEMENTAL VERIFIED SOURCES ---\n{raw_text.strip()[:90_000]}"
+            input_payload: Any = [
+                {"type": "text", "text": combined_text},
+                {"type": "document", "data": b64_doc, "mime_type": "application/pdf"},
+            ]
+        else:
+            snippet = (raw_text or "").strip()[:135_000]
+            input_payload = f"{instruction_prompt}\n\n--- SOURCE DOCUMENT BUNDLE ---\n{snippet}"
+
+        system_instruction = (
+            "You are an Institutional Forensic SEC Auditor. Extract faithful, quantitative structured JSON "
+            "matching EquityDocumentaryDossierSchema without inventing ungrounded figures or using Altman Z-Score."
+        )
+        parsed = generate_structured_interaction(
+            input_payload=input_payload,
+            schema_cls=EquityDocumentaryDossierSchema,
+            system_instruction=system_instruction,
+            temperature=0.05,
+            max_output_tokens=3000,
+        )
+        if parsed is None:
+            if static_match is not None:
+                return static_match, "Gemini extraction failed — safely fell back to verified static filings database."
+            return None, "Gemini extraction failed and no static fallback dossier exists for this ticker."
+
+        dossier_dict = parsed.model_dump()
+        dossier_dict["ticker"] = tk_norm
+        if company_name and not dossier_dict.get("company_name"):
+            dossier_dict["company_name"] = company_name
+
+        dossier = EquityDocumentaryDossier(**dossier_dict)
+        if persist:
+            _save_custom_filing_cache("equities", tk_norm, dossier)
+        return dossier, f"Successfully extracted & structured SEC filing dossier for {tk_norm} via Gemini Structured Outputs."
+
+    def extract_crypto_dossier_from_document(
+        self,
+        symbol: str,
+        name: str = "",
+        raw_text: Optional[str] = None,
+        pdf_bytes: Optional[bytes] = None,
+        persist: bool = True,
+    ) -> Tuple[Optional[CryptoDocumentaryDossier], str]:
+        """
+        Extracts a structured `CryptoDocumentaryDossier` from whitepapers, governance
+        reports, or security audit PDFs/text via Gemini Structured Outputs.
+        Safely falls back to static `CRYPTO_FILINGS_DB` when unconfigured or on error.
+        """
+        raw_sym = (symbol or "").strip().upper()
+        if not raw_sym:
+            return None, "Protocol symbol is required for dynamic whitepaper extraction."
+        sym_norm = raw_sym if "-" in raw_sym else f"{raw_sym}-USD"
+        if not (raw_text and raw_text.strip()) and not pdf_bytes:
+            return None, "Provide whitepaper/audit text or upload a PDF/TXT document to extract."
+
+        static_match = next((c for c in CRYPTO_FILINGS_DB if c.symbol.upper() == sym_norm), None)
+
+        try:
+            from core.gemini_client import generate_structured_interaction, is_gemini_configured
+        except Exception:
+            if static_match is not None:
+                return static_match, "Gemini client unavailable — fell back to static crypto dossier database."
+            return None, "Gemini client unavailable and protocol not in static database."
+
+        if not is_gemini_configured():
+            if static_match is not None:
+                return static_match, "GEMINI_API_KEY not configured — fell back to verified static crypto database."
+            return None, "GEMINI_API_KEY not configured — configure .env to extract new protocol whitepapers."
+
+        instruction_prompt = (
+            f"Extract a technical institutional protocol dossier in English for cryptoasset '{sym_norm}'"
+            + (f" ({name})" if name else "")
+            + ". Strictly cite ONLY technical facts, consensus mechanics, token value accrual, GitHub/dev metrics, "
+            "DAO governance proposals, staking/lockups, security audits, Token Sniffer score, and exploit history present in the source bundle. "
+            "If a quantitative metric is absent in the source bundle, state 'Not disclosed in provided document' (or 0 / 0.0 for numbers)."
+        )
+
+        if pdf_bytes:
+            b64_doc = base64.b64encode(pdf_bytes).decode("utf-8")
+            combined_text = instruction_prompt
+            if raw_text and raw_text.strip():
+                combined_text += f"\n\n--- SUPPLEMENTAL VERIFIED SOURCES (GITHUB / SNAPSHOT / DEFILLAMA / SEARCH) ---\n{raw_text.strip()[:90_000]}"
+            input_payload: Any = [
+                {"type": "text", "text": combined_text},
+                {"type": "document", "data": b64_doc, "mime_type": "application/pdf"},
+            ]
+        else:
+            snippet = (raw_text or "").strip()[:130_000]
+            input_payload = f"{instruction_prompt}\n\n--- SOURCE PROTOCOL BUNDLE ---\n{snippet}"
+
+        system_instruction = (
+            "You are a Senior DeFi Protocol Security & Tokenomics Researcher. Extract structured JSON "
+            "strictly adhering to CryptoDocumentaryDossierSchema using only verifiable facts from the source."
+        )
+        parsed = generate_structured_interaction(
+            input_payload=input_payload,
+            schema_cls=CryptoDocumentaryDossierSchema,
+            system_instruction=system_instruction,
+            temperature=0.05,
+            max_output_tokens=3000,
+        )
+        if parsed is None and pdf_bytes and raw_text and raw_text.strip():
+            # Fallback to text-only bundle if inline PDF attachment was too large or rejected
+            snippet = raw_text.strip()[:130_000]
+            parsed = generate_structured_interaction(
+                input_payload=f"{instruction_prompt}\n\n--- SOURCE PROTOCOL BUNDLE ---\n{snippet}",
+                schema_cls=CryptoDocumentaryDossierSchema,
+                system_instruction=system_instruction,
+                temperature=0.05,
+                max_output_tokens=3000,
+            )
+        if parsed is None:
+            if static_match is not None:
+                return static_match, "Gemini extraction failed — safely fell back to verified static crypto dossier."
+            return None, "Gemini extraction failed and no static fallback dossier exists for this protocol."
+
+        dossier_dict = parsed.model_dump()
+        dossier_dict["symbol"] = sym_norm
+        if name and not dossier_dict.get("name"):
+            dossier_dict["name"] = name
+
+        dossier = CryptoDocumentaryDossier(**dossier_dict)
+        if persist:
+            _save_custom_filing_cache("cryptos", sym_norm, dossier)
+        return dossier, f"Successfully extracted & structured protocol dossier for {sym_norm} via Gemini Structured Outputs."
+
+    def _google_search_fallback_text(self, query_prompt: str) -> Optional[str]:
+        """Fallback using Gemini Interactions API `google_search` grounding when SEC/CoinGecko lacks a ticker."""
+        try:
+            from core.gemini_client import (
+                _is_transient_genai_error,
+                _mark_genai_unhealthy,
+                _resolve_candidate_models,
+                get_genai_client,
+            )
+
+            client = get_genai_client()
+            if client is None:
+                return None
+
+            for mdl in _resolve_candidate_models(fast=True):
+                try:
+                    interaction = client.interactions.create(
+                        model=mdl,
+                        input=query_prompt,
+                        tools=[{"type": "google_search"}],
+                        generation_config={"temperature": 0.1, "max_output_tokens": 2400},
+                        store=False,
+                        timeout=22.0,
+                    )
+                    txt = (getattr(interaction, "output_text", None) or "").strip()
+                    if txt:
+                        return txt
+                except Exception as exc:
+                    if _is_transient_genai_error(exc):
+                        _mark_genai_unhealthy(mdl)
+                        continue
+                    break
+        except Exception:
+            pass
+        return None
+
+    def auto_fetch_and_extract_equity_dossier(
+        self,
+        ticker: str,
+        form_preference: str = "10-K",
+        persist: bool = True,
+    ) -> Tuple[Optional[EquityDocumentaryDossier], str, Dict[str, Any]]:
+        """
+        Automatically fetches ALL relevant documentary sources for an equity:
+          - SEC EDGAR Annual (`10-K` / `20-F`) + Quarterly (`10-Q` / `6-K`)
+          - Recent `8-K` Material Events + `Form 4` / `DEF 14A` metadata
+          - Wall Street Consensus Price Target, Ratings & EPS Revisions (`yfinance`)
+          - Gemini Google Search grounding supplement for non-SEC stocks or missing fields
+        Then extracts and persists the structured `EquityDocumentaryDossier`.
+        """
+        from core.filing_fetcher import fetch_complete_equity_document_bundle
+
+        tk_norm = (ticker or "").strip().upper()
+        if not tk_norm:
+            return None, "Ticker symbol is required.", {}
+
+        pref_order: Tuple[str, ...] = (
+            ("10-Q", "10-K", "20-F") if form_preference == "10-Q" else ("10-K", "20-F", "10-Q")
+        )
+        bundle_text, meta = fetch_complete_equity_document_bundle(tk_norm, preferred_forms=pref_order)
+
+        # Supplement via Google Search grounding when ticker is non-SEC or analyst revisions/targets need enrichment
+        if not meta.get("sec_found") or meta.get("needs_search_enrichment"):
+            search_prompt = (
+                f"Search official latest annual report (10-K, 20-F, or audited annual filing), latest quarterly "
+                f"filing (10-Q/6-K), recent 8-K material events, and Wall Street analyst consensus for ticker '{tk_norm}'. "
+                f"Provide concise verified facts on: legal company name, filing dates, independent auditor firm & opinion, "
+                f"SOX 404(b) internal controls, MD&A volume/price/FX growth decomposition, segment margins, RPO/backlog, "
+                f"CapEx plan, top 3 risk factors, litigation contingencies, Stock-Based Compensation (SBC), ASC 606/IFRS 15 "
+                f"revenue recognition, debt maturity schedule, M&A acquisitions/divestitures/strategic deals (payment structure "
+                f"& goodwill), mean analyst target price USD, Buy/Hold/Sell distribution, and 30d/90d EPS revisions."
+            )
+            grounded_text = self._google_search_fallback_text(search_prompt)
+            if grounded_text:
+                sources_list = list(meta.get("sources_fetched") or [])
+                sources_list.append("Google Search Grounded Filing & Analyst Supplement")
+                meta["sources_fetched"] = sources_list
+                bundle_text = (
+                    (bundle_text + "\n\n=== GOOGLE SEARCH GROUNDED SUPPLEMENT ===\n" + grounded_text)
+                    if bundle_text
+                    else grounded_text
+                )
+                if not meta.get("source_url"):
+                    meta["source_url"] = "Google Search Grounding + Public Consensus"
+
+        if bundle_text:
+            dossier, msg = self.extract_equity_dossier_from_document(
+                ticker=tk_norm,
+                company_name=str(meta.get("company_name", "")),
+                raw_text=bundle_text,
+                persist=persist,
+            )
+            if dossier is not None:
+                sources_str = ", ".join(meta.get("sources_fetched") or [str(meta.get("form", "Multi-Doc"))])
+                return (
+                    dossier,
+                    f"Auto-fetched Complete Suite [{sources_str}] -> {msg}",
+                    meta,
+                )
+            return None, msg, meta
+
+        return None, str(meta.get("error", "Could not fetch equity document suite automatically.")), meta
+
+    def auto_fetch_and_extract_crypto_dossier(
+        self,
+        symbol: str,
+        persist: bool = True,
+    ) -> Tuple[Optional[CryptoDocumentaryDossier], str, Dict[str, Any]]:
+        """
+        Automatically fetches ALL relevant documentary sources for a cryptoasset:
+          - CoinGecko Protocol Metadata + Official Whitepaper / Docs (PDF or HTML)
+          - Live GitHub Engineering Metrics (28d commits, unique active devs, README)
+          - Snapshot GraphQL DAO Governance & Recent Proposals
+          - DeFiLlama Protocol Audits, Staking TVL & Exploits DB
+          - Gemini Google Search grounding supplement (Token Sniffer, audit firms, lockups)
+        Then extracts and persists the structured `CryptoDocumentaryDossier`.
+        """
+        from core.filing_fetcher import fetch_complete_crypto_document_bundle
+
+        raw_sym = (symbol or "").strip().upper()
+        if not raw_sym:
+            return None, "Protocol symbol is required.", {}
+        sym_norm = raw_sym if "-" in raw_sym else f"{raw_sym}-USD"
+
+        ctx_text, wp_pdf, meta = fetch_complete_crypto_document_bundle(sym_norm)
+
+        # Supplement with Google Search grounding for Token Sniffer score, audit firms, DeepDAO, & ve-token lockups
+        search_prompt = (
+            f"Search authoritative protocol documentation for cryptoasset '{sym_norm}'"
+            + (f" ({meta.get('name')})" if meta.get("name") else "")
+            + ": white paper title/authors/year, value proposition, consensus architecture, token value accrual, "
+            "core GitHub repositories (4-week commit activity & monthly active devs), DeepDAO / Snapshot governance status, "
+            "notable recent governance proposals, % of circulating/total supply staked or locked (Skin in the Game), "
+            "Token Sniffer security score (0-100), security audit firms (e.g., Trail of Bits, OpenZeppelin, Spearbit, CertiK), "
+            "and historical exploit/hack record."
+        )
+        grounded_text = self._google_search_fallback_text(search_prompt)
+        if grounded_text:
+            sources_list = list(meta.get("sources_fetched") or [])
+            sources_list.append("Google Search Grounded Protocol & Audit Supplement")
+            meta["sources_fetched"] = sources_list
+            ctx_text = (
+                (ctx_text + "\n\n=== GOOGLE SEARCH GROUNDED AUDIT / GOVERNANCE SUPPLEMENT ===\n" + grounded_text)
+                if ctx_text
+                else grounded_text
+            )
+            if not meta.get("source_url"):
+                meta["source_url"] = "Google Search Grounding + Public APIs"
+
+        if ctx_text or wp_pdf:
+            dossier, msg = self.extract_crypto_dossier_from_document(
+                symbol=sym_norm,
+                name=str(meta.get("name", "")),
+                raw_text=ctx_text,
+                pdf_bytes=wp_pdf,
+                persist=persist,
+            )
+            if dossier is not None:
+                sources_str = ", ".join(meta.get("sources_fetched") or ["Protocol Docs"])
+                return (
+                    dossier,
+                    f"Auto-fetched Complete Suite [{sources_str}] -> {msg}",
+                    meta,
+                )
+            return None, msg, meta
+
+        return None, str(meta.get("error", "Could not fetch crypto protocol suite automatically.")), meta

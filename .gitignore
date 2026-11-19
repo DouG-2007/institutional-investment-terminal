@@ -20,6 +20,13 @@ chrome_profile/
 
 # Bancos de Dados Locais e Chaves Pessoais (Segurança)
 # O repositório inclui a estrutura do banco via código; dados de sessão e credenciais não devem subir:
+.env
+.env.*
+!.env.example
+notifier_config.json
+data_cache/ai_sessions/
+data_cache/custom_filings_cache.json
+data_cache/sec_tickers.json
 *.db-journal
 *.db-wal
 telegram_bot.log

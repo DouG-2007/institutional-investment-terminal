@@ -31,6 +31,8 @@ from core.risk_timing_engine import RiskTimingEngine, RiskLeverageTimingBundle
 from core.deep_dive_engine import DeepDiveEngine, DeepDiveResultBundle
 from core.pdf_exporter import InstitutionalPDFExporter
 from core.background_notifier import BackgroundNotifierEngine
+from core.gemini_client import generate_pdf_executive_synthesis, is_gemini_configured
+from core.ai_analyst import InstitutionalAIAnalyst
 
 
 st.set_page_config(
@@ -342,6 +344,14 @@ def main() -> None:
         st.session_state["refresh_token"] = 0
     if "deep_dive_ticker" not in st.session_state:
         st.session_state["deep_dive_ticker"] = "NVDA"
+    if "ai_chat_history" not in st.session_state:
+        st.session_state["ai_chat_history"] = []
+    if "ai_conversation_id" not in st.session_state:
+        st.session_state["ai_conversation_id"] = None
+    if "ai_pending_prompt" not in st.session_state:
+        st.session_state["ai_pending_prompt"] = None
+    if "ai_pdf_cache" not in st.session_state:
+        st.session_state["ai_pdf_cache"] = {}
 
     port_eng_live = PortfolioEngine()
     db_assets_live = port_eng_live.get_all_assets()
@@ -408,7 +418,11 @@ def main() -> None:
         "⚙️ 2. Portfolio Manager (SQLite CRUD)",
         "🔎 3. Single-Asset Deep Dive (Stock & Crypto Picker)",
         "🎛️ 4. Simulators (Inflow & LTV) & Notifier (ON/OFF)",
+        "🤖 5. AI Portfolio Analyst",
     ])
+
+    gemini_ready = is_gemini_configured()
+    active_master_pdf_bytes = master_pdf_bytes
 
     # ==========================================================================
     # TAB 1: MASTER CONSOLIDATED REPORT CENTRAL EMISSION (.PDF)
@@ -423,11 +437,67 @@ def main() -> None:
 
         st.markdown("<div style='height:0.65rem;'></div>", unsafe_allow_html=True)
 
+        include_ai_summary = st.toggle(
+            "✨ Include Executive AI Thesis & Cross-Asset Risk Synthesis in Master PDF",
+            value=False,
+            disabled=not gemini_ready,
+            key="toggle_include_ai_pdf",
+            help=(
+                "Generates a concise Gemini executive synthesis grounded strictly in pre-computed "
+                "deterministic metrics and embeds it in Section 1 of the PDF."
+                if gemini_ready
+                else "Configure GEMINI_API_KEY in .env to enable optional AI executive synthesis."
+            ),
+        )
+        if not gemini_ready:
+            st.caption("ℹ️ `GEMINI_API_KEY` not detected in `.env` — Master PDF runs in 100% deterministic mode.")
+
+        ai_exec_summary: Optional[Dict[str, Any]] = None
+        if include_ai_summary and gemini_ready:
+            ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}"
+            cached_entry = st.session_state["ai_pdf_cache"].get(ai_cache_key)
+            if cached_entry is None:
+                with st.spinner("Generating grounded Executive AI Thesis for Master PDF..."):
+                    ai_exec_summary = generate_pdf_executive_synthesis(
+                        macro=macro,
+                        portfolio=portfolio,
+                        equities=equities,
+                        cryptos=cryptos,
+                        geo_matrix=bundle["geo_matrix"],
+                        risk_timing=risk_timing,
+                    )
+                    if ai_exec_summary:
+                        ai_pdf_exp = InstitutionalPDFExporter()
+                        ai_pdf_bytes = ai_pdf_exp.generate_pdf_bytes(
+                            macro=macro,
+                            portfolio=portfolio,
+                            equities=equities,
+                            cryptos=cryptos,
+                            eq_filings=bundle["eq_filings"],
+                            cr_filings=bundle["cr_filings"],
+                            geo_matrix=bundle["geo_matrix"],
+                            micro_events=bundle["micro_events"],
+                            stock_screener=bundle["stock_screener"],
+                            crypto_screener=bundle["crypto_screener"],
+                            risk_timing=risk_timing,
+                            ai_executive_summary=ai_exec_summary,
+                        )
+                        st.session_state["ai_pdf_cache"][ai_cache_key] = {
+                            "summary": ai_exec_summary,
+                            "pdf_bytes": ai_pdf_bytes,
+                        }
+                        active_master_pdf_bytes = ai_pdf_bytes
+                    else:
+                        st.warning("⚠️ Could not reach Gemini API for executive summary — falling back gracefully to standard deterministic PDF.")
+            else:
+                ai_exec_summary = cached_entry["summary"]
+                active_master_pdf_bytes = cached_entry["pdf_bytes"]
+
         c_dl1, c_dl2 = st.columns([2, 1])
         with c_dl1:
             st.download_button(
                 label="📥 DOWNLOAD 360° MASTER REPORT (.PDF — ALL 7 SECTIONS)",
-                data=master_pdf_bytes,
+                data=active_master_pdf_bytes,
                 file_name="Master_Institutional_Report_360.pdf",
                 mime="application/pdf",
                 use_container_width=True,
@@ -437,8 +507,17 @@ def main() -> None:
         with c_dl2:
             if st.button("🔄 Recalculate with Live Market Quotes", use_container_width=True, key="btn_main_refresh"):
                 st.cache_data.clear()
+                st.session_state["ai_pdf_cache"] = {}
                 st.session_state["refresh_token"] += 1
                 st.rerun()
+
+        if ai_exec_summary:
+            with st.expander("🧠 Preview Embedded Executive AI Thesis", expanded=False):
+                st.markdown(f"**Macro Regime Thesis:** {ai_exec_summary.get('macro_regime_thesis', '')}")
+                st.markdown(f"**Cross-Asset Risk & LTV Synthesis:** {ai_exec_summary.get('cross_asset_risk_synthesis', '')}")
+                for item in ai_exec_summary.get("key_actionable_priorities", []):
+                    st.markdown(f"- {item}")
+                st.caption(f"Model: `{ai_exec_summary.get('model_used', 'gemini-4-hydrogen')}` — Grounded strictly in deterministic bundle metrics.")
 
         render_section_header(
             "Internal Architecture of the 360° Master Report (.PDF)",
@@ -719,6 +798,163 @@ def main() -> None:
             ])
             render_clean_table(df_dd_val)
 
+            ed_i = dd_res.equity_dossier
+            qs_i = eq_i.qualitative_strategy
+            sm_i = dd_res.corporate_signal_ma
+            if ed_i or sm_i:
+                render_section_header(
+                    f"SEC Filings, Competitive Moat & M&A Dossier — {dd_res.normalized_ticker}",
+                    "Full parity with 360° Master Report (10-K/10-Q/8-K, Footnotes, Porter's 5 Forces, Earnings Call Q&A & M&A)",
+                )
+                ma_deals_disp = (
+                    (getattr(ed_i, "ma_and_strategic_deals", "") if ed_i else "")
+                    or (sm_i.ma_and_strategic_deals if sm_i else "N/A")
+                )
+                ma_pay_disp = (
+                    (getattr(ed_i, "ma_payment_and_goodwill", "") if ed_i else "")
+                    or (f"{sm_i.payment_structure_and_dilution} | {sm_i.goodwill_and_impairment_risk}" if sm_i else "N/A")
+                )
+                rows_eq_doc = []
+                if ed_i:
+                    rows_eq_doc.extend([
+                        {"Pillar": "SEC Filings & SOX 404(b)", "Details": f"{ed_i.filing_form_annual} | {ed_i.filing_form_quarterly} | {ed_i.auditor_firm} — {ed_i.auditor_opinion}"},
+                        {"Pillar": "MD&A & Segment Margins", "Details": f"{ed_i.mda_growth_decomposition} | {ed_i.mda_segment_profitability} | CapEx: {ed_i.mda_capex_plan}"},
+                        {"Pillar": "Forensic Footnotes (Lit / SBC / Debt)", "Details": f"SBC: {ed_i.footnote_sbc_impact} | Debt: {ed_i.footnote_debt_maturity_schedule} | ASC 606: {ed_i.footnote_revenue_recognition}"},
+                    ])
+                rows_eq_doc.extend([
+                    {"Pillar": "Competitive Moat & Porter's 5 Forces", "Details": f"{qs_i['moat_classification']} | {qs_i['porter_5_forces']}"},
+                    {"Pillar": "M&A, Strategic Deals & Goodwill", "Details": f"{ma_deals_disp} — Payment & Goodwill: {ma_pay_disp}"},
+                    {"Pillar": "Earnings Call Guidance & Analyst Q&A", "Details": f"{sm_i.guidance_delta_summary if sm_i else 'N/A'} | Q&A: {sm_i.qa_analyst_clashes if sm_i else 'N/A'}" + (f" | Target: ${ed_i.analyst_target_mean_usd:,.2f} ({ed_i.analyst_recommendations_dist})" if ed_i else "")},
+                ])
+                render_clean_table(pd.DataFrame(rows_eq_doc))
+
+        elif dd_res.asset_class == "CRYPTO" and dd_res.crypto_profile:
+            cp_i = dd_res.crypto_profile
+            cd_i = dd_res.crypto_dossier
+            dv_i = dd_res.crypto_internal_dev
+            tv_i = cp_i.tokenomics_valuation
+            ss_i = cp_i.supply_structure
+            om_i = cp_i.onchain_metrics
+            render_section_header(
+                f"On-Chain Cycle, Protocol Economics, Security & Governance — {dd_res.normalized_ticker}",
+                "Full parity with 360° Master Report (Whitepaper, GitHub, Snapshot/DeepDAO, Audits, Hacks & 30/60/90d Unlocks)",
+            )
+            df_cr_full = pd.DataFrame([
+                {"Pillar": "On-Chain Timing & Valuation", "Details": f"MVRV Z: {om_i['mvrv_z_score']:.2f} | NUPL: {om_i['nupl']:.2f} | aSOPR: {om_i['asopr']:.3f} | 200W SMA: {om_i['price_to_200w_sma_x']:.2f}x | NVT GC: {tv_i['nvt_golden_cross']:+.2f} | NVM: {tv_i['nvm_ratio']:.2f}"},
+                {"Pillar": "Real Economy & Token Unlocks", "Details": f"Real Earnings: USD {tv_i['protocol_real_earnings_m']:+,.1f}M/yr | Real Yield: {tv_i['real_yield_pct']:+.2f}% | 30d Unlocks: {ss_i['unlock_pct_of_circ']:.2f}% Circ (Post-Dilution Px: ${ss_i['theoretical_post_unlock_price_usd']:,.2f})"},
+                {"Pillar": "Whitepaper & Value Accrual", "Details": f"{cd_i.wp_title_author if cd_i else 'N/A'} — {cd_i.wp_value_accrual_mechanism if cd_i else ''}"},
+                {"Pillar": "GitHub & Security Audits", "Details": f"Repos: {cd_i.github_core_repos if cd_i else 'N/A'} ({cd_i.github_commits_4w if cd_i else 0} commits/4w, {cd_i.github_active_devs_monthly if cd_i else 0} Devs) | Sniffer: {cd_i.token_sniffer_score if cd_i else 0}/100 | Audits: {cd_i.audit_firms if cd_i else 'N/A'} | Exploits: {cd_i.exploit_history if cd_i else 'N/A'}"},
+                {"Pillar": "DAO Governance & Upgrades / Unlocks", "Details": f"{cd_i.deepdao_status if cd_i else ''} | Proposals: {cd_i.recent_governance_proposals if cd_i else ''} | Upgrades: {dv_i.upcoming_protocol_upgrades if dv_i else ''}"},
+            ])
+            render_clean_table(df_cr_full)
+
+        with st.expander("📄 Dynamic Filing Dossier Extractor (Auto-Fetch All SEC / Crypto Docs or Upload PDF)", expanded=False):
+            if not gemini_ready:
+                st.info(
+                    "ℹ️ `GEMINI_API_KEY` is not set in `.env`. Static verified filings remain active; "
+                    "add your API key to `.env` to auto-fetch and structure full equity/crypto document suites."
+                )
+            default_kind_idx = 1 if dd_res.asset_class == "CRYPTO" else 0
+            ex_c1, ex_c2 = st.columns([1.4, 1])
+            with ex_c1:
+                ex_kind = st.selectbox(
+                    "Document Suite Type",
+                    [
+                        "Equity Full Suite (10-K/20-F + 10-Q + 8-K + Form 4/DEF 14A + Analysts)",
+                        "Crypto Full Suite (Whitepaper + GitHub + Snapshot DAO + DeFiLlama Audits/Hacks)",
+                    ],
+                    index=default_kind_idx,
+                    key="ex_doc_kind",
+                )
+            with ex_c2:
+                ex_ticker = st.text_input("Target Ticker / Symbol", value=dd_res.normalized_ticker, key="ex_doc_ticker")
+
+            if st.button(
+                "🌐 Auto-Fetch ALL Official Docs & Extract Complete Dossier (No Download Needed)",
+                key="btn_auto_fetch_dossier",
+                type="primary",
+                use_container_width=True,
+                disabled=not gemini_ready,
+            ):
+                fil_eng = FilingsEngine()
+                with st.spinner(f"Fetching complete multi-document suite for {ex_ticker.strip().upper()} and structuring via Gemini..."):
+                    if ex_kind.startswith("Equity"):
+                        auto_dossier, auto_msg, auto_meta = fil_eng.auto_fetch_and_extract_equity_dossier(
+                            ticker=ex_ticker,
+                            persist=True,
+                        )
+                    else:
+                        auto_dossier, auto_msg, auto_meta = fil_eng.auto_fetch_and_extract_crypto_dossier(
+                            symbol=ex_ticker,
+                            persist=True,
+                        )
+                if auto_dossier is not None:
+                    st.success(auto_msg)
+                    if auto_meta.get("sources_fetched"):
+                        st.caption("Sources Aggregated: " + " | ".join(auto_meta["sources_fetched"]))
+                    if auto_meta.get("source_url"):
+                        st.caption(f"Primary URL: {auto_meta['source_url']}")
+                    st.cache_data.clear()
+                    from dataclasses import asdict
+                    d_map = asdict(auto_dossier)
+                    df_ex = pd.DataFrame([{"Dossier Field": k, "Extracted Value": str(v)} for k, v in d_map.items()])
+                    render_clean_table(df_ex)
+                else:
+                    st.warning(auto_msg)
+
+            st.markdown("---")
+            st.caption("Optional manual mode: upload a local PDF/TXT or paste custom filing/transcript text below.")
+            ex_name = st.text_input("Company / Protocol Name (Optional for manual mode)", value="", key="ex_doc_name")
+            uploaded_doc = st.file_uploader(
+                "Upload PDF or TXT filing/whitepaper (optional)",
+                type=["pdf", "txt"],
+                key="ex_doc_uploader",
+            )
+            pasted_text = st.text_area(
+                "Or paste filing / MD&A / Risk Factors / Whitepaper excerpt text",
+                height=120,
+                placeholder="Paste Item 1A, Item 7 MD&A, SOX 404(b), earnings release, or protocol tokenomics whitepaper text...",
+                key="ex_doc_textarea",
+            )
+            if st.button("✨ Extract from Uploaded / Pasted Document", key="btn_extract_dossier"):
+                pdf_payload = None
+                txt_payload = pasted_text.strip() or None
+                if uploaded_doc is not None:
+                    raw_bytes = uploaded_doc.read()
+                    if uploaded_doc.name.lower().endswith(".pdf"):
+                        pdf_payload = raw_bytes
+                    else:
+                        txt_payload = raw_bytes.decode("utf-8", errors="replace")
+
+                fil_eng = FilingsEngine()
+                with st.spinner(f"Extracting structured dossier for {ex_ticker.strip().upper()}..."):
+                    if ex_kind.startswith("Equity"):
+                        dossier_out, status_msg = fil_eng.extract_equity_dossier_from_document(
+                            ticker=ex_ticker,
+                            company_name=ex_name,
+                            raw_text=txt_payload,
+                            pdf_bytes=pdf_payload,
+                            persist=True,
+                        )
+                    else:
+                        dossier_out, status_msg = fil_eng.extract_crypto_dossier_from_document(
+                            symbol=ex_ticker,
+                            name=ex_name,
+                            raw_text=txt_payload,
+                            pdf_bytes=pdf_payload,
+                            persist=True,
+                        )
+
+                if dossier_out is not None:
+                    st.success(status_msg)
+                    st.cache_data.clear()
+                    from dataclasses import asdict
+                    d_map = asdict(dossier_out)
+                    df_ex = pd.DataFrame([{"Dossier Field": k, "Extracted Value": str(v)} for k, v in d_map.items()])
+                    render_clean_table(df_ex)
+                else:
+                    st.warning(status_msg)
+
     # ==========================================================================
     # TAB 4: INTERACTIVE SIMULATORS (SHANNON INFLOW & LTV STRESS-TEST) & NOTIFIER
     # ==========================================================================
@@ -820,6 +1056,16 @@ def main() -> None:
             tg_token = st.text_input("Telegram Bot Token (Optional — fill when ready)", value=notif_cfg.telegram_bot_token, type="password")
             tg_chat = st.text_input("Telegram Chat ID (Optional)", value=notif_cfg.telegram_chat_id)
             dc_hook = st.text_input("Discord Webhook URL (Optional)", value=notif_cfg.discord_webhook_url, type="password")
+            enable_ai_briefing_now = st.toggle(
+                "✨ Enable AI Executive Interpretation on Morning Briefing",
+                value=bool(notif_cfg.enable_ai_briefing),
+                disabled=not gemini_ready,
+                help=(
+                    "Interprets already-computed alert numbers concisely via Gemini before dispatching."
+                    if gemini_ready
+                    else "Configure GEMINI_API_KEY in .env to enable AI briefing interpretation."
+                ),
+            )
 
             if st.button("💾 Save Notifier Settings (ON/OFF)", use_container_width=True, type="primary"):
                 notif_cfg.enabled = enabled_now
@@ -827,9 +1073,23 @@ def main() -> None:
                 notif_cfg.telegram_bot_token = tg_token
                 notif_cfg.telegram_chat_id = tg_chat
                 notif_cfg.discord_webhook_url = dc_hook
+                notif_cfg.enable_ai_briefing = bool(enable_ai_briefing_now)
                 notifier_eng.save_config(notif_cfg)
                 st.success(f"Notifier state saved: {'ENABLED (ON)' if enabled_now else 'DISABLED (OFF — Silent Mode)'}!")
                 st.rerun()
+
+            if st.button("👁️ Preview Morning Briefing Payload", use_container_width=True, key="btn_preview_briefing"):
+                with st.spinner("Building morning briefing payload..."):
+                    preview_res = notifier_eng.build_morning_briefing_payload(
+                        macro=macro,
+                        portfolio=portfolio,
+                        equities=equities,
+                        cryptos=cryptos,
+                        micro_events=bundle["micro_events"],
+                        risk_timing=risk_timing,
+                        use_ai=bool(enable_ai_briefing_now and gemini_ready),
+                    )
+                st.session_state["notifier_preview"] = preview_res
 
         with n_col2:
             status_badge = "ENABLED (ON — Active Monitoring)" if notif_cfg.enabled else "DISABLED (OFF — Silent Mode / Pre-Investment)"
@@ -843,6 +1103,148 @@ def main() -> None:
                 """,
                 unsafe_allow_html=True,
             )
+            if "notifier_preview" in st.session_state and st.session_state["notifier_preview"]:
+                prev = st.session_state["notifier_preview"]
+                with st.expander(
+                    f"📨 Briefing Preview ({prev.get('alerts_count', 0)} signals | AI Enhanced: {'YES' if prev.get('ai_enhanced') else 'NO'})",
+                    expanded=True,
+                ):
+                    st.markdown(prev.get("formatted_message", ""))
+
+    # ==========================================================================
+    # TAB 5: AI PORTFOLIO ANALYST (READ-ONLY GOOGLE ANTIGRAVITY SDK AGENT)
+    # ==========================================================================
+    with tabs[4]:
+        render_section_header(
+            "AI Portfolio Analyst — Read-Only Google Antigravity Agent",
+            "Conversational quantitative & forensic analyst wired exclusively to deterministic core/ Python tools (zero shell/file/SQLite write access)",
+        )
+
+        analyst = InstitutionalAIAnalyst()
+        agent_ok, agent_status_msg = analyst.is_available()
+
+        top_a1, top_a2 = st.columns([3, 1])
+        with top_a1:
+            if agent_ok:
+                st.markdown(
+                    f'<div class="insight-callout" style="border-left-color:#10B981;">'
+                    f'<strong>Agent Status:</strong> <code>{html.escape(agent_status_msg)}</code><br>'
+                    f'• Built-in file/shell/web/subagent tools: <strong>DISABLED</strong> (<code>BuiltinTools.none()</code> + <code>policy.deny_all()</code>).<br>'
+                    f'• Active deterministic tools: <code>get_portfolio_snapshot</code>, <code>audit_single_asset</code>, '
+                    f'<code>get_macro_and_geopolitics</code>, <code>simulate_shannon_inflow</code>, <code>simulate_ltv_stress_test</code>, <code>run_opportunity_screener</code>.'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f'<div class="insight-callout" style="border-left-color:#F59E0B;">'
+                    f'<strong>AI Analyst Standby Mode:</strong> {html.escape(agent_status_msg)}<br>'
+                    f'Add <code>GEMINI_API_KEY=...</code> to your root <code>.env</code> file to activate live conversational reasoning. '
+                    f'All deterministic quantitative modules (Tabs 1–4 and 360° Master PDF export) remain 100% operational.'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+        with top_a2:
+            model_options = {
+                "Auto (Smart Fallback)": "auto",
+                "gemini-3.5-flash-lite (Fast / Free-Tier)": "gemini-3.5-flash-lite",
+                "gemini-3.1-flash-lite (Ultra-Fast)": "gemini-3.1-flash-lite",
+                "gemini-3.8-flash (Antigravity Default)": "gemini-3.8-flash",
+                "gemini-4-hydrogen": "gemini-4-hydrogen",
+            }
+            chosen_label = st.selectbox(
+                "Agent Model",
+                options=list(model_options.keys()),
+                index=0,
+                key="ai_agent_model_select",
+            )
+            selected_agent_model = model_options[chosen_label]
+            if st.button("🗑️ New Chat Session", use_container_width=True, key="btn_reset_ai_chat"):
+                st.session_state["ai_chat_history"] = []
+                st.session_state["ai_conversation_id"] = None
+                st.session_state["ai_pending_prompt"] = None
+                st.rerun()
+
+        st.markdown("##### ⚡ Quick Institutional Prompts")
+        qp1, qp2, qp3, qp4 = st.columns(4)
+        with qp1:
+            if st.button("📊 Audit Portfolio Look-Through & Risks", use_container_width=True, disabled=not agent_ok, key="qp_port"):
+                st.session_state["ai_pending_prompt"] = (
+                    "Audit our current portfolio allocation, top ETF look-through overlap exposures, "
+                    "macro cycle regime, and highlight the key geopolitical/valuation risks."
+                )
+        with qp2:
+            if st.button("💧 Simulate $15k Shannon Inflow", use_container_width=True, disabled=not agent_ok, key="qp_shannon"):
+                st.session_state["ai_pending_prompt"] = (
+                    "Simulate deploying a fresh $15,000 USD cash inflow using Shannon's Demon (zero tax-drag). "
+                    "Show exact suggested USD allocations and current Sovereign Multiple metrics for qualified holdings."
+                )
+        with qp3:
+            if st.button("🛡️ Stress-Test -35% Eq / -50% BTC LTV", use_container_width=True, disabled=not agent_ok, key="qp_ltv"):
+                st.session_state["ai_pending_prompt"] = (
+                    "Run a convex LTV stress test with a -35% shock on equities/ETFs and a -50% shock on Bitcoin "
+                    "from a 20% initial LTV. Does it breach the 50% Hard-Cap and what is the estimated Aave V3 Health Factor?"
+                )
+        with qp4:
+            if st.button("🔎 Screen Best 5-Filter Candidates", use_container_width=True, disabled=not agent_ok, key="qp_screen"):
+                st.session_state["ai_pending_prompt"] = (
+                    "Run the 5-filter quantitative opportunity screener for both stocks and cryptoassets, "
+                    "and rank candidates by framework discipline (Sloan, CFO/EBITDA, ROIC vs WACC, g_impl vs g_fund, Real Earnings, MVRV Z)."
+                )
+
+        for msg in st.session_state["ai_chat_history"]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+                meta_parts = []
+                if msg.get("model"):
+                    meta_parts.append(f"Model: `{msg['model']}`")
+                if msg.get("tools"):
+                    meta_parts.append("Deterministic tools consulted: " + ", ".join(f"`{t}`" for t in msg["tools"]))
+                if meta_parts:
+                    st.caption(" | ".join(meta_parts))
+
+        typed_chat = st.chat_input(
+            "Ask the AI Portfolio Analyst (e.g., Audit NVDA forensic health, compare JPM vs NU, or stress-test LTV)...",
+            disabled=not agent_ok,
+        )
+        active_prompt = st.session_state.pop("ai_pending_prompt", None) or typed_chat
+
+        if active_prompt and agent_ok:
+            st.session_state["ai_chat_history"].append({"role": "user", "content": active_prompt})
+            with st.chat_message("user"):
+                st.markdown(active_prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Consulting deterministic engines via Google Antigravity SDK..."):
+                    turn_res = analyst.ask(
+                        question=active_prompt,
+                        conversation_id=st.session_state.get("ai_conversation_id"),
+                        capital_usd=capital_usd,
+                        preferred_model=selected_agent_model,
+                    )
+                if turn_res.error:
+                    err_text = f"⚠️ **AI Analyst Notice:** {turn_res.error}"
+                    st.warning(err_text)
+                    st.session_state["ai_chat_history"].append({"role": "assistant", "content": err_text, "tools": turn_res.tools_invoked})
+                else:
+                    if turn_res.conversation_id:
+                        st.session_state["ai_conversation_id"] = turn_res.conversation_id
+                    st.markdown(turn_res.answer_text)
+                    meta_parts = []
+                    if turn_res.model_used:
+                        meta_parts.append(f"Model: `{turn_res.model_used}`")
+                    if turn_res.tools_invoked:
+                        meta_parts.append("Deterministic tools consulted: " + ", ".join(f"`{t}`" for t in turn_res.tools_invoked))
+                    if meta_parts:
+                        st.caption(" | ".join(meta_parts))
+                    st.session_state["ai_chat_history"].append(
+                        {
+                            "role": "assistant",
+                            "content": turn_res.answer_text,
+                            "tools": turn_res.tools_invoked,
+                            "model": turn_res.model_used,
+                        }
+                    )
 
 
 if __name__ == "__main__":
