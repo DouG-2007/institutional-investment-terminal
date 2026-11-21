@@ -10,11 +10,15 @@ MODULE 1.4 & MODULE 6: PORTFOLIO OVERVIEW, DYNAMIC PORTFOLIO MANAGER (SQLite CRU
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+import csv
+import datetime
+import io
 import json
 import os
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import yfinance as yf
 from core.market_data import fetch_all_quotes_parallel
@@ -213,9 +217,18 @@ class PortfolioEngine:
         self.db_path = os.path.join(os.path.dirname(os.path.abspath(config_path)), "portfolio_store.db")
         self._init_sqlite_db()
 
+    @contextmanager
+    def _connect(self):
+        conn = sqlite3.connect(self.db_path)
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_sqlite_db(self) -> None:
         """Inicializa o banco SQLite local e popula a partir do JSON se estiver vazio."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS portfolio_assets (
@@ -232,6 +245,20 @@ class PortfolioEngine:
                     sell_rule TEXT,
                     yield_mechanism TEXT,
                     display_order INTEGER DEFAULT 999
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS transactions_ledger (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tx_date TEXT NOT NULL,
+                    ticker TEXT NOT NULL,
+                    tx_type TEXT NOT NULL,
+                    quantity REAL NOT NULL,
+                    price_usd REAL NOT NULL,
+                    fee_usd REAL DEFAULT 0.0,
+                    notes TEXT DEFAULT ''
                 )
                 """
             )
@@ -296,7 +323,7 @@ class PortfolioEngine:
             pass
 
     def get_all_assets_from_db(self) -> List[Dict[str, Any]]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT * FROM portfolio_assets ORDER BY display_order ASC, ticker ASC"
@@ -438,7 +465,7 @@ class PortfolioEngine:
         fp = fair_price if (fair_price and fair_price > 0) else DEFAULT_SPOT_PRICES.get(tk, max(10.0, avg_buy_price * 1.15))
         role_desc = role_description or f"Strategic position ({category} • {sector_vertical}) monitored by Value Investing Framework."
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             existing = conn.execute("SELECT display_order, yield_mechanism FROM portfolio_assets WHERE ticker = ?", (tk,)).fetchone()
             disp_order = existing[0] if existing else 500
             fallback_yield = "Eligible collateral for Convex LTV." if ltv_turbo_eligible else "Compounded value generation / Staking yield."
@@ -478,7 +505,7 @@ class PortfolioEngine:
 
     def remove_asset(self, ticker: str) -> None:
         tk = ticker.strip().upper()
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("DELETE FROM portfolio_assets WHERE ticker = ?", (tk,))
             conn.commit()
         self._sync_sqlite_to_json()
@@ -488,7 +515,7 @@ class PortfolioEngine:
         total = sum(a["target_weight_pct"] for a in assets)
         if total <= 0:
             return
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             running_sum = 0.0
             for idx, a in enumerate(assets):
                 if idx < len(assets) - 1:
@@ -502,6 +529,243 @@ class PortfolioEngine:
                 )
             conn.commit()
         self._sync_sqlite_to_json()
+
+    # ==========================================================================
+    # REAL CUSTODY TRANSACTIONS LEDGER & CSV IMPORT
+    # ==========================================================================
+    def add_transaction(
+        self,
+        tx_date: str,
+        ticker: str,
+        tx_type: str,
+        quantity: float,
+        price_usd: float,
+        fee_usd: float = 0.0,
+        notes: str = "",
+    ) -> int:
+        tk = (ticker or "").strip().upper()
+        ttype = (tx_type or "BUY").strip().upper()
+        if ttype not in ("BUY", "SELL", "DIVIDEND", "STAKING"):
+            raise ValueError(f"Unsupported tx_type '{tx_type}'. Use BUY, SELL, DIVIDEND, or STAKING.")
+        qty = float(quantity)
+        px = float(price_usd)
+        fee = max(0.0, float(fee_usd or 0.0))
+        if not tk or qty <= 0 or px < 0:
+            raise ValueError("Ticker, positive quantity, and non-negative price_usd are required.")
+
+        dt_clean = (tx_date or datetime.date.today().isoformat()).strip()[:10]
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO transactions_ledger (tx_date, ticker, tx_type, quantity, price_usd, fee_usd, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (dt_clean, tk, ttype, qty, px, fee, (notes or "").strip()),
+            )
+            conn.commit()
+            return int(cur.lastrowid or 0)
+
+    def get_transactions(self, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            if ticker and ticker.strip():
+                rows = conn.execute(
+                    "SELECT * FROM transactions_ledger WHERE ticker = ? ORDER BY tx_date ASC, id ASC",
+                    (ticker.strip().upper(),),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM transactions_ledger ORDER BY tx_date ASC, id ASC"
+                ).fetchall()
+        return [
+            {
+                "id": int(r["id"]),
+                "tx_date": str(r["tx_date"]),
+                "ticker": str(r["ticker"]),
+                "tx_type": str(r["tx_type"]),
+                "quantity": float(r["quantity"]),
+                "price_usd": float(r["price_usd"]),
+                "fee_usd": float(r["fee_usd"] or 0.0),
+                "notes": str(r["notes"] or ""),
+            }
+            for r in rows
+        ]
+
+    def delete_transaction(self, tx_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM transactions_ledger WHERE id = ?", (int(tx_id),))
+            conn.commit()
+
+    def compute_ledger_summary(self, live_prices: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+        """Computes per-ticker weighted average cost, net custody units, realized P&L & income."""
+        txs = self.get_transactions()
+        if not txs:
+            return {
+                "has_transactions": False,
+                "total_transactions": 0,
+                "total_market_value_usd": 0.0,
+                "total_cost_basis_usd": 0.0,
+                "total_unrealized_pnl_usd": 0.0,
+                "total_realized_pnl_usd": 0.0,
+                "total_income_usd": 0.0,
+                "by_ticker": {},
+            }
+
+        px_map = dict(live_prices or {})
+        missing = [t["ticker"] for t in txs if t["ticker"] not in px_map]
+        if missing:
+            try:
+                px_map.update(fetch_all_quotes_parallel(list(dict.fromkeys(missing))))
+            except Exception:
+                pass
+
+        state: Dict[str, Dict[str, float]] = {}
+        for t in txs:
+            tk = t["ticker"]
+            acc = state.setdefault(
+                tk,
+                {
+                    "units": 0.0,
+                    "cost_basis_usd": 0.0,
+                    "realized_pnl_usd": 0.0,
+                    "income_usd": 0.0,
+                    "fees_usd": 0.0,
+                },
+            )
+            qty = t["quantity"]
+            px = t["price_usd"]
+            fee = t["fee_usd"]
+            acc["fees_usd"] += fee
+
+            if t["tx_type"] == "BUY":
+                acc["units"] += qty
+                acc["cost_basis_usd"] += (qty * px) + fee
+            elif t["tx_type"] == "SELL":
+                if acc["units"] > 0:
+                    sell_qty = min(qty, acc["units"])
+                    avg_cost = acc["cost_basis_usd"] / acc["units"]
+                    proceeds = (sell_qty * px) - fee
+                    cost_sold = sell_qty * avg_cost
+                    acc["realized_pnl_usd"] += proceeds - cost_sold
+                    acc["units"] = max(0.0, acc["units"] - sell_qty)
+                    acc["cost_basis_usd"] = max(0.0, acc["cost_basis_usd"] - cost_sold)
+            elif t["tx_type"] in ("DIVIDEND", "STAKING"):
+                # Supports logging total dividend cash (qty=1, price=cash) or per-unit distribution
+                acc["income_usd"] += (qty * px) - fee
+
+        by_ticker: Dict[str, Dict[str, Any]] = {}
+        tot_mv = 0.0
+        tot_cb = 0.0
+        tot_real = 0.0
+        tot_inc = 0.0
+
+        for tk, acc in state.items():
+            units = round(acc["units"], 6)
+            cb = round(acc["cost_basis_usd"], 2)
+            avg_px = (cb / units) if units > 0 else 0.0
+            spot = float(px_map.get(tk) or DEFAULT_SPOT_PRICES.get(tk) or avg_px)
+            mv = round(units * spot, 2)
+            unreal = round(mv - cb, 2)
+            unreal_pct = round(((mv / cb) - 1.0) * 100.0, 2) if cb > 0 else 0.0
+
+            by_ticker[tk] = {
+                "ticker": tk,
+                "net_quantity": units,
+                "avg_buy_price_usd": round(avg_px, 4),
+                "spot_price_usd": round(spot, 4),
+                "market_value_usd": mv,
+                "cost_basis_usd": cb,
+                "unrealized_pnl_usd": unreal,
+                "unrealized_pnl_pct": unreal_pct,
+                "realized_pnl_usd": round(acc["realized_pnl_usd"], 2),
+                "income_usd": round(acc["income_usd"], 2),
+                "fees_usd": round(acc["fees_usd"], 2),
+            }
+            tot_mv += mv
+            tot_cb += cb
+            tot_real += acc["realized_pnl_usd"]
+            tot_inc += acc["income_usd"]
+
+        return {
+            "has_transactions": True,
+            "total_transactions": len(txs),
+            "total_market_value_usd": round(tot_mv, 2),
+            "total_cost_basis_usd": round(tot_cb, 2),
+            "total_unrealized_pnl_usd": round(tot_mv - tot_cb, 2),
+            "total_realized_pnl_usd": round(tot_real, 2),
+            "total_income_usd": round(tot_inc, 2),
+            "by_ticker": by_ticker,
+        }
+
+    def import_assets_from_csv(self, csv_bytes: bytes) -> Tuple[int, List[str]]:
+        """Imports or updates portfolio holdings from CSV bytes (`ticker` column required)."""
+        text = csv_bytes.decode("utf-8-sig", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
+        count = 0
+        errors: List[str] = []
+        for idx, row in enumerate(reader, 2):
+            norm_row = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
+            tk = norm_row.get("ticker", "").upper()
+            if not tk:
+                errors.append(f"Row {idx}: missing ticker.")
+                continue
+            try:
+                w = float(norm_row.get("target_weight_pct") or norm_row.get("weight") or 2.5)
+                avg_px = float(norm_row.get("avg_buy_price") or norm_row.get("avg_price") or 0.0)
+                ltv_raw = norm_row.get("ltv_turbo_eligible", "true").lower()
+                ltv_ok = ltv_raw in ("1", "true", "yes", "y", "sim")
+                cat_ui = norm_row.get("asset_class") or norm_row.get("category") or "Stock"
+                sec_ui = norm_row.get("sector_vertical") or norm_row.get("sector") or ""
+                if cat_ui in ("Hard-Asset Stock", "Hard-Asset ETF", "Crypto BTC", "Crypto Altcoin"):
+                    self.upsert_asset(
+                        ticker=tk,
+                        name=norm_row.get("name") or tk,
+                        category=cat_ui,
+                        sector_vertical=sec_ui or "TECH_HIGH_GROWTH",
+                        target_weight_pct=w,
+                        avg_buy_price=avg_px,
+                        ltv_turbo_eligible=ltv_ok,
+                        role_description=norm_row.get("role_description") or None,
+                    )
+                else:
+                    self.upsert_asset(
+                        ticker=tk,
+                        name=norm_row.get("name") or tk,
+                        asset_class_ui=cat_ui,
+                        sector_ui=sec_ui,
+                        target_weight_pct=w,
+                        avg_buy_price=avg_px,
+                        ltv_turbo_eligible=ltv_ok,
+                        role_description=norm_row.get("role_description") or None,
+                    )
+                count += 1
+            except Exception as exc:
+                errors.append(f"Row {idx} ({tk}): {exc}")
+        return count, errors
+
+    def import_transactions_from_csv(self, csv_bytes: bytes) -> Tuple[int, List[str]]:
+        """Imports buy/sell/dividend/staking rows from CSV bytes into `transactions_ledger`."""
+        text = csv_bytes.decode("utf-8-sig", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
+        count = 0
+        errors: List[str] = []
+        for idx, row in enumerate(reader, 2):
+            norm_row = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
+            tk = norm_row.get("ticker", "").upper()
+            try:
+                self.add_transaction(
+                    tx_date=norm_row.get("tx_date") or norm_row.get("date") or datetime.date.today().isoformat(),
+                    ticker=tk,
+                    tx_type=norm_row.get("tx_type") or norm_row.get("type") or "BUY",
+                    quantity=float(norm_row.get("quantity") or norm_row.get("qty") or 0.0),
+                    price_usd=float(norm_row.get("price_usd") or norm_row.get("price") or 0.0),
+                    fee_usd=float(norm_row.get("fee_usd") or norm_row.get("fee") or 0.0),
+                    notes=norm_row.get("notes") or "",
+                )
+                count += 1
+            except Exception as exc:
+                errors.append(f"Row {idx} ({tk or '?'}): {exc}")
+        return count, errors
 
     def load_config(self) -> Dict[str, Any]:
         assets = self.get_all_assets_from_db()
@@ -529,29 +793,6 @@ class PortfolioEngine:
         etf_weights: Dict[str, float] = {}
         direct_stock_weights: Dict[str, Dict[str, Any]] = {}
 
-        # Simulates minor organic weight drift vs target weight to enrich Shannon Inflow analysis
-        drift_simulation = {
-            "BTC-USD": +1.10,
-            "ETH-USD": -0.65,
-            "SOL-USD": +0.25,
-            "AAVE-USD": -0.45,
-            "SPY": +0.10,
-            "QQQ": +0.20,
-            "SMH": -0.35,
-            "ITA": +0.15,
-            "QLD": +0.30,
-            "AAPL": -0.10,
-            "MSFT": -0.25,
-            "GOOGL": -0.35,
-            "AMZN": -0.20,
-            "NVDA": +0.45,
-            "META": +0.15,
-            "V": -0.15,
-            "JPM": +0.10,
-            "WMT": +0.05,
-            "DBSDY": -0.35,
-        }
-
         target_weight_sum = round(sum(float(a.get("target_weight_pct", 0.0)) for a in assets_cfg), 3)
         diff_100 = round(target_weight_sum - 100.0, 3)
         is_valid_100 = abs(diff_100) <= 0.05
@@ -562,24 +803,63 @@ class PortfolioEngine:
         else:
             weight_msg = f"⚠️ UNDER-ALLOCATION WARNING: Target Weight Sum at {target_weight_sum:.2f}% ({abs(diff_100):.2f}% short of 100%)"
 
+        ledger_summary = self.compute_ledger_summary(live_prices=live_prices)
+        ledger_by_tk = ledger_summary.get("by_ticker") or {}
+        use_custody_ledger = bool(ledger_summary.get("has_transactions") and float(ledger_summary.get("total_market_value_usd", 0.0)) > 0.0)
+
+        # First pass: determine real or organic mark-to-market dollar value per holding
+        precomputed: List[Dict[str, Any]] = []
+        total_raw_mv = 0.0
+        for a in assets_cfg:
+            tk = a["ticker"]
+            t_w = float(a.get("target_weight_pct", 2.5))
+            px = live_prices.get(tk) or DEFAULT_SPOT_PRICES.get(tk) or float(a.get("fair_price", 100.0))
+            led_item = ledger_by_tk.get(tk)
+            if use_custody_ledger and led_item and float(led_item.get("net_quantity", 0.0)) > 0:
+                avg_buy = float(led_item["avg_buy_price_usd"]) if float(led_item["avg_buy_price_usd"]) > 0 else px
+                raw_mv = float(led_item["market_value_usd"])
+                qty_override = float(led_item["net_quantity"])
+            else:
+                avg_buy = float(a.get("avg_buy_price", DEFAULT_AVG_BUY_PRICES.get(tk, px * 0.82)))
+                if avg_buy <= 0:
+                    avg_buy = px
+                raw_mv = max(1.0, (t_w / 100.0) * capital_usd * (px / avg_buy))
+                qty_override = None
+            total_raw_mv += raw_mv
+            precomputed.append({
+                "asset": a,
+                "tk": tk,
+                "t_w": t_w,
+                "px": px,
+                "avg_buy": avg_buy,
+                "raw_mv": raw_mv,
+                "qty_override": qty_override,
+            })
+
         ltv_eligible_stocks_w = 0.0
         ltv_eligible_btc_w = 0.0
         total_pnl_usd = 0.0
         total_cost_basis_usd = 0.0
+        norm_target = target_weight_sum if (target_weight_sum > 0 and not use_custody_ledger) else 100.0
 
-        for a in assets_cfg:
-            tk = a["ticker"]
-            t_w = float(a.get("target_weight_pct", 2.5))
-            drift = drift_simulation.get(tk, -0.10)
-            c_w = round(max(0.05, t_w + drift), 3)
-            px = live_prices.get(tk) or DEFAULT_SPOT_PRICES.get(tk) or float(a.get("fair_price", 100.0))
-            avg_buy = float(a.get("avg_buy_price", DEFAULT_AVG_BUY_PRICES.get(tk, px * 0.82)))
-            if avg_buy <= 0:
-                avg_buy = px
+        for item in precomputed:
+            a = item["asset"]
+            tk = item["tk"]
+            t_w = item["t_w"]
+            px = item["px"]
+            avg_buy = item["avg_buy"]
+            raw_mv = item["raw_mv"]
+            qty_override = item["qty_override"]
+
+            c_w = round((raw_mv / max(1.0, total_raw_mv)) * norm_target, 3) if total_raw_mv > 0 else round(t_w, 3)
             ltv_ok = bool(a.get("ltv_turbo_eligible", True))
 
-            alloc_usd = (c_w / 100.0) * capital_usd
-            qty = alloc_usd / px if px > 0 else 0.0
+            if qty_override is not None:
+                qty = qty_override
+                alloc_usd = qty * px
+            else:
+                alloc_usd = (c_w / 100.0) * capital_usd
+                qty = alloc_usd / px if px > 0 else 0.0
             cost_basis_usd = qty * avg_buy
             pnl_usd = alloc_usd - cost_basis_usd
             pnl_pct = ((px / avg_buy) - 1.0) * 100.0 if avg_buy > 0 else 0.0
@@ -587,8 +867,8 @@ class PortfolioEngine:
             total_pnl_usd += pnl_usd
             total_cost_basis_usd += cost_basis_usd
 
-            cat = a.get("category", "Hard-Asset Stock")
-            sec_v = a.get("sector_vertical", "OTHER")
+            cat = str(a.get("category", "Hard-Asset Stock"))
+            sec_v = str(a.get("sector_vertical", "OTHER"))
 
             if ltv_ok:
                 if "Crypto" in cat:
@@ -617,9 +897,9 @@ class PortfolioEngine:
                 )
             )
 
-            if cat == "Hard-Asset ETF":
+            if "ETF" in cat.upper():
                 etf_weights[tk] = t_w
-            elif cat == "Hard-Asset Stock":
+            elif "Crypto" not in cat:
                 direct_stock_weights[tk] = {
                     "name": a.get("name", tk),
                     "sector": sec_v,
@@ -631,6 +911,25 @@ class PortfolioEngine:
         # ======================================================================
         # ETF LOOK-THROUGH DECOMPOSITION (SPY, QQQ, SMH, ITA, and 2x QLD)
         # ======================================================================
+        # Overlay live ETF top holdings (%) onto a shallow copy of ETF_CONSTITUENTS_MAP
+        etf_map: Dict[str, Dict[str, Dict[str, Any]]] = {
+            etf_k: {c_k: dict(c_v) for c_k, c_v in c_dict.items()}
+            for etf_k, c_dict in ETF_CONSTITUENTS_MAP.items()
+        }
+        try:
+            from core.live_quant_fetcher import fetch_live_etf_constituents
+
+            live_etf_w = fetch_live_etf_constituents(("SPY", "QQQ", "SMH", "ITA"))
+            for etf_k, w_dict in live_etf_w.items():
+                if etf_k in etf_map and w_dict:
+                    for c_tk, c_w in w_dict.items():
+                        if c_tk in etf_map[etf_k]:
+                            etf_map[etf_k][c_tk]["weight_pct"] = c_w
+                        else:
+                            etf_map[etf_k][c_tk] = {"name": c_tk, "sector": "Equity", "weight_pct": c_w}
+        except Exception:
+            pass
+
         w_spy = etf_weights.get("SPY", 0.0)
         w_qqq = etf_weights.get("QQQ", 0.0)
         w_smh = etf_weights.get("SMH", 0.0)
@@ -662,10 +961,10 @@ class PortfolioEngine:
             d_info = direct_stock_weights.get(tk)
             direct_w = d_info["weight"] if d_info else 0.0
 
-            spy_h = ETF_CONSTITUENTS_MAP["SPY"].get(tk, {}).get("weight_pct", 0.0)
-            qqq_h = ETF_CONSTITUENTS_MAP["QQQ"].get(tk, {}).get("weight_pct", 0.0)
-            smh_h = ETF_CONSTITUENTS_MAP["SMH"].get(tk, {}).get("weight_pct", 0.0)
-            ita_h = ETF_CONSTITUENTS_MAP["ITA"].get(tk, {}).get("weight_pct", 0.0)
+            spy_h = etf_map["SPY"].get(tk, {}).get("weight_pct", 0.0)
+            qqq_h = etf_map["QQQ"].get(tk, {}).get("weight_pct", 0.0)
+            smh_h = etf_map["SMH"].get(tk, {}).get("weight_pct", 0.0)
+            ita_h = etf_map["ITA"].get(tk, {}).get("weight_pct", 0.0)
 
             spy_ind = round(w_spy * (spy_h / 100.0), 3)
             qqq_ind = round(w_qqq * (qqq_h / 100.0), 3)

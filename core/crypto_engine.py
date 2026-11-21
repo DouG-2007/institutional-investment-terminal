@@ -525,12 +525,16 @@ class CryptoEngine:
         nupl_s = pd.Series(np.clip(nupl_vals, -0.25, 0.82), index=px_s.index, name="NUPL")
 
         # 3. Pi Cycle Top (111d SMA vs 2x 350d SMA) & 200W SMA + MMC
-        sma111 = px_s.rolling(min(111, max(10, n // 3)), min_periods=1).mean()
-        sma350_x2 = px_s.rolling(min(350, max(20, n - 5)), min_periods=1).mean() * 1.65
+        sma111 = px_s.rolling(111, min_periods=1).mean()
+        sma350_x2 = px_s.rolling(350, min_periods=1).mean() * 2.0
         sma350_x2.iloc[-1] = kb["sma_350d_x2"]
         sma111.iloc[-1] = kb["sma_111d"]
 
-        sma200w = pd.Series(np.linspace(kb["sma_200w"] * 0.82, kb["sma_200w"], n), index=px_s.index, name="SMA_200W")
+        if n >= 700:
+            sma200w = px_s.rolling(min(1400, n), min_periods=120).mean().ffill().bfill()
+            sma200w.iloc[-1] = kb["sma_200w"]
+        else:
+            sma200w = pd.Series(np.linspace(kb["sma_200w"] * 0.82, kb["sma_200w"], n), index=px_s.index, name="SMA_200W")
         mmc_s = pd.Series(np.linspace(kb["mmc_usd"] * 0.85, kb["mmc_usd"], n), index=px_s.index, name="MMC")
 
         # 4. Hash Ribbon (SMA 30d vs SMA 60d do Hash Rate)
@@ -588,13 +592,23 @@ class CryptoEngine:
         except Exception:
             pass
 
+        live_crypto_map: Dict[str, Dict[str, Any]] = {}
+        try:
+            from core.live_quant_fetcher import fetch_live_crypto_metrics
+
+            live_crypto_map = fetch_live_crypto_metrics(symbols)
+        except Exception:
+            pass
+
         live_histories: Dict[str, pd.Series] = {}
         try:
             yf_map = {s: ("UNI7083-USD" if s == "UNI-USD" else s) for s in symbols}
             yf_symbols = list(set(yf_map.values()))
-            df = yf.download(yf_symbols, period="1y", interval="1d", progress=False)
+            df = yf.download(yf_symbols, period="5y", interval="1d", progress=False)
             if not df.empty and "Close" in df.columns:
                 closes = df["Close"]
+                if isinstance(closes, pd.Series):
+                    closes = closes.to_frame(name=yf_symbols[0])
                 for orig_sym, yf_sym in yf_map.items():
                     if yf_sym in closes.columns:
                         s = closes[yf_sym].dropna()
@@ -605,15 +619,40 @@ class CryptoEngine:
 
         out: Dict[str, CryptoFullProfile] = {}
         for sym in symbols:
-            kb = CRYPTO_FUNDAMENTAL_KB.get(sym)
-            if not kb:
+            kb_raw = CRYPTO_FUNDAMENTAL_KB.get(sym)
+            if not kb_raw:
                 continue
+            kb = dict(kb_raw)
+            live_c = live_crypto_map.get(sym) or {}
+
+            # Overlay live crypto market, SMA, derivatives, DeFiLlama, and global macro metrics
+            for k in (
+                "sma_200w", "sma_111d", "sma_350d_x2", "pi_cycle_crossed",
+                "tvl_b", "funding_rate_8h_pct", "oi_b", "btc_dominance_pct",
+                "ssr_ratio", "mvrv_z", "nupl", "circ_m",
+            ):
+                if k in live_c and live_c[k] is not None:
+                    kb[k] = live_c[k]
+
+            if live_c.get("spot_vol_24h_b") and float(live_c["spot_vol_24h_b"]) > 0.01:
+                kb["tx_vol_24h_b"] = round(float(live_c["spot_vol_24h_b"]), 3)
+
             s_hist = live_histories.get(sym, pd.Series(dtype=float))
             px = live_spot_prices.get(sym) or (float(s_hist.iloc[-1]) if not s_hist.empty else kb["default_px"])
             circ_m = kb["circ_m"]
             max_m = kb["max_m"]
             mcap_b = round((px * circ_m) / 1000.0, 2)
             fdv_b = round((px * max_m) / 1000.0, 2)
+
+            if live_c.get("oi_b") and mcap_b > 0:
+                kb["oi_to_mcap_pct"] = round((float(live_c["oi_b"]) / mcap_b) * 100.0, 2)
+
+            if live_c.get("protocol_fees_annual_m") and float(live_c["protocol_fees_annual_m"]) > 0:
+                fees_m = float(live_c["protocol_fees_annual_m"])
+                kb["protocol_fees_annual_m"] = round(fees_m, 2)
+                kb["protocol_real_earnings_m"] = round(fees_m - float(kb["token_issuance_annual_m"]), 2)
+                if mcap_b > 0:
+                    kb["pf_ratio"] = round((mcap_b * 1000.0) / fees_m, 1)
 
             series_bundle = self._build_asset_series(sym, kb, s_hist)
 

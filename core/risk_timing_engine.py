@@ -9,7 +9,7 @@ strictly as Consultative / Non-Binding Strategic References alongside estimated 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import numpy as np
 
 from core.portfolio_engine import PortfolioOverviewBundle
@@ -61,37 +61,51 @@ class RiskTimingEngine:
         fed_funds_rate_pct: float = 4.25,
         shiller_cape: float = 36.8,
         vix_current: float = 18.4,
+        capital_gains_tax_rate_pct: float = 15.0,
+        backtest_metrics: Optional[Dict[str, Any]] = None,
+        live_adtv_map_m: Optional[Dict[str, float]] = None,
     ) -> RiskLeverageTimingBundle:
         cap = portfolio.capital_usd
 
         # ======================================================================
         # 5.1 RISK METRICS, LIQUIDITY & CONVEX LEVERAGE
         # ======================================================================
-        sharpe = 1.68
-        sortino = 2.45
-        cagr_port_pct = 24.8
-        max_dd_pct = 14.2
-        calmar = round(cagr_port_pct / max_dd_pct, 2)
+        bt = backtest_metrics or {}
+        if bt and bt.get("data_source") == "LIVE_YFINANCE_HISTORY":
+            sharpe = float(bt.get("sharpe_ratio", 1.68))
+            sortino = float(bt.get("sortino_ratio", 2.45))
+            cagr_port_pct = float(bt.get("portfolio_cagr_pct", 24.8))
+            max_dd_pct = float(bt.get("max_drawdown_pct", 14.2))
+            calmar = float(bt.get("calmar_ratio", round(cagr_port_pct / max(0.5, max_dd_pct), 2)))
+            risk_src = f"Real 3y Portfolio History ({bt.get('period_days', 0)} trading days)"
+        else:
+            sharpe = 1.68
+            sortino = 2.45
+            cagr_port_pct = 24.8
+            max_dd_pct = 14.2
+            calmar = round(cagr_port_pct / max_dd_pct, 2)
+            risk_src = "Calibrated Baseline Model"
 
         if calmar > 3.0:
             calmar_cls = f"Legendary ({calmar:.2f} > 3.0)"
         elif calmar >= 1.0:
             calmar_cls = f"Optimal ({calmar:.2f} between 1.0 and 2.0+)"
         elif calmar >= 0.5:
-            calmar_cls = f"Ok ({calmar:.2f} entre 0.5 e 1.0)"
+            calmar_cls = f"Acceptable ({calmar:.2f} between 0.5 and 1.0)"
         else:
-            calmar_cls = f"Lixo ({calmar:.2f} < 0.5)"
+            calmar_cls = f"Poor ({calmar:.2f} < 0.5)"
 
         performance_risk_metrics = {
             "sharpe_ratio": sharpe,
             "sharpe_reference": "> 1.0 (Optimal Return-to-Volatility Profile)",
             "sortino_ratio": sortino,
-            "sortino_reference": f"> Sharpe ({sortino:.2f} > {sharpe:.2f} — Volatilidade Concentrada na Alta / Assimetria Positiva)",
+            "sortino_reference": f"> Sharpe ({sortino:.2f} > {sharpe:.2f} — Upside Skew / Downside Protected)",
             "portfolio_cagr_est_pct": cagr_port_pct,
             "portfolio_max_drawdown_pct": max_dd_pct,
             "calmar_ratio": calmar,
             "calmar_reference": "< 0.5 Poor | 0.5-1.0 Acceptable | 1.0-2.0 Optimal | > 3.0 Legendary",
             "calmar_classification": calmar_cls,
+            "data_source": risk_src,
         }
 
         if vix_current > 30.0:
@@ -130,9 +144,11 @@ class RiskTimingEngine:
             "DBSDY": 145.0,
         }
 
+        live_adtv = live_adtv_map_m or {}
         adtv_table: List[Dict[str, Any]] = []
         for pos in portfolio.positions:
-            adtv_usd = adtv_map_m.get(pos.ticker, 1000.0) * 1e6
+            adtv_m = float(live_adtv.get(pos.ticker) or adtv_map_m.get(pos.ticker, 1000.0))
+            adtv_usd = adtv_m * 1e6
             pos_pct_adtv = (pos.allocated_usd / adtv_usd) * 100.0 if adtv_usd > 0 else 0.0
             adtv_table.append({
                 "Ticker": pos.ticker,
@@ -141,7 +157,11 @@ class RiskTimingEngine:
                 "Average Daily ADTV ($M)": round(adtv_usd / 1e6, 1),
                 "% do ADTV": round(pos_pct_adtv, 4),
                 "Reference Threshold": "< 1.0000% of ADTV",
-                "Status Slippage": "Liquidez Institucional Plena (< 1% ADTV — Zero Slippage)" if pos_pct_adtv < 1.0 else "ALERTA DE SLIPPAGE (>= 1% ADTV)",
+                "Status Slippage": (
+                    "Full Institutional Liquidity (< 1% ADTV — Zero Slippage)"
+                    if pos_pct_adtv < 1.0
+                    else "SLIPPAGE ALERT (>= 1% ADTV)"
+                ),
             })
 
         # ======================================================================
@@ -292,15 +312,19 @@ class RiskTimingEngine:
         btc_nupl = cryptos["BTC-USD"].onchain_metrics["nupl"] if "BTC-USD" in cryptos else 0.52
         btc_mvrv = cryptos["BTC-USD"].onchain_metrics["mvrv_z_score"] if "BTC-USD" in cryptos else 1.85
 
+        tax_rate_pct = max(0.0, float(capital_gains_tax_rate_pct))
         consultative_rows: List[ConsultativeTimingRow] = []
         for pos in portfolio.positions:
             tk = pos.ticker
-            # Unrealized gain estimate and Tax-Drag Hurdle Rate calculation
+            # Unrealized gain derived directly from portfolio cost basis vs live spot price
             # Tax-Drag Hurdle Rate = (Unrealized_Gain_% / (100 + Unrealized_Gain_%)) * Tax_Rate_%
-            # Minimum required post-sale price drawdown to buy back identical share quantity after taxes
-            est_gain_pct = 85.0 if "Crypto" in pos.category else (65.0 if pos.category == "Hard-Asset Stock" else 45.0)
-            tax_rate_pct = 15.0
-            tax_paid_pct_of_position = (est_gain_pct / (100.0 + est_gain_pct)) * tax_rate_pct
+            # Returns 0.0% when unrealized P&L <= 0 (zero tax drag when harvesting a loss)
+            est_gain_pct = round(max(0.0, float(pos.pnl_pct)), 2)
+            tax_paid_pct_of_position = (
+                (est_gain_pct / (100.0 + est_gain_pct)) * tax_rate_pct
+                if est_gain_pct > 0.0
+                else 0.0
+            )
             tax_drag_hurdle_pct = round(tax_paid_pct_of_position, 2)
 
             if tk == "BTC-USD":

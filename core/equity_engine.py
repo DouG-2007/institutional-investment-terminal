@@ -1433,15 +1433,66 @@ class EquityEngine:
         except Exception:
             pass
 
+        live_fund_map: Dict[str, Dict[str, Any]] = {}
+        try:
+            from core.live_quant_fetcher import fetch_live_equity_fundamentals
+
+            sec_v_map = {tk: EQUITY_FUNDAMENTAL_KB[tk]["sector_vertical"] for tk in tickers if tk in EQUITY_FUNDAMENTAL_KB}
+            live_fund_map = fetch_live_equity_fundamentals(tickers, sector_vertical_map=sec_v_map)
+        except Exception:
+            pass
+
         results: List[EquityFullAnalysis] = []
         for tk in tickers:
-            kb = EQUITY_FUNDAMENTAL_KB.get(tk)
-            if not kb:
+            kb_raw = EQUITY_FUNDAMENTAL_KB.get(tk)
+            if not kb_raw:
                 continue
+            # Shallow copy KB and nested cagrs/sotp so module-level KB is never mutated
+            kb: Dict[str, Any] = dict(kb_raw)
+            kb["cagrs"] = {k: dict(v) for k, v in (kb_raw.get("cagrs") or {}).items()}
+            kb["sotp_segments"] = [dict(s) for s in (kb_raw.get("sotp_segments") or [])]
+
+            live_d = live_fund_map.get(tk) or {}
+            is_bank = kb["sector_vertical"] == "FINANCIAL_BANK"
+
+            # Overlay live audited GAAP / Yahoo Finance fundamentals onto shallow copy
+            overlay_keys = (
+                ("div_yield_pct", "beta")
+                if is_bank
+                else (
+                    "div_yield_pct", "beta", "fco_b", "fci_b", "fcf_b", "ebitda_b", "ebit_b",
+                    "net_income_b", "total_assets_b", "cash_b", "nwc_b", "current_ratio",
+                    "interest_coverage_x", "debt_to_ebitda", "debt_to_assets_pct", "debt_to_equity_pct",
+                    "sloan_pct", "roic_op_margin_pct",
+                )
+            )
+            for lk in overlay_keys:
+                if lk in live_d and live_d[lk] is not None:
+                    kb[lk] = live_d[lk]
+
+            if isinstance(live_d.get("fco_5y_history_b"), list) and len(live_d["fco_5y_history_b"]) >= 3 and not is_bank:
+                hist_vals = list(live_d["fco_5y_history_b"])
+                while len(hist_vals) < 5:
+                    hist_vals.insert(0, round(hist_vals[0] * 0.92, 2))
+                kb["fco_5y_history_b"] = hist_vals[-5:]
+
+            if is_bank and live_d.get("roe_pct") is not None and 5.0 <= float(live_d["roe_pct"]) <= 60.0:
+                kb["roic_goodwill_pct"] = float(live_d["roe_pct"])
+                kb["dupont_margin_pct"] = round(min(45.0, max(12.0, float(live_d["roe_pct"]) * 1.45)), 1)
+
+            cagr_ovr = live_d.get("cagr_3y_overrides") or {}
+            if isinstance(cagr_ovr, dict) and not is_bank:
+                for kpi_name, metrics_dict in cagr_ovr.items():
+                    if kpi_name in kb["cagrs"] and isinstance(metrics_dict, dict) and "3y" in metrics_dict:
+                        kb["cagrs"][kpi_name]["3y"] = metrics_dict["3y"]
+
             px = live_px_map.get(tk, kb["default_px"])
             scale = px / kb["default_px"] if kb["default_px"] > 0 else 1.0
-            mcap_b = round(kb["mcap_b"] * scale, 2)
-            ev_b = round(kb["ev_b"] * scale, 2)
+            mcap_b = round(float(live_d["mcap_b"]), 2) if live_d.get("mcap_b") else round(kb["mcap_b"] * scale, 2)
+            if live_d.get("ev_b") and not is_bank:
+                ev_b = round(float(live_d["ev_b"]), 2)
+            else:
+                ev_b = round(kb["ev_b"] * scale, 2)
 
             # ==================================================================
             # 2.1 FINANCIAL HEALTH AND FORENSIC ACCOUNTING
@@ -1608,13 +1659,22 @@ class EquityEngine:
             oe_vs_rf_spread = round(owner_earnings_yield_pct - self.rf_pct, 2)
 
             # 4) Relative Multiples & Ratios (P/E, EV/EBITDA, P/B, P/TBV)
-            pe_curr = round(kb["pe_curr"] * scale, 1)
-            pe_ntm = round(kb["pe_ntm"] * scale, 1)
+            pe_curr = round(float(live_d["pe_curr"]), 1) if live_d.get("pe_curr") else round(kb["pe_curr"] * scale, 1)
+            pe_ntm = round(float(live_d["pe_ntm"]), 1) if live_d.get("pe_ntm") else round(kb["pe_ntm"] * scale, 1)
             eps_curr = px / pe_curr if pe_curr > 0 else 5.0
             pe_implied_dcf = round(dcf_fair_mos10 / eps_curr, 1) if eps_curr > 0 else 22.0
-            ev_ebitda_curr = round(kb["ev_ebitda_curr"] * scale, 1)
-            pb_curr = round(kb["pb_curr"] * scale, 2)
-            ptbv_curr = round(kb["ptbv_curr"] * scale, 2)
+            ev_ebitda_curr = (
+                round(float(live_d["ev_ebitda_curr"]), 1)
+                if (live_d.get("ev_ebitda_curr") and not is_bank)
+                else round(kb["ev_ebitda_curr"] * scale, 1)
+            )
+            if live_d.get("pb_curr"):
+                pb_curr = round(float(live_d["pb_curr"]), 2)
+                ptbv_ratio = kb["ptbv_curr"] / kb["pb_curr"] if kb["pb_curr"] > 0 else 1.05
+                ptbv_curr = round(pb_curr * ptbv_ratio, 2)
+            else:
+                pb_curr = round(kb["pb_curr"] * scale, 2)
+                ptbv_curr = round(kb["ptbv_curr"] * scale, 2)
 
             # 5) EVA (Economic Value Added) = NOPLAT - (Capital Investido * WACC)
             invested_cap_b = round(kb["nopat_b"] / (roic_pct / 100.0), 2) if roic_pct > 0 else (mcap_b * 0.35)
@@ -1629,8 +1689,25 @@ class EquityEngine:
             total_growth_plus_yield = max(2.0, eps_g_ntm + div_y + bb_y)
 
             pegy_financeiro = round(pe_ntm / max(2.0, eps_g_ntm + div_y), 2)
-            ent_pegy_ebit = round((kb["ev_ebit_ntm"] * scale) / total_growth_plus_yield, 2)
-            ent_pegy_fcf = round((kb["ev_fcf_ntm"] * scale) / total_growth_plus_yield, 2)
+            mcap_scale = (mcap_b / kb_raw["mcap_b"]) if kb_raw["mcap_b"] > 0 else scale
+            ev_ebit_ntm_val = round(kb["ev_ebit_ntm"] * mcap_scale, 1)
+            if live_d.get("ev_b") and live_d.get("ebit_b") and not is_bank:
+                live_ebit_ntm = float(kb["ebit_b"]) * (1.0 + kb["consensus_g_fund_pct"] / 100.0)
+                if live_ebit_ntm > 0:
+                    ratio_eb = ev_b / live_ebit_ntm
+                    if 4.0 <= ratio_eb <= 130.0:
+                        ev_ebit_ntm_val = round(ratio_eb, 1)
+
+            ev_fcf_ntm_val = round(kb["ev_fcf_ntm"] * mcap_scale, 1)
+            if live_d.get("ev_b") and live_d.get("fcf_b") and not is_bank:
+                live_fcf_ntm = float(kb["fcf_b"]) * (1.0 + kb["consensus_g_fund_pct"] / 100.0)
+                if live_fcf_ntm > 0:
+                    ratio_fcf = ev_b / live_fcf_ntm
+                    if 4.0 <= ratio_fcf <= 140.0:
+                        ev_fcf_ntm_val = round(ratio_fcf, 1)
+
+            ent_pegy_ebit = round(ev_ebit_ntm_val / total_growth_plus_yield, 2)
+            ent_pegy_fcf = round(ev_fcf_ntm_val / total_growth_plus_yield, 2)
 
             if kb["sector_vertical"] == "FINANCIAL_BANK":
                 primary_pegy_val = pegy_financeiro
@@ -1840,5 +1917,16 @@ class EquityEngine:
         final_magic_order = sorted(results, key=lambda x: (rank_sums[x.ticker], -x.forensic_health["roic_goodwill_pct"]))
         for idx, item in enumerate(final_magic_order, 1):
             item.valuation_methods["magic_formula_rank"] = idx
+
+        # Keep GLOBAL_BANKS_SCATTER_DATA portfolio rows synchronized with live bank multiples
+        res_by_tk = {r.ticker: r for r in results}
+        for row in GLOBAL_BANKS_SCATTER_DATA:
+            btk = str(row.get("Ticker") or "").upper()
+            if btk in res_by_tk:
+                eq_b = res_by_tk[btk]
+                row["ROE_pct"] = round(float(eq_b.forensic_health["roic_goodwill_pct"]), 1)
+                row["PTBV"] = round(float(eq_b.valuation_methods["ptbv_current"]), 2)
+                row["PB"] = round(float(eq_b.valuation_methods["pb_current"]), 2)
+                row["PEGY_Fin"] = round(float(eq_b.valuation_methods["pegy_financeiro"]), 2)
 
         return results

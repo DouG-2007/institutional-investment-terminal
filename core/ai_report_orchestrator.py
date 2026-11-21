@@ -551,13 +551,15 @@ class AIReportOrchestrator:
         portfolio_sig: str,
         force_refresh_insights: bool = False,
         force_refresh_filings: bool = False,
+        skip_filing_hydration: bool = False,
         insights_ttl_hours: float = DEFAULT_INSIGHTS_TTL_HOURS,
         filings_ttl_days: float = DEFAULT_FILINGS_TTL_DAYS,
         progress_cb: Optional[Callable[[str, float], None]] = None,
     ) -> Dict[str, Any]:
         """
         Ensures every active portfolio asset has an AI-hydrated documentary dossier
-        and synthesizes all qualitative matrices/insights across Sections 1, 3, 4 & 5.
+        (unless `skip_filing_hydration=True` for fast economic batching) and
+        synthesizes all qualitative matrices/insights across Sections 1, 3, 4 & 5.
         """
         def _notify(msg: str, pct: float) -> None:
             if progress_cb is not None:
@@ -580,7 +582,9 @@ class AIReportOrchestrator:
             crypto_symbols=crypto_symbols,
             ttl_days=filings_ttl_days,
         )
-        need_hydration = force_refresh_filings or bool(cov["stale_equities"] or cov["stale_cryptos"])
+        need_hydration = (not skip_filing_hydration) and (
+            force_refresh_filings or bool(cov["stale_equities"] or cov["stale_cryptos"])
+        )
         if need_hydration:
             stale_n = len(equity_tickers) + len(crypto_symbols) if force_refresh_filings else (
                 len(cov["stale_equities"]) + len(cov["stale_cryptos"])

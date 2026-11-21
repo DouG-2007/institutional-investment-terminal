@@ -260,40 +260,78 @@ def build_crypto_nvm_and_cdd_chart(crypto: CryptoFullProfile) -> go.Figure:
 
 
 # ==============================================================================
-# 5. SCATTER PLOT P/TBV VS. ROE PARA BANCOS
+# 5. SCATTER PLOT P/TBV VS. ROE FOR GLOBAL BANKS
 # ==============================================================================
-def build_banks_ptbv_vs_roe_scatter() -> go.Figure:
-    df = pd.DataFrame(GLOBAL_BANKS_SCATTER_DATA)
+def build_banks_ptbv_vs_roe_scatter(equities: Optional[List[EquityFullAnalysis]] = None) -> go.Figure:
+    rows = [dict(r) for r in GLOBAL_BANKS_SCATTER_DATA]
+    if equities:
+        eq_by_tk = {e.ticker.upper(): e for e in equities if e.sector_vertical == "FINANCIAL_BANK"}
+        seen = set()
+        for r in rows:
+            tk = str(r.get("Ticker") or "").upper()
+            seen.add(tk)
+            if tk in eq_by_tk:
+                eb = eq_by_tk[tk]
+                r["ROE_pct"] = round(float(eb.forensic_health["roic_goodwill_pct"]), 1)
+                r["PTBV"] = round(float(eb.valuation_methods["ptbv_current"]), 2)
+                r["PB"] = round(float(eb.valuation_methods["pb_current"]), 2)
+                r["PEGY_Fin"] = round(float(eb.valuation_methods["pegy_financeiro"]), 2)
+        for tk, eb in eq_by_tk.items():
+            if tk not in seen:
+                rows.append({
+                    "Ticker": tk,
+                    "Bank": f"{eb.company_name} (Portfolio)",
+                    "ROE_pct": round(float(eb.forensic_health["roic_goodwill_pct"]), 1),
+                    "PTBV": round(float(eb.valuation_methods["ptbv_current"]), 2),
+                    "PEGY_Fin": round(float(eb.valuation_methods["pegy_financeiro"]), 2),
+                    "PB": round(float(eb.valuation_methods["pb_current"]), 2),
+                    "Group": "Portfolio",
+                })
+
+    for r in rows:
+        if "Group" not in r:
+            r["Group"] = r.get("Grupo", "Sector Benchmark")
+        if "Bank" not in r:
+            r["Bank"] = r.get("Banco", r.get("Ticker", "Bank"))
+
+    df = pd.DataFrame(rows)
     fig = go.Figure()
 
     color_map = {
+        "Portfolio": "#10B981",
         "Carteira": "#10B981",
+        "Sector Benchmark": "#3B82F6",
+        "Global Peer": "#3B82F6",
         "Peer Global": "#3B82F6",
         "Peer Emergente": "#F59E0B",
         "Value Trap (P/B < 1.0)": "#EF4444",
     }
 
-    for grp, sub in df.groupby("Grupo"):
+    for grp, sub in df.groupby("Group"):
         fig.add_trace(go.Scatter(
             x=sub["ROE_pct"],
             y=sub["PTBV"],
             mode="markers+text",
-            name=grp,
+            name=str(grp),
             text=sub["Ticker"],
             textposition="top center",
-            marker=dict(size=14 if grp == "Carteira" else 11, color=color_map.get(grp, "#60A5FA"), line=dict(width=1.5, color="#FFFFFF")),
-            customdata=np.stack([sub["Banco"], sub["PEGY_Fin"], sub["PB"]], axis=-1),
+            marker=dict(
+                size=14 if grp in ("Portfolio", "Carteira") else 11,
+                color=color_map.get(str(grp), "#60A5FA"),
+                line=dict(width=1.5, color="#FFFFFF"),
+            ),
+            customdata=np.stack([sub["Bank"], sub["PEGY_Fin"], sub["PB"]], axis=-1),
             hovertemplate=(
                 "<b>%{customdata[0]} (%{text})</b><br>"
                 "ROE: %{x:.1f}%<br>"
                 "P/TBV: %{y:.2f}x<br>"
                 "P/B: %{customdata[2]:.2f}x<br>"
-                "PEGY Financeiro: %{customdata[1]:.2f}x<extra></extra>"
+                "Financial PEGY: %{customdata[1]:.2f}x<extra></extra>"
             ),
         ))
 
     # Fundamental regression line (Fair corridor: P/TBV = 0.115 * ROE - 0.10)
-    x_line = np.linspace(5.0, 23.0, 50)
+    x_line = np.linspace(5.0, max(28.0, float(df["ROE_pct"].max()) + 2.0), 50)
     y_line = 0.115 * x_line - 0.10
     fig.add_trace(go.Scatter(
         x=x_line, y=y_line,
@@ -302,12 +340,11 @@ def build_banks_ptbv_vs_roe_scatter() -> go.Figure:
         line=dict(color="#94A3B8", width=1.8, dash="dash"),
     ))
 
-    # Linha de alerta P/TBV = 1.0x
     fig.add_hline(
         y=1.0,
         line_dash="dot",
         line_color="#EF4444",
-        annotation_text="Limite Estrutural (P/B < 1.0x = Risco Estrutural / Veto de Compra)",
+        annotation_text="Structural Floor (P/B < 1.0x = Structural Risk / Buy Veto)",
         annotation_position="bottom right",
     )
 
@@ -537,7 +574,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
         row=1,
         col=1,
     )
-    fig.add_hline(y=10.0, line_dash="dash", line_color="#EF4444", annotation_text="Limite Alerta (+10%)", row=1, col=1)
+    fig.add_hline(y=10.0, line_dash="dash", line_color="#EF4444", annotation_text="Alert Ceiling (+10%)", row=1, col=1)
     fig.add_hline(y=-10.0, line_dash="dot", line_color="#10B981", annotation_text="Optimal Zone (-10%)", row=1, col=1)
     max_sloan = max(max(sloan), 12.0)
     min_sloan = min(min(sloan), -12.0)
@@ -549,7 +586,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
             x=years,
             y=fco_eb,
             mode="lines+markers+text",
-            name="FCO / EBITDA (x)",
+            name="CFO / EBITDA (x)",
             text=[f"{v:.2f}x" for v in fco_eb],
             textposition="top center",
             line=dict(color="#38BDF8", width=2.5),
@@ -559,7 +596,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
         col=2,
     )
     fig.add_hline(y=1.0, line_dash="dash", line_color="#10B981", annotation_text="Pure Conversion (1.0x)", row=1, col=2)
-    fig.add_hline(y=0.80, line_dash="dot", line_color="#EF4444", annotation_text="Piso Forense (0.80x)", row=1, col=2)
+    fig.add_hline(y=0.80, line_dash="dot", line_color="#EF4444", annotation_text="Forensic Floor (0.80x)", row=1, col=2)
     max_fco_eb = max(max(fco_eb), 1.05)
     min_fco_eb = min(min(fco_eb), 0.70)
     fig.update_yaxes(range=[min_fco_eb * 0.88, max_fco_eb * 1.22], row=1, col=2)
@@ -569,7 +606,7 @@ def build_deep_dive_forensic_5y_chart(dd: DeepDiveResultBundle) -> go.Figure:
         go.Bar(
             x=years,
             y=fco,
-            name="FCO Operacional (USD B)",
+            name="Operating Cash Flow (USD B)",
             marker_color="#3B82F6",
             text=[f"${v:,.1f}B" for v in fco],
             textposition="auto",
@@ -724,7 +761,7 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
         "Organic Volume (%)": 5.0,
         "Pricing Power / Mix (%)": 3.5,
         "FX Headwind Impact (%)": -0.5,
-        "Crescimento Total Receita (%)": 8.0,
+        "Total Revenue Growth (%)": 8.0,
     }
 
     # 2-Row Layout: Row 1 = Full-width Fair Value Grid (7 bars); Row 2 = Reverse DCF (Left) & MD&A (Right)
@@ -748,12 +785,12 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
     # Row 1 (Colspan=2): Grade de Valor Justo
     labels_val = [
         "Current Spot Price",
-        "DCF Conservador",
-        "DCF (c/ 10% MoS)",
+        "DCF Conservative",
+        "DCF (10% MoS)",
         "DCF Base",
         "SOTP Fair Value",
-        "PEGY Faixa Ouro",
-        "DCF Otimista",
+        "PEGY Gold Band",
+        "DCF Bull",
     ]
     vals_val = [
         eq.current_price,
@@ -777,7 +814,7 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
         go.Bar(
             x=labels_val,
             y=vals_val,
-            name="Grade de Valor Justo (USD)",
+            name="Fair Value Grid (USD)",
             marker_color=colors_val,
             text=[f"${v:,.2f}" for v in vals_val],
             textposition="outside",
@@ -800,7 +837,7 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
     cagr_fcf_5y = eq.cagr_matrix_12_kpis.get("FCF", {}).get("5y", vm["g_fund_projected_pct"])
     labels_g = [
         "g_impl (Reverse DCF)",
-        "g_fund (Projetado)",
+        "g_fund (Projected)",
         "CAGR FCF (5y)",
         "Owner Earn. Yield",
         "US 10Y (Risk-Free)",
@@ -823,7 +860,7 @@ def build_deep_dive_valuation_cockpit_chart(dd: DeepDiveResultBundle, rf_pct: fl
         go.Bar(
             x=labels_g,
             y=vals_g,
-            name="Taxas Anuais (%)",
+            name="Annual Rates (%)",
             marker_color=colors_g,
             text=[f"{v:.1f}%" for v in vals_g],
             textposition="outside",
@@ -992,7 +1029,7 @@ def build_crypto_github_and_earnings_chart(dd: DeepDiveResultBundle) -> go.Figur
         cols=2,
         horizontal_spacing=0.10,
         subplot_titles=(
-            "Atividade de Engenharia GitHub: Commits (4w) & Active Devs vs. Benchmarks",
+            "GitHub Engineering Activity: Commits (4w) & Active Devs vs. Peers",
             "Protocol Real Economics (Annualized USD M): Fees vs. Issuance vs. Real Earnings",
         ),
     )
@@ -1000,13 +1037,13 @@ def build_crypto_github_and_earnings_chart(dd: DeepDiveResultBundle) -> go.Figur
     # Col 1: GitHub Activity (Shorten names for clean presentation)
     clean_proto_names = []
     for p in gh_peers:
-        raw_name = p["Protocolo"]
+        raw_name = str(p.get("Protocol") or p.get("Protocolo") or "Protocol")
         # Shorten e.g. "Ethereum (L1 Smart Contracts)" -> "Ethereum"
         short_n = raw_name.split(" ")[0].split("(")[0].strip()
         clean_proto_names.append(short_n if len(short_n) <= 12 else short_n[:12])
 
-    commits = [p["Commits (4w)"] for p in gh_peers]
-    devs = [p["Active Devs (Mensal)"] for p in gh_peers]
+    commits = [int(p.get("Commits (4w)", 0)) for p in gh_peers]
+    devs = [int(p.get("Active Devs (Monthly)", p.get("Active Devs (Mensal)", 0))) for p in gh_peers]
 
     fig.add_trace(
         go.Bar(x=clean_proto_names, y=commits, name="Commits (4w)", marker_color="#3B82F6", text=commits, textposition="auto"),
@@ -1016,7 +1053,7 @@ def build_crypto_github_and_earnings_chart(dd: DeepDiveResultBundle) -> go.Figur
         go.Bar(x=clean_proto_names, y=devs, name="Active Devs", marker_color="#10B981", text=devs, textposition="auto"),
         row=1, col=1,
     )
-    fig.add_hline(y=40, line_dash="dash", line_color="#F59E0B", annotation_text="Piso Framework (40 Devs)", row=1, col=1)
+    fig.add_hline(y=40, line_dash="dash", line_color="#F59E0B", annotation_text="Framework Floor (40 Devs)", row=1, col=1)
 
     # Col 2: Protocol Real Earnings
     fees_m = re_brk.get("annual_fees_m", 0.0)
@@ -1027,7 +1064,7 @@ def build_crypto_github_and_earnings_chart(dd: DeepDiveResultBundle) -> go.Figur
         go.Bar(
             x=["Protocol Fees (Revenue)", "Token Issuance (Dilution)", "Real Earnings (Retained Cash Flow)"],
             y=[fees_m, iss_m, re_m],
-            name="Economia Real Anual (USD M)",
+            name="Annual Real Economics (USD M)",
             marker_color=["#38BDF8", "#F59E0B", "#10B981" if re_m > 0 else "#EF4444"],
             text=[f"USD {fees_m:,.1f}M", f"USD {iss_m:,.1f}M", f"USD {re_m:+,.1f}M"],
             textposition="auto",
@@ -1049,5 +1086,64 @@ def build_crypto_github_and_earnings_chart(dd: DeepDiveResultBundle) -> go.Figur
         height=460,
         title="",
         legend_pos="bottom",
+    )
+
+
+# ==============================================================================
+# 15. REAL HISTORICAL PORTFOLIO EQUITY CURVE & DRAWDOWN BACKTEST CHART
+# ==============================================================================
+def build_portfolio_equity_curve_chart(backtest: Dict[str, Any]) -> go.Figure:
+    eq_df = backtest.get("equity_curve_df")
+    dd_s = backtest.get("drawdown_series")
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.14,
+        row_heights=[0.66, 0.34],
+        subplot_titles=(
+            "Real Historical Equity Curve vs. Benchmarks (Portfolio USD vs. SPY & BTC-USD)",
+            "Portfolio Underwater Drawdown (%)",
+        ),
+    )
+
+    if isinstance(eq_df, pd.DataFrame) and not eq_df.empty:
+        color_map = {"Portfolio": "#10B981", "SPY": "#3B82F6", "BTC-USD": "#F59E0B"}
+        for col in eq_df.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=eq_df.index,
+                    y=eq_df[col],
+                    mode="lines",
+                    name=col,
+                    line=dict(color=color_map.get(col, "#A855F7"), width=2.8 if col == "Portfolio" else 1.8),
+                ),
+                row=1,
+                col=1,
+            )
+
+    if isinstance(dd_s, pd.Series) and not dd_s.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=dd_s.index,
+                y=dd_s.values,
+                mode="lines",
+                fill="tozeroy",
+                name="Drawdown (%)",
+                line=dict(color="#EF4444", width=1.6),
+                fillcolor="rgba(239, 68, 68, 0.22)",
+            ),
+            row=2,
+            col=1,
+        )
+
+    fig.update_yaxes(title_text="Portfolio Value (USD)", row=1, col=1)
+    fig.update_yaxes(title_text="Drawdown (%)", row=2, col=1)
+    return _apply_dark_theme(
+        fig,
+        height=540,
+        title="Real Portfolio Historical Backtest (CAGR / Sharpe / Sortino / Max Drawdown)",
+        legend_pos="top",
     )
 

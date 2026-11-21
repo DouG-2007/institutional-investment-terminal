@@ -35,6 +35,26 @@ from core.background_notifier import BackgroundNotifierEngine
 from core.gemini_client import is_gemini_configured
 from core.ai_analyst import InstitutionalAIAnalyst
 from core.ai_report_orchestrator import AIReportOrchestrator, clear_ai_master_insights_cache
+from core.backtest_engine import run_portfolio_backtest
+from core.excel_exporter import build_institutional_excel_bytes
+from core.live_quant_fetcher import fetch_live_adtv_map, fetch_live_vix_and_fx
+from core.charts import (
+    build_banks_ptbv_vs_roe_scatter,
+    build_btc_asopr_chart,
+    build_btc_picycle_200w_hashribbon_mmc_chart,
+    build_crypto_github_and_earnings_chart,
+    build_crypto_mvrv_nupl_chart,
+    build_crypto_nvm_and_cdd_chart,
+    build_crypto_onchain_gauges_chart,
+    build_deep_dive_dupont_and_margins_chart,
+    build_deep_dive_forensic_5y_chart,
+    build_deep_dive_valuation_cockpit_chart,
+    build_macro_comprehensive_chart,
+    build_multi_method_valuation_chart,
+    build_portfolio_equity_curve_chart,
+    build_portfolio_weight_gauge_chart,
+    build_yield_curve_and_icsa_chart,
+)
 
 
 st.set_page_config(
@@ -274,6 +294,7 @@ def load_full_intelligence_bundle(
     capital_usd: float,
     db_sig: str,
     refresh_token: int,
+    tax_rate_pct: float = 15.0,
 ) -> Dict[str, Any]:
     _ = (db_sig, refresh_token)
     macro_eng = MacroEngine()
@@ -301,11 +322,31 @@ def load_full_intelligence_bundle(
     stk_screener = scr_eng.run_stock_screener()
     cr_screener = scr_eng.run_crypto_screener()
 
+    vix_fx = fetch_live_vix_and_fx()
+    fed_funds_pct = float(macro_bundle.monetary_aggregates.get("fed_funds_rate_pct", 4.25))
+    vix_curr = float(macro_bundle.monetary_aggregates.get("vix_current", vix_fx.get("vix_current", 18.4)))
+    fx_usd_brl = float(macro_bundle.monetary_aggregates.get("usd_brl_fx", vix_fx.get("usd_brl", 5.85)))
+
+    backtest_res = run_portfolio_backtest(
+        positions=port_bundle.positions,
+        capital_usd=capital_usd,
+        risk_free_rate_pct=fed_funds_pct,
+    )
+    live_adtv = fetch_live_adtv_map(
+        [p.ticker for p in port_bundle.positions],
+        {p.ticker: p.current_price_usd for p in port_bundle.positions},
+    )
+
     rt_eng = RiskTimingEngine()
     rt_bundle = rt_eng.build_risk_and_consultative_timing(
         portfolio=port_bundle,
         equities=eq_list,
         cryptos=cr_dict,
+        fed_funds_rate_pct=fed_funds_pct,
+        vix_current=vix_curr,
+        capital_gains_tax_rate_pct=tax_rate_pct,
+        backtest_metrics=backtest_res,
+        live_adtv_map_m=live_adtv,
     )
 
     return {
@@ -320,6 +361,10 @@ def load_full_intelligence_bundle(
         "stock_screener": stk_screener,
         "crypto_screener": cr_screener,
         "risk_timing": rt_bundle,
+        "backtest": backtest_res,
+        "fx_usd_brl": fx_usd_brl,
+        "vix_current": vix_curr,
+        "fed_funds_rate_pct": fed_funds_pct,
     }
 
 
@@ -343,12 +388,13 @@ def main() -> None:
 
     port_eng_live = PortfolioEngine()
     db_assets_live = port_eng_live.get_all_assets()
+    tx_count_live = len(port_eng_live.get_transactions())
     db_sig = "|".join(
         f"{a['ticker']}:{a['target_weight_pct']:.2f}:{a['avg_buy_price']:.2f}:{int(a['ltv_turbo_eligible'])}"
         for a in db_assets_live
-    )
+    ) + f"|tx:{tx_count_live}"
 
-    # Lean sidebar: Base capital, Live Refresh & 1-Click Master PDF Download
+    # Lean sidebar: Base capital, Tax-Drag rate, FX display, Live Refresh & 1-Click Master PDF
     with st.sidebar:
         st.markdown("### 🏛️ Master Report Controls")
         capital_usd = st.number_input(
@@ -358,6 +404,21 @@ def main() -> None:
             value=100_000.0,
             step=10_000.0,
             format="%.0f",
+        )
+        tax_rate_pct = st.number_input(
+            "Capital Gains Tax Rate (%) — Tax-Drag",
+            min_value=0.0,
+            max_value=35.0,
+            value=15.0,
+            step=0.5,
+            format="%.1f",
+            help="Used deterministically to compute Tax-Drag Hurdle Rate (e.g., 15% BR foreign/crypto or US LTCG).",
+        )
+        display_ccy = st.selectbox(
+            "UI Display Currency",
+            ["USD", "BRL (Live FX)"],
+            index=0,
+            key="sidebar_display_ccy",
         )
         if st.button("🔄 Refresh Live Quotes & Recalculate PDF", use_container_width=True, type="primary"):
             st.cache_data.clear()
@@ -371,6 +432,7 @@ def main() -> None:
             capital_usd=capital_usd,
             db_sig=db_sig,
             refresh_token=st.session_state["refresh_token"],
+            tax_rate_pct=tax_rate_pct,
         )
 
     macro: MacroDataBundle = bundle["macro"]
@@ -378,9 +440,19 @@ def main() -> None:
     equities: List[EquityFullAnalysis] = bundle["equities"]
     cryptos: Dict[str, CryptoFullProfile] = bundle["cryptos"]
     risk_timing: RiskLeverageTimingBundle = bundle["risk_timing"]
+    backtest_res: Dict[str, Any] = bundle.get("backtest") or {}
+    fx_usd_brl: float = float(bundle.get("fx_usd_brl") or 5.85)
+    ccy_mult = fx_usd_brl if display_ccy.startswith("BRL") else 1.0
+    ccy_prefix = "R$" if display_ccy.startswith("BRL") else "$"
 
     with st.sidebar:
         sidebar_dl_placeholder = st.empty()
+        st.markdown(
+            f"**Live Macro Telemetry:** VIX `{bundle.get('vix_current', 18.4):.2f}` | "
+            f"US10Y `{macro.yield_curve.get('us10y_pct', 4.42):.2f}%` | "
+            f"Fed `{bundle.get('fed_funds_rate_pct', 4.25):.2f}%` | "
+            f"USD/BRL `{fx_usd_brl:.2f}`"
+        )
         st.caption(
             f"Last synchronization: **{macro.timestamp}** | "
             f"**{len(portfolio.positions)} Holdings** in SQLite Portfolio."
@@ -438,7 +510,20 @@ def main() -> None:
 
         force_refresh_insights = False
         force_refresh_filings = False
+        is_economic_mode = False
         if include_ai_master and gemini_ready:
+            ai_profile = st.radio(
+                "AI Execution Profile",
+                [
+                    "Economic / Fast Batch (Use Cached/Static Filings + AI Matrices — Saves Free-Tier Quota)",
+                    "Full Deep Hydration (Auto-Fetch Fresh Filings Across Portfolio + AI Matrices)",
+                ],
+                index=0,
+                horizontal=True,
+                key="ai_exec_profile_radio",
+            )
+            is_economic_mode = ai_profile.startswith("Economic")
+
             ai_ctrl_c1, ai_ctrl_c2 = st.columns(2)
             with ai_ctrl_c1:
                 if st.button(
@@ -463,7 +548,7 @@ def main() -> None:
         ai_bundle: Optional[Dict[str, Any]] = None
         ai_exec_summary: Optional[Dict[str, Any]] = None
         if include_ai_master and gemini_ready:
-            ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}"
+            ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}|{int(is_economic_mode)}"
             cached_entry = None if (force_refresh_insights or force_refresh_filings) else st.session_state["ai_pdf_cache"].get(ai_cache_key)
             if cached_entry is None:
                 with st.status("Running Full-Portfolio AI Intelligence & Compiling 360° Master PDF...", expanded=True) as status_box:
@@ -483,6 +568,7 @@ def main() -> None:
                         portfolio_sig=db_sig,
                         force_refresh_insights=force_refresh_insights,
                         force_refresh_filings=force_refresh_filings,
+                        skip_filing_hydration=(is_economic_mode and not force_refresh_filings),
                         progress_cb=_on_ai_progress,
                     )
                     if ai_bundle and ai_bundle.get("enabled"):
@@ -530,7 +616,7 @@ def main() -> None:
                 active_master_pdf_bytes = cached_entry.get("pdf_bytes")
 
         if active_master_pdf_bytes is None:
-            det_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}"
+            det_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}"
             det_pdf_bytes = st.session_state["det_pdf_cache"].get(det_cache_key)
             if det_pdf_bytes is None:
                 with st.spinner("Compiling 360° Deterministic Master Report (.PDF)..."):
@@ -657,6 +743,48 @@ def main() -> None:
         ])
         render_clean_table(df_sections)
 
+        render_section_header(
+            "Interactive Visual Intelligence Dashboard (Live Charts & Real Backtest)",
+            "All 15 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, and 3-year historical portfolio engines",
+        )
+        viz_tabs = st.tabs([
+            "🌍 Macro & Yield Curve",
+            "🏛️ Equities Valuation & Banks",
+            "₿ Crypto On-Chain Cycle",
+            "📈 Real Historical Backtest",
+        ])
+        with viz_tabs[0]:
+            st.plotly_chart(build_macro_comprehensive_chart(macro), use_container_width=True)
+            st.plotly_chart(build_yield_curve_and_icsa_chart(macro), use_container_width=True)
+        with viz_tabs[1]:
+            st.plotly_chart(build_multi_method_valuation_chart(equities), use_container_width=True)
+            st.plotly_chart(build_banks_ptbv_vs_roe_scatter(equities), use_container_width=True)
+        with viz_tabs[2]:
+            btc_or_first = cryptos.get("BTC-USD") or (next(iter(cryptos.values())) if cryptos else None)
+            if btc_or_first is not None:
+                cr_c1, cr_c2 = st.columns(2)
+                with cr_c1:
+                    st.plotly_chart(build_btc_asopr_chart(btc_or_first), use_container_width=True)
+                    st.plotly_chart(build_crypto_mvrv_nupl_chart(btc_or_first), use_container_width=True)
+                with cr_c2:
+                    st.plotly_chart(build_btc_picycle_200w_hashribbon_mmc_chart(btc_or_first), use_container_width=True)
+                    st.plotly_chart(build_crypto_nvm_and_cdd_chart(btc_or_first), use_container_width=True)
+            else:
+                st.info("No portfolio cryptoassets active for on-chain cycle charting.")
+        with viz_tabs[3]:
+            b_k1, b_k2, b_k3, b_k4, b_k5 = st.columns(5)
+            with b_k1:
+                render_kpi_card("Portfolio 3Y CAGR", f"{backtest_res.get('portfolio_cagr_pct', 0.0):+.2f}%", f"Vol: {backtest_res.get('annualized_vol_pct', 0.0):.1f}% p.a.", tone="emerald")
+            with b_k2:
+                render_kpi_card("Sharpe Ratio", f"{backtest_res.get('sharpe_ratio', 0.0):.2f}", f"vs Rf {bundle.get('fed_funds_rate_pct', 4.25):.2f}%", tone="blue")
+            with b_k3:
+                render_kpi_card("Sortino Ratio", f"{backtest_res.get('sortino_ratio', 0.0):.2f}", "Downside Deviation Adjusted", tone="purple")
+            with b_k4:
+                render_kpi_card("Max Drawdown", f"-{backtest_res.get('max_drawdown_pct', 0.0):.2f}%", f"Calmar: {backtest_res.get('calmar_ratio', 0.0):.2f}x", tone="amber")
+            with b_k5:
+                render_kpi_card("Benchmarks (CAGR)", f"SPY {backtest_res.get('spy_cagr_pct', 0.0):+.1f}%", f"BTC {backtest_res.get('btc_cagr_pct', 0.0):+.1f}% | {backtest_res.get('period_days', 0)}d", tone="blue")
+            st.plotly_chart(build_portfolio_equity_curve_chart(backtest_res), use_container_width=True)
+
     # ==========================================================================
     # TAB 2: DYNAMIC PORTFOLIO MANAGER (SQLITE CRUD)
     # ==========================================================================
@@ -753,7 +881,7 @@ def main() -> None:
                 st.rerun()
 
         render_section_header(
-            f"Active Portfolio Holdings Ledger ({len(portfolio.positions)} Assets in SQLite)",
+            f"Active Portfolio Holdings Ledger ({len(portfolio.positions)} Assets in SQLite — {display_ccy})",
             "Concise 7-column table for monitoring Weights, Cost Basis, Spot Quotes, P&L, and LTV Collateral",
         )
         df_ledger = pd.DataFrame([
@@ -762,13 +890,90 @@ def main() -> None:
                 "Asset": p.name,
                 "Category": p.category,
                 "Target vs. Current Weight": f"{p.target_weight_pct:.2f}% (Current {p.current_weight_pct:.2f}% | Drift {p.weight_drift_pp:+.2f}pp)",
-                "Avg Buy -> Spot Price (USD)": f"${p.avg_buy_price_usd:,.2f} -> ${p.current_price_usd:,.2f} (${p.allocated_usd:,.0f})",
-                "Unrealized P&L": f"{p.pnl_pct:+.1f}% (USD {p.pnl_usd:+,.0f})",
+                f"Avg Buy -> Spot ({display_ccy.split()[0]})": f"{ccy_prefix}{p.avg_buy_price_usd * ccy_mult:,.2f} -> {ccy_prefix}{p.current_price_usd * ccy_mult:,.2f} ({ccy_prefix}{p.allocated_usd * ccy_mult:,.0f})",
+                "Unrealized P&L": f"{p.pnl_pct:+.1f}% ({ccy_prefix}{p.pnl_usd * ccy_mult:+,.0f})",
                 "LTV Collateral": "YES" if p.ltv_turbo_eligible else "NO",
             }
             for p in portfolio.positions
         ])
         render_clean_table(df_ledger, badge_cols=["LTV Collateral"])
+
+        st.plotly_chart(build_portfolio_weight_gauge_chart(total_w), use_container_width=True)
+
+        tx_list_all = port_eng_live.get_transactions()
+        excel_bytes = build_institutional_excel_bytes(
+            portfolio=portfolio,
+            equities=equities,
+            cryptos=cryptos,
+            risk_timing=risk_timing,
+            transactions=tx_list_all,
+            backtest=backtest_res,
+        )
+        st.download_button(
+            label="📊 Export Auditable Multi-Sheet Institutional Workbook (.XLSX)",
+            data=excel_bytes,
+            file_name="Institutional_Portfolio_Workbook.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="btn_export_xlsx",
+        )
+
+        with st.expander("📒 Real Custody Transactions Ledger (`transactions_ledger`) & CSV Broker Import", expanded=False):
+            led_summary = port_eng_live.compute_ledger_summary({p.ticker: p.current_price_usd for p in portfolio.positions})
+            lk1, lk2, lk3, lk4 = st.columns(4)
+            with lk1:
+                render_kpi_card("Custody Market Value", f"{ccy_prefix}{led_summary['total_market_value_usd'] * ccy_mult:,.2f}", f"{led_summary['total_transactions']} Logged Events", tone="blue")
+            with lk2:
+                render_kpi_card("Unrealized Custody P&L", f"{ccy_prefix}{led_summary['total_unrealized_pnl_usd'] * ccy_mult:+,.2f}", f"Cost Basis: {ccy_prefix}{led_summary['total_cost_basis_usd'] * ccy_mult:,.0f}", tone="emerald")
+            with lk3:
+                render_kpi_card("Realized P&L (Sells)", f"{ccy_prefix}{led_summary['total_realized_pnl_usd'] * ccy_mult:+,.2f}", "Weighted Avg Cost Method", tone="purple")
+            with lk4:
+                render_kpi_card("Dividends & Staking Income", f"{ccy_prefix}{led_summary['total_income_usd'] * ccy_mult:+,.2f}", "Cumulative Cash Yield", tone="amber")
+
+            tx_c1, tx_c2 = st.columns([2, 1])
+            with tx_c1:
+                with st.form("form_add_tx", clear_on_submit=True):
+                    st.markdown("##### ➕ Record Transaction (`BUY` / `SELL` / `DIVIDEND` / `STAKING`)")
+                    tc1, tc2, tc3 = st.columns(3)
+                    with tc1:
+                        tx_dt = st.text_input("Date (YYYY-MM-DD)", value=datetime.date.today().isoformat())
+                        tx_tk = st.text_input("Ticker", value=all_tks[0] if all_tks else "NVDA")
+                    with tc2:
+                        tx_tp = st.selectbox("Type", ["BUY", "SELL", "DIVIDEND", "STAKING"])
+                        tx_qt = st.number_input("Quantity (or 1 for Cash Div)", min_value=0.0001, value=1.0, step=1.0, format="%.4f")
+                    with tc3:
+                        tx_px = st.number_input("Unit Price / Cash (USD)", min_value=0.0, value=100.0, step=1.0)
+                        tx_fee = st.number_input("Fee (USD)", min_value=0.0, value=0.0, step=0.5)
+                    tx_notes = st.text_input("Notes (Optional)", value="")
+                    if st.form_submit_button("💾 Record Transaction in SQLite", use_container_width=True, type="primary"):
+                        port_eng_live.add_transaction(tx_dt, tx_tk, tx_tp, tx_qt, tx_px, tx_fee, tx_notes)
+                        st.cache_data.clear()
+                        st.session_state["refresh_token"] += 1
+                        st.success(f"Recorded {tx_tp} for {tx_tk.upper()}.")
+                        st.rerun()
+            with tx_c2:
+                st.markdown("##### 📥 CSV Broker Import")
+                csv_mode = st.radio("CSV Target", ["Holdings (`portfolio_assets`)", "Transactions (`transactions_ledger`)"], key="csv_imp_mode")
+                csv_file = st.file_uploader("Upload CSV file", type=["csv"], key="csv_imp_uploader")
+                if csv_file is not None and st.button("⬆️ Import CSV into SQLite", use_container_width=True, key="btn_imp_csv"):
+                    raw_csv = csv_file.read()
+                    if csv_mode.startswith("Holdings"):
+                        n_ok, errs = port_eng_live.import_assets_from_csv(raw_csv)
+                    else:
+                        n_ok, errs = port_eng_live.import_transactions_from_csv(raw_csv)
+                    st.cache_data.clear()
+                    st.session_state["refresh_token"] += 1
+                    st.success(f"Imported {n_ok} row(s)." + (f" Warnings: {len(errs)}" if errs else ""))
+                    st.rerun()
+
+            if tx_list_all:
+                render_clean_table(pd.DataFrame(tx_list_all))
+                del_tx_id = st.selectbox("Select Transaction ID to Remove", options=[t["id"] for t in tx_list_all], key="del_tx_sel")
+                if st.button("🗑️ Delete Transaction", key="btn_del_tx"):
+                    port_eng_live.delete_transaction(int(del_tx_id))
+                    st.cache_data.clear()
+                    st.session_state["refresh_token"] += 1
+                    st.rerun()
 
     # ==========================================================================
     # TAB 3: SINGLE-ASSET DEEP DIVE (ON-DEMAND STOCK & CRYPTO PICKER)
@@ -922,6 +1127,20 @@ def main() -> None:
                 ])
                 render_clean_table(pd.DataFrame(rows_eq_doc))
 
+            render_section_header(
+                f"Interactive 5-Year Forensic, DuPont & Valuation Cockpit Charts — {dd_res.normalized_ticker}",
+                "Live interactive Plotly visualization of historical quality, capital efficiency, and multi-method fair values",
+            )
+            st.plotly_chart(build_deep_dive_forensic_5y_chart(dd_res), use_container_width=True)
+            dc1, dc2 = st.columns(2)
+            with dc1:
+                st.plotly_chart(build_deep_dive_dupont_and_margins_chart(dd_res), use_container_width=True)
+            with dc2:
+                st.plotly_chart(
+                    build_deep_dive_valuation_cockpit_chart(dd_res, macro.yield_curve.get("us10y_pct", 4.42)),
+                    use_container_width=True,
+                )
+
         elif dd_res.asset_class == "CRYPTO" and dd_res.crypto_profile:
             cp_i = dd_res.crypto_profile
             cd_i = dd_res.crypto_dossier
@@ -941,6 +1160,13 @@ def main() -> None:
                 {"Pillar": "DAO Governance & Upgrades / Unlocks", "Details": f"{cd_i.deepdao_status if cd_i else ''} | Proposals: {cd_i.recent_governance_proposals if cd_i else ''} | Upgrades: {dv_i.upcoming_protocol_upgrades if dv_i else ''}"},
             ])
             render_clean_table(df_cr_full)
+
+            render_section_header(
+                f"Interactive On-Chain Gauges, GitHub Activity & Real Economics — {dd_res.normalized_ticker}",
+                "Live cycle gauges combined with real GitHub commit velocity and protocol Real Earnings breakdown",
+            )
+            st.plotly_chart(build_crypto_onchain_gauges_chart(dd_res), use_container_width=True)
+            st.plotly_chart(build_crypto_github_and_earnings_chart(dd_res), use_container_width=True)
 
         with st.expander("📄 Dynamic Filing Dossier Extractor (Ad-Hoc Assets / Custom PDFs)", expanded=False):
             st.caption(
@@ -1265,7 +1491,7 @@ def main() -> None:
                 st.rerun()
 
         st.markdown("##### ⚡ Quick Institutional Prompts")
-        qp1, qp2, qp3, qp4 = st.columns(4)
+        qp1, qp2, qp3, qp4, qp5 = st.columns(5)
         with qp1:
             if st.button("📊 Audit Portfolio Look-Through & Risks", use_container_width=True, disabled=not agent_ok, key="qp_port"):
                 st.session_state["ai_pending_prompt"] = (
@@ -1289,6 +1515,13 @@ def main() -> None:
                 st.session_state["ai_pending_prompt"] = (
                     "Run the 5-filter quantitative opportunity screener for both stocks and cryptoassets, "
                     "and rank candidates by framework discipline (Sloan, CFO/EBITDA, ROIC vs WACC, g_impl vs g_fund, Real Earnings, MVRV Z)."
+                )
+        with qp5:
+            active_tab3_tk = st.session_state.get("deep_dive_ticker", "NVDA")
+            if st.button(f"🔬 Deep-Audit {active_tab3_tk}", use_container_width=True, disabled=not agent_ok, key="qp_dd_active"):
+                st.session_state["ai_pending_prompt"] = (
+                    f"Run a full forensic, valuation, M&A/protocol audit on {active_tab3_tk}, "
+                    f"contrasting Reverse DCF / Sovereign Multiple against framework thresholds and macro context."
                 )
 
         for msg in st.session_state["ai_chat_history"]:
@@ -1314,13 +1547,20 @@ def main() -> None:
                 st.markdown(active_prompt)
 
             with st.chat_message("assistant"):
-                with st.spinner("Consulting deterministic engines via Google Antigravity SDK..."):
+                with st.status("Consulting deterministic core/ engines via Google Antigravity SDK...", expanded=True) as ag_status:
+                    st.write("Executing read-only Python tools over SQLite & valuation models...")
                     turn_res = analyst.ask(
                         question=active_prompt,
                         conversation_id=st.session_state.get("ai_conversation_id"),
                         capital_usd=capital_usd,
                         preferred_model=selected_agent_model,
                     )
+                    if turn_res.error:
+                        ag_status.update(label="⚠️ Agent Notice / Fallback Triggered", state="error", expanded=False)
+                    else:
+                        tools_str = ", ".join(turn_res.tools_invoked) if turn_res.tools_invoked else "direct synthesis"
+                        ag_status.write(f"Model: `{turn_res.model_used}` | Tools: `{tools_str}`")
+                        ag_status.update(label=f"✅ Completed via `{turn_res.model_used}` ({len(turn_res.tools_invoked)} tool calls)", state="complete", expanded=False)
                 if turn_res.error:
                     err_text = f"⚠️ **AI Analyst Notice:** {turn_res.error}"
                     st.warning(err_text)

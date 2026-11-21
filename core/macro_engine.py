@@ -93,6 +93,7 @@ class MacroEngine:
         dgs5 = self._fetch_fred_series("DGS5", 3)
         dgs10 = self._fetch_fred_series("DGS10", 4)
         dgs30 = self._fetch_fred_series("DGS30", 3)
+        ipman = self._fetch_fred_series("IPMAN", 3)
 
         # Calibrated synthetic fallback if offline or rate-limited
         if gdp.empty:
@@ -284,6 +285,11 @@ class MacroEngine:
         else:
             pmi_insight = "CONTRACTION (< 50): Cyclical slowdown / recession alert"
 
+        ipman_yoy = (
+            round(float((ipman.iloc[-1] / ipman.iloc[-13] - 1.0) * 100.0), 2)
+            if len(ipman) >= 13
+            else None
+        )
         pmi_analysis = {
             "pmi_services_current": curr_pmi_serv,
             "pmi_Services_3m_ago": prev_3m_pmi_serv,
@@ -293,6 +299,12 @@ class MacroEngine:
             "sweet_spot_active": is_sweet_spot,
             "expansion_line": 50.0,
             "inflation_risk_line": 60.0,
+            "fred_ipman_yoy_pct": ipman_yoy,
+            "pmi_data_source": (
+                f"ISM Baseline + Live FRED IPMAN Mfg ({ipman_yoy:+.2f}% YoY)"
+                if ipman_yoy is not None
+                else "ISM Survey Baseline (Offline Proxy)"
+            ),
             "automated_insight": pmi_insight,
         }
 
@@ -414,7 +426,18 @@ class MacroEngine:
         else:
             scenario_label = "DEFENSIVE SCENARIO: M2 contracting and DXY rising (Global liquidity tightening)"
 
+        live_vix_fx: Dict[str, float] = {}
+        try:
+            from core.live_quant_fetcher import fetch_live_vix_and_fx
+
+            live_vix_fx = fetch_live_vix_and_fx()
+        except Exception:
+            pass
+
         monetary_aggregates = {
+            "fed_funds_rate_pct": round(curr_ff, 2),
+            "vix_current": live_vix_fx.get("vix_current", 18.4),
+            "usd_brl_fx": live_vix_fx.get("usd_brl", 5.85),
             "fed_balance_sheet_trillions": fed_bs_t,
             "fed_bs_3m_chg_pct": fed_bs_3m_chg,
             "fed_bs_yoy_chg_pct": fed_bs_yoy_chg,
