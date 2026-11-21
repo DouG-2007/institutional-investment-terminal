@@ -26,11 +26,10 @@ This file defines the architectural invariants, module responsibilities, persist
 | Module | Primary Responsibility |
 | :--- | :--- |
 | `core/market_data.py` | Parallel sub-second quote streaming (`Binance Spot` -> `CoinCap` for crypto; `Yahoo Finance v8 direct chart` -> `yfinance.fast_info` for equities/ETFs). |
-| `core/live_quant_fetcher.py` | Cached real-time quantitative overlays (`^VIX`, `USDBRL=X`, `yfinance` statements w/ FX conversion + SEC EDGAR XBRL facts, live ETF `top_holdings`, Binance Futures funding/OI/24h Vol, DeFiLlama TVL/Fees/Stablecoins, CoinGecko dominance, CoinMetrics MVRV/Supply, and live ADTV). |
+| `core/live_quant_fetcher.py` | Cached real-time quantitative overlays (`^VIX`, `USDBRL=X`, global multi-currency FX via `fetch_live_currency_rate`, `yfinance` statements w/ FX conversion + SEC EDGAR XBRL facts, live ETF `top_holdings`, Binance Futures funding/OI/24h Vol, DeFiLlama TVL/Fees/Stablecoins, CoinGecko dominance, CoinMetrics MVRV/Supply, and live ADTV). |
 | `core/backtest_engine.py` | Real 3-year daily-return historical portfolio backtest (`SPY` equity trading-day calendar alignment, 12h Parquet cache) producing cumulative equity curves vs. `SPY`/`BTC-USD`, drawdowns, CAGR, Volatility, Sharpe, Sortino, MaxDD, Calmar, historical VaR/CVaR (95%/99%), Top-12 correlation matrix, crisis stress-tests, and Shannon Inflow vs. Passive DCA simulation. |
 | `core/macro_engine.py` | FRED CSV + Yahoo Finance macro aggregation: lagging indicators (GDP, CPI, Fed Funds, Debt/GDP, U3), Sahm's Rule paired with Payroll & ICSA, SOS Indicator, Services vs. Mfg PMI (+ FRED `IPMAN`), 10Y-2Y Yield Curve dynamics, M2 vs. DXY, live `^VIX`, and `USDBRL=X`. |
-| `core/portfolio_engine.py` | ACID SQLite CRUD (`portfolio_store.db` <-> `portfolio_config.json`), `transactions_ledger` custody accounting (`sync_ledger_cost_basis_to_assets`), `portfolio_snapshots` daily tracking + exact Time-Weighted Return (`compute_twr_metrics`), CSV brokerage importers, target weight 100% validation/normalization, live P&L / mark-to-market drift, and deep ETF Look-Through overlap decomposition (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`). |
-| `core/custody_sync.py` | 100% read-only brokerage & on-chain custody connectors (IBKR Flex Query XML parser & Web Service client, Binance HMAC-SHA256 read-only Spot balances & `myTrades`, public BTC Blockstream/Mempool & EVM JSON-RPC `eth_getBalance`/`balanceOf` queries) with idempotent ledger deduplication (`[ref:...]`) and dynamic non-hardcoded asset discovery. |
+| `core/portfolio_engine.py` | ACID SQLite CRUD (`portfolio_store.db` <-> `portfolio_config.json`), target weight 100% validation/normalization, live P&L / mark-to-market drift, and deep ETF Look-Through overlap decomposition (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`). |
 | `core/equity_engine.py` | Forensic health & 8-method Forward (NTM) valuation engine over shallow copies of `EQUITY_FUNDAMENTAL_KB` + live XBRL/`yfinance` statement overlays + `GLOBAL_BANK_PEERS_DB`. |
 | `core/crypto_engine.py` | On-chain cycle metrics (`MVRV Z-Score`, `NUPL`, `aSOPR 1.0`, `Pi Cycle Top`, `200W SMA`), mining (`Hash Ribbon`, `MMC`), flows, tokenomics (`NVM`, `NVT GC`, `P/F`, `Protocol Real Earnings`, `Real Yield`, unlocks, theoretical post-dilution price), and live Binance/DeFiLlama/CoinMetrics derivatives & TVL overlays. |
 | `core/filings_engine.py` | Documentary dossiers (`EquityDocumentaryDossier`, `CryptoDocumentaryDossier`) merging static `EQUITY_FILINGS_DB` / `CRYPTO_FILINGS_DB` with dynamic Gemini Structured Output extraction (`data_cache/custom_filings_cache.json`) and 1-click auto-fetch. |
@@ -40,10 +39,10 @@ This file defines the architectural invariants, module responsibilities, persist
 | `core/screener_engine.py` | Strict 5-filter quantitative & forensic screener for Stocks and Cryptoassets. |
 | `core/risk_timing_engine.py` | Performance risk metrics (`Sharpe`, `Sortino`, `Calmar` backed by real 3y backtest), live `^VIX`, live ADTV liquidity (`< 1%`), Convex LTV panel + Aave V3 stress-test table, consultative-only timing rules, Shannon Inflow eligibility, and Tax-Drag Hurdle Rate (`0.0%` at loss). |
 | `core/deep_dive_engine.py` | On-demand single-asset analyzer for any Stock, ETF, or Crypto (KB lookup or dynamic `yfinance` + SEC XBRL `live_quant_fetcher` synthesis) + 5-filter funnel scoring (`0–100`) and Regime 1–4 classification. |
-| `core/charts.py` | 17 interactive dark-theme Plotly builders (macro, yield curve, banks P/TBV vs. ROE, multi-method valuation, portfolio weight gauge, BTC/crypto on-chain, 5y Deep Dive forensic/DuPont/cockpit, 3y backtest equity/drawdown curve, cross-asset correlation heatmap, and Real Portfolio TWR Snapshots vs. SPY/BTC). |
+| `core/charts.py` | 16 interactive dark-theme Plotly builders (macro, yield curve, banks P/TBV vs. ROE, multi-method valuation, portfolio weight gauge, BTC/crypto on-chain, 5y Deep Dive forensic/DuPont/cockpit, 3y backtest equity/drawdown curve, and cross-asset correlation heatmap). |
 | `core/pdf_charts.py` | Pure deterministic `<svg>` vector charts embedded into Section 1, 2, 3, and 7 of the A4 landscape Master PDF (Treasury Yield Curve, Spot vs. DCF Valuation, Crypto MVRV/NUPL/Real Earnings, and 3Y Backtest Equity Curve). |
 | `core/pdf_exporter.py` | Headless Chromium / Microsoft Edge `--print-to-pdf` vector PDF compiler (`A4 landscape`) for the 7-section 360° Master Report (with embedded pure-SVG charts) and full-parity Individual Deep Dive dossier (including M&A/Goodwill, Moats, and Crypto protocol dossiers). |
-| `core/excel_exporter.py` | Styled 5-sheet Excel (`.xlsx`) workbook exporter (`Portfolio_Holdings`, `ETF_LookThrough`, `Equities_Forensic_Valuation`, `Crypto_OnChain_Tokenomics`, `Transactions_Ledger`) via `openpyxl`. |
+| `core/excel_exporter.py` | Styled 4-sheet Excel (`.xlsx`) decision workbook exporter (`Portfolio_Holdings`, `ETF_LookThrough`, `Equities_Forensic_Valuation`, `Crypto_OnChain_Tokenomics`) via `openpyxl`. |
 | `core/background_notifier.py` | Windows Task Scheduler (`Antigravity_Quant_Morning_Notifier`) ON/OFF passive alerting daemon (Telegram / Discord) with optional Gemini executive interpretation. |
 | `core/integrity_guard.py` | Plotly anti-overlap sanitizer (`sanitize_plotly_figure_against_overlaps`) and 33-criterion ecosystem data preservation auditor (`run_complete_ecosystem_integrity_audit`). |
 | `core/gemini_client.py` | Direct `google-genai` Interactions API wrapper (`store=False`), `.env` loader, Structured Outputs (Pydantic), PDF executive synthesis, and graceful fallback when `GEMINI_API_KEY` is absent. |
@@ -73,40 +72,10 @@ This file defines the architectural invariants, module responsibilities, persist
       display_order INTEGER DEFAULT 999
   )
   ```
-- **Table `transactions_ledger` Schema (Real Custody Ledger):**
-  ```sql
-  CREATE TABLE IF NOT EXISTS transactions_ledger (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tx_date TEXT NOT NULL,
-      ticker TEXT NOT NULL,
-      tx_type TEXT NOT NULL, -- BUY, SELL, DIVIDEND, STAKING
-      quantity REAL NOT NULL,
-      price_usd REAL NOT NULL,
-      fee_usd REAL DEFAULT 0.0,
-      notes TEXT DEFAULT ''
-  )
-  ```
-- **Table `portfolio_snapshots` Schema (Daily Valuation & TWR History):**
-  ```sql
-  CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-      snap_date TEXT PRIMARY KEY,
-      total_value_usd REAL NOT NULL,
-      net_cash_flow_usd REAL DEFAULT 0.0,
-      unrealized_pnl_usd REAL DEFAULT 0.0,
-      unrealized_pnl_pct REAL DEFAULT 0.0,
-      crypto_pct REAL DEFAULT 0.0,
-      hard_assets_pct REAL DEFAULT 0.0,
-      vix_current REAL DEFAULT 0.0,
-      spy_close REAL DEFAULT 0.0,
-      btc_close REAL DEFAULT 0.0,
-      notes TEXT DEFAULT ''
-  )
-  ```
 - **Governance Rules:**
-  - All mutations (writes, updates, deletes, weight normalizations, custody ledger inserts/deletes, daily snapshot recording) MUST go exclusively through `PortfolioEngine` (`upsert_asset`, `delete_asset`, `normalize_weights_to_100`, `add_transaction`, `delete_transaction`, `sync_ledger_cost_basis_to_assets`, `record_daily_snapshot`, `delete_snapshot`, `import_assets_from_csv`, `import_transactions_from_csv`).
-  - Read-only brokerage/wallet sync (`core/custody_sync.py`) NEVER writes API keys/secrets to SQLite or `custody_sync_config.json`; credentials belong strictly in `.env` or transient session password fields, and public wallet configs (`custody_sync_config.json`) stay gitignored.
+  - All mutations (writes, updates, deletes, weight normalizations) MUST go exclusively through `PortfolioEngine` (`upsert_asset`, `delete_asset`, `normalize_weights_to_100`).
   - Target portfolio weights must sum to **100.00%** (`is_weight_valid_100`). Leverage is reflected separately in `effective_gross_exposure_pct` (accounting for 2x `QLD`).
-  - **AI agents and direct LLM calls are strictly READ-ONLY against `portfolio_store.db`** (`portfolio_assets`, `transactions_ledger`, and `portfolio_snapshots`) and must never alter holdings, transactions, snapshots, weights, cost basis, or `portfolio_config.json`.
+  - **AI agents and direct LLM calls are strictly READ-ONLY against `portfolio_store.db`** (`portfolio_assets`) and must never alter holdings, weights, cost basis, or `portfolio_config.json`.
 
 ---
 
@@ -161,7 +130,7 @@ This file defines the architectural invariants, module responsibilities, persist
    ```bash
    python -m unittest discover -s tests -v
    ```
-   Verifies financial invariants (no Altman Z, bank calibration, Tax-Drag loss=0/gain formula), isolated SQLite CRUD + `transactions_ledger` + `sync_ledger_cost_basis_to_assets` + `portfolio_snapshots` TWR + CSV/IBKR Flex XML/Binance/Public Wallet read-only sync, all 17 Plotly figures, backtest VaR/CVaR + stress-tests + correlation matrix, `.xlsx` multi-sheet workbook export, Antigravity read-only lockdown, zero-key graceful degradation, and the **33/33 (100%) Ecosystem Integrity Audit**.
+   Verifies financial invariants (no Altman Z, bank calibration, Tax-Drag loss=0/gain formula), isolated SQLite CRUD + Multi-Currency FX resolver, all 16 Plotly figures, backtest VaR/CVaR + stress-tests + correlation matrix, `.xlsx` 4-sheet workbook export, Antigravity read-only lockdown, zero-key graceful degradation, and the **33/33 (100%) Ecosystem Integrity Audit**.
 3. **Ecosystem Integrity Audit (Standalone One-Liner, 33 Criteria, Must Pass 33/33 = 100%, Without Altman Z):**
    ```bash
    python -c "from core.macro_engine import MacroEngine; from core.portfolio_engine import PortfolioEngine; from core.equity_engine import EquityEngine; from core.crypto_engine import CryptoEngine; from core.filings_engine import FilingsEngine; from core.geopolitics_micro_engine import GeopoliticsMicroEngine; from core.screener_engine import ScreenerEngine; from core.risk_timing_engine import RiskTimingEngine; from core.integrity_guard import run_complete_ecosystem_integrity_audit; m=MacroEngine().run_macro_aggregation(); p=PortfolioEngine().build_overview_and_lookthrough(100000.0); e=EquityEngine(m.yield_curve.get('us10y_pct',4.42)).analyze_portfolio_equities(); c=CryptoEngine().analyze_portfolio_cryptos(); f=FilingsEngine(); g=GeopoliticsMicroEngine(); s=ScreenerEngine(); rt=RiskTimingEngine().build_risk_and_consultative_timing(p,e,c); a=run_complete_ecosystem_integrity_audit(m,p,e,c,f.get_equity_dossiers(),f.get_crypto_dossiers(),g.get_geopolitical_matrix(),g.get_micro_events(),s.run_stock_screener(),s.run_crypto_screener(),rt); print(a.total_criteria_passed, '/', a.total_criteria_checked, f'({a.preservation_rate_pct}%)')"
@@ -169,11 +138,11 @@ This file defines the architectural invariants, module responsibilities, persist
 4. **Graceful Degradation Check (Zero Key):** Verify `GEMINI_API_KEY=""` leaves PDF generation, `FilingsEngine` fallback, `BackgroundNotifierEngine`, and `InstitutionalAIAnalyst.is_available()` clean without exceptions.
 5. **Antigravity Read-Only Lockdown Check:** Verify `LocalAgentConfig` has `capabilities.enable_subagents is False` and `capabilities.enabled_tools == []`.
 6. **Streamlit Boot / UI Smoke Test:** Verify `AppTest.from_file("app.py")` / `streamlit run app.py --server.headless true` runs cleanly under `protobuf>=7` across all 5 tabs.
-7. **Git Hygiene:** Run `git status` and `git check-ignore` to confirm `.env`, `notifier_config.json`, `custody_sync_config.json`, `data_cache/ai_sessions/`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, and `data_cache/*.parquet` are untracked/ignored.
+7. **Git Hygiene:** Run `git status` and `git check-ignore` to confirm `.env`, `notifier_config.json`, `data_cache/ai_sessions/`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, and `data_cache/*.parquet` are untracked/ignored.
 
 ---
 
 ## 8. Documentation & Git Sync Policy
 
 - **Default Git & Documentation Synchronization Rule:** Whenever any feature, module, tab, dependency, or financial invariant is added or modified in `app.py` or `core/`, ALWAYS keep [README.md](README.md), [GEMINI.md](GEMINI.md), and [.env.example](.env.example) synchronized and commit + push the verified changes cleanly to `origin` after passing Section 7 checks.
-- **Secret Protection:** Double-check `git status --short` and `git check-ignore` before every commit so `.env`, `notifier_config.json`, `custody_sync_config.json`, `data_cache/sec_tickers.json`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, `data_cache/*.parquet`, and `data_cache/ai_sessions/` never enter Git history.
+- **Secret Protection:** Double-check `git status --short` and `git check-ignore` before every commit so `.env`, `notifier_config.json`, `data_cache/sec_tickers.json`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, `data_cache/*.parquet`, and `data_cache/ai_sessions/` never enter Git history.

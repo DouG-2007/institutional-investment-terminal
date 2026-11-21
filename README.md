@@ -39,8 +39,8 @@ To guarantee professional auditability and analytical integrity, the terminal op
 * **Optional Dual-Front AI Layer (Zero-Key Graceful Degradation):**
   * **Front A (`core/gemini_client.py` + `core/ai_report_orchestrator.py` via `google-genai` Interactions API, `store=False`):** Supports both `Full Deep Hydration` and `Economic / Fast Batch` profiles for SEC/Crypto filing extraction (`10-K`, `10-Q`, `20-F`, whitepapers), full qualitative Master PDF matrices/thesis synthesis, and optional AI morning briefing interpretation.
   * **Front B (`core/ai_analyst.py` via `google-antigravity` SDK):** Powers a conversational analyst locked in **strict read-only mode** (`BuiltinTools.none()` + `policy.deny_all()`), equipped solely with 7 Python tools wired to the deterministic `core/` engines plus live `st.status` tool-execution telemetry.
-  * **Graceful Fallback:** If `GEMINI_API_KEY` is omitted from `.env` (or on free-tier rate limits / HTTP 503/429 / timeouts), Tabs 1–4, vector PDF/Excel compilation, **17 interactive Plotly dashboards**, and the morning notifier continue operating 100% deterministically.
-* **Local Persistence, Custody Ledger, Daily TWR Snapshots & Secret Hygiene:** Portfolio holdings, real custody transactions, and daily Time-Weighted Return snapshots (`portfolio_assets`, `transactions_ledger`, `portfolio_snapshots` in `portfolio_store.db`) live locally on disk; `.env`, `notifier_config.json`, `custody_sync_config.json`, `data_cache/ai_sessions/`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, `data_cache/*.parquet`, and `data_cache/sec_tickers.json` are excluded in [`.gitignore`](.gitignore). Engineering invariants and validation checklists are documented in [`GEMINI.md`](GEMINI.md).
+  * **Graceful Fallback:** If `GEMINI_API_KEY` is omitted from `.env` (or on free-tier rate limits / HTTP 503/429 / timeouts), Tabs 1–4, vector PDF/Excel compilation, **16 interactive Plotly dashboards**, and the morning notifier continue operating 100% deterministically.
+* **Local Persistence & Secret Hygiene:** Target portfolio allocations and watchlist assets (`portfolio_assets` in `portfolio_store.db` mirrored to `portfolio_config.json`) live locally on disk; `.env`, `notifier_config.json`, `data_cache/ai_sessions/`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, `data_cache/*.parquet`, and `data_cache/sec_tickers.json` are excluded in [`.gitignore`](.gitignore). Engineering invariants and validation checklists are documented in [`GEMINI.md`](GEMINI.md).
 
 ---
 
@@ -52,13 +52,13 @@ The system is built upon a **modular service-oriented architecture** inside `cor
 flowchart TB
     subgraph S1 ["1. Real-Time Ingestion & Local Persistence"]
         QUOTES["market_data.py & macro_engine.py<br/>• Binance / CoinCap / Yahoo Finance v8<br/>• FRED (FEDFUNDS/IPMAN/CPI) & US Treasury Curve"]
-        LIVEQ["live_quant_fetcher.py & backtest_engine.py<br/>• SEC XBRL, YF Statements (FX), ETF top_holdings<br/>• Binance Futures, DeFiLlama, CoinMetrics, 3y Backtest"]
-        FETCH["filing_fetcher.py & custody_sync.py<br/>• SEC 10-K/10-Q/8-K/Form 4, Whitepaper, GitHub, DAO<br/>• Read-Only IBKR Flex XML, Binance API, Public BTC/EVM"]
-        SQL[("SQLite3 + Caches<br/>• portfolio_store.db (assets, ledger, snapshots)<br/>• live_quant_cache.json & backtest_prices_3y.parquet")]
+        LIVEQ["live_quant_fetcher.py & backtest_engine.py<br/>• SEC XBRL, YF Statements & Multi-Currency FX<br/>• Binance Futures, DeFiLlama, CoinMetrics, 3y Backtest"]
+        FETCH["filing_fetcher.py<br/>• SEC 10-K / 10-Q / 8-K / Form 4 + Analysts<br/>• Whitepaper, GitHub, Snapshot & DeFiLlama"]
+        SQL[("SQLite3 + Caches<br/>• portfolio_store.db (portfolio_assets)<br/>• live_quant_cache.json & backtest_prices_3y.parquet")]
     end
 
     subgraph S2 ["2. Deterministic Core Engines (core/)"]
-        PORT["portfolio_engine.py<br/>• ACID CRUD, Custody Ledger & TWR Snapshots<br/>• Live ETF Look-Through Decomposition"]
+        PORT["portfolio_engine.py<br/>• ACID Target Allocation CRUD & Weight Normalization<br/>• Live ETF Look-Through Decomposition"]
         EQUITY["equity_engine.py & filings_engine.py<br/>• Sloan, CFO/EBITDA & DuPont 3-Pillars<br/>• 8-Method Forward NTM Valuation & Filings"]
         CRYPTO["crypto_engine.py<br/>• NVT GC, MVRV Z-Score, aSOPR 1.0 & 200W SMA<br/>• Protocol Real Earnings & Token Unlocks"]
         RISK["risk_timing_engine.py & screener_engine.py<br/>• Backtest Sharpe/Sortino/Calmar & Live VIX/ADTV<br/>• Shannon's Demon, Convex LTV & 5-Filter Screener"]
@@ -71,8 +71,8 @@ flowchart TB
     end
 
     subgraph S4 ["4. Presentation & Delivery"]
-        WEB["app.py (5-Tab Streamlit Terminal)<br/>• 17 Interactive Plotly Charts & USD/BRL Toggle<br/>• Master PDF, CRUD/Custody Sync, Deep Dive, Simulators"]
-        EXPORTS["pdf_exporter.py & excel_exporter.py<br/>• Headless Chromium A4 Vector PDFs<br/>• Styled 5-Sheet Excel Workbook (.xlsx)"]
+        WEB["app.py (5-Tab Streamlit Terminal)<br/>• 16 Interactive Plotly Charts & Global FX Display<br/>• Master PDF, Target Alloc, Deep Dive, Simulators & Chat"]
+        EXPORTS["pdf_exporter.py & excel_exporter.py<br/>• Headless Chromium A4 Vector PDFs<br/>• Styled 4-Sheet Excel Workbook (.xlsx)"]
         NOTIF["background_notifier.py<br/>• Windows Task Scheduler ON/OFF<br/>• Telegram Bot & Discord Webhook"]
     end
 
@@ -84,13 +84,13 @@ flowchart TB
 
 ### Core Module Breakdown:
 * **`core/market_data.py`, `core/live_quant_fetcher.py` & `core/macro_engine.py`:** Parallel live price ingestion, real-time quantitative overlays (`^VIX`, `USDBRL=X`, FRED High-Yield Credit Spread `BAMLH0A0HYM2`, SEC EDGAR XBRL + `yfinance` financial statements w/ FX conversion, live ETF `top_holdings`, Binance Futures funding/OI, DeFiLlama TVL/Fees/Stablecoins, CoinGecko dominance, CoinMetrics `btc`/`eth` MVRV/Supply + 5y Z-Score altcoin proxies, live ADTV), and macroeconomic cycle tracking (Sahm Rule + Payrolls/ICSA, 10Y–2Y curve steepening, Services vs. Mfg PMI + FRED `IPMAN`, and M2 vs. DXY).
-* **`core/portfolio_engine.py`, `core/custody_sync.py` & `core/backtest_engine.py`:** Manages the ACID relational database (`portfolio_store.db`: `portfolio_assets`, `transactions_ledger` w/ `sync_ledger_cost_basis_to_assets`, and `portfolio_snapshots` w/ chain-linked **Time-Weighted Return (`TWR`)** net of external flows) + JSON mirror (`portfolio_config.json`); connects **100% read-only custody sources** (`IBKR Flex Query XML`, `Binance Spot API` w/ dynamic asset discovery, and public `BTC`/`EVM` JSON-RPC wallets with idempotent `[ref:...]` deduplication); computes live *Look-Through* ETF overlap (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`); and executes a 3-year historical daily backtest aligned to `SPY` trading days (`data_cache/backtest_prices_3y.parquet`) with VaR/CVaR (95%/99%), Top-12 correlation matrix, historical crash stress-tests, and Shannon Inflow vs. Passive DCA simulation.
+* **`core/portfolio_engine.py` & `core/backtest_engine.py`:** Manages the ACID relational database (`portfolio_store.db`: `portfolio_assets`) and JSON mirror (`portfolio_config.json`), computes mark-to-market drift and live *Look-Through* ETF overlap (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`), and executes a 3-year historical daily backtest aligned to `SPY` trading days (`data_cache/backtest_prices_3y.parquet`) with VaR/CVaR (95%/99%), Top-12 correlation matrix, historical crash stress-tests, and Shannon Inflow vs. Passive DCA simulation.
 * **`core/equity_engine.py`:** Forensic accounting audit and 8-method Forward (NTM) valuation engine (Forward 3-scenario DCF w/ 10% MoS, Paired Reverse DCF, Owner Earnings Yield, Multiples, EVA, Sector-Strict PEGY, Greenblatt Magic Formula, and SOTP). Overlays live XBRL/`yfinance` GAAP statements onto shallow KB copies, refreshes global banking scatter peers (`BAC`, `WFC`, `GS`, `ITUB`, `DBSDY`) alongside portfolio banks via P/TBV vs. ROE, Financial PEGY, and a mandatory `P/B >= 1.00x` floor, and intentionally excludes Altman Z-Score.
 * **`core/crypto_engine.py`:** On-chain cycle intelligence (`MVRV Z-Score`, `NUPL`, `aSOPR 1.0`, `Pi Cycle Top`, `200W SMA`), mining metrics (`Hash Ribbon`, `MMC`), derivatives (`Binance Futures` funding & OI), and protocol sustainability (`DeFiLlama` TVL & annualized fees feeding `Protocol Real Earnings` and `P/F`, `Real Yield`, 30/60/90d unlocks, theoretical post-unlock price).
 * **`core/filing_fetcher.py` & `core/filings_engine.py`:** Merges static verified dossiers (`EQUITY_FILINGS_DB`, `CRYPTO_FILINGS_DB`) with zero-download multi-document suites (`10-K/20-F` + `10-Q/6-K` + `8-K` + `Form 4`/`DEF 14A` + `yfinance` Analyst Consensus for equities; Whitepaper + GitHub live 28d commits/devs + Snapshot DAO + DeFiLlama Audits/Hacks for crypto), Google Search grounding supplement, and Gemini Pydantic Structured Outputs cached in `data_cache/custom_filings_cache.json`.
 * **`core/risk_timing_engine.py`, `core/deep_dive_engine.py` & `core/screener_engine.py`:** Consultative-only timing with configurable Fiscal Jurisdiction Tax-Drag Hurdle Rate (`0.0%` at loss), real 3y backtest `Sharpe`/`Sortino`/`Calmar`/`MaxDD`, live `^VIX` & `ADTV` liquidity, *Shannon's Demon* inflow simulator, Convex LTV / Aave V3 Health Factor stress-testing, live-fed 5-filter quantitative screening (with optional watchlist extras), and on-demand single-asset Deep Dive + Side-by-Side Peer Comparator backed by SEC XBRL + `yfinance`.
 * **`core/gemini_client.py`, `core/ai_report_orchestrator.py` & `core/ai_analyst.py`:** Direct `google-genai` Interactions API wrapper (`store=False`, cooldown + multi-model fallback), dual-profile Master Report AI orchestrator (`Full Deep Hydration` or `Economic / Fast Batch`), and read-only `google-antigravity` agent locked to 7 deterministic custom tools with zero shell or file-write permissions.
-* **`core/pdf_exporter.py`, `core/pdf_charts.py`, `core/excel_exporter.py`, `core/charts.py`, `core/background_notifier.py` & `core/integrity_guard.py`:** Headless Chromium/Edge (`--headless=new --print-to-pdf`) A4 landscape PDF compiler with embedded print-safe pure-SVG vector charts (`render_yield_curve_svg`, `render_valuation_vs_spot_svg`, `render_crypto_cycle_svg`, `render_backtest_equity_svg`), styled 5-sheet `.xlsx` Excel workbook exporter (`openpyxl`), **17 interactive dark-theme Plotly builders**, configurable threshold alerts (`VIX`, drift, `NUPL`, DCF upside) on Windows Task Scheduler, and the 33-criterion ecosystem data preservation auditor (`100%` pass invariant).
+* **`core/pdf_exporter.py`, `core/pdf_charts.py`, `core/excel_exporter.py`, `core/charts.py`, `core/background_notifier.py` & `core/integrity_guard.py`:** Headless Chromium/Edge (`--headless=new --print-to-pdf`) A4 landscape PDF compiler with embedded print-safe pure-SVG vector charts (`render_yield_curve_svg`, `render_valuation_vs_spot_svg`, `render_crypto_cycle_svg`, `render_backtest_equity_svg`), styled 4-sheet `.xlsx` Excel decision workbook exporter (`openpyxl`), **16 interactive dark-theme Plotly builders**, configurable threshold alerts (`VIX`, drift, `NUPL`, DCF upside) on Windows Task Scheduler, and the 33-criterion ecosystem data preservation auditor (`100%` pass invariant).
 
 ---
 
@@ -100,8 +100,8 @@ Upon launching `streamlit run app.py`, the interface presents **5 dedicated modu
 
 | Tab | Module Name | Primary Capability |
 | :--- | :--- | :--- |
-| **Tab 1** | **Master Consolidated Report (.PDF)** | On-demand 7-section A4 vector PDF, Economic/Deep AI profile, Glossary, **Daily TWR Snapshots**, & 4-subtab **Interactive Plotly Intelligence Dashboard** |
-| **Tab 2** | **Portfolio Manager (SQLite CRUD)** | Interactive upsert, 100% weight gauge, ETF Look-Through, **Custody Ledger + Read-Only Sync (IBKR/Binance/Public Wallets)**, & **`.xlsx` Workbook** export |
+| **Tab 1** | **Master Consolidated Report (.PDF)** | On-demand 7-section A4 vector PDF, Economic/Deep AI profile, Glossary, & 4-subtab **Interactive Plotly Intelligence Dashboard** |
+| **Tab 2** | **Portfolio Manager (SQLite CRUD)** | Interactive target-allocation upsert/delete, 100% weight gauge, ETF Look-Through, & **`.xlsx` Workbook** export |
 | **Tab 3** | **Single-Asset Deep Dive** | On-demand 5-filter XBRL-backed audit, **interactive forensic/valuation/on-chain Plotly charts**, 2-page PDF, & **Auto-Fetch AI Extractor** |
 | **Tab 4** | **Simulators (Inflow & LTV) & Notifier** | Shannon's Demon inflow, Convex LTV stress-testing, and Telegram/Discord ON/OFF morning alerts |
 | **Tab 5** | **AI Portfolio Analyst** | Read-only Antigravity agent w/ 7 deterministic `core/` tools, **Active-Ticker Deep Audit**, & **`st.status` tool tracker** |
@@ -112,15 +112,15 @@ Upon launching `streamlit run app.py`, the interface presents **5 dedicated modu
 
 The executive command center summarizing overarching allocation, interactive visual telemetry, and on-demand A4 landscape vector PDF compilation.
 
-1. **Sidebar Telemetry & Controls:** Configure total capital, **Fiscal Jurisdiction Preset & Capital Gains Tax Rate (%)** for Tax-Drag Hurdle calculations, and **UI Display Currency (`USD` / `BRL (Live FX)`)**, alongside a live telemetry strip (`^VIX`, `US10Y`, `Fed Funds`, `USD/BRL`).
+1. **Sidebar Telemetry & Controls:** Configure total capital, global **Tax Jurisdiction Preset + Editable Capital Gains Tax Rate (%)** for Tax-Drag Hurdle calculations, **Global Multi-Currency UI Display (`USD`, `EUR`, `GBP`, `BRL`, `CHF`, `CAD`, `AUD`, `JPY` via Live FX)**, and a single unified **`🔄 Refresh All Data & Live Quotes`** button (with optional AI/Filings cache reset checkbox).
 2. **Top Allocation KPI Card:** Displays live portfolio split across Cryptoassets and Hard-Assets/Equities plus effective gross exposure (accounting for leveraged ETFs such as 2x `QLD`).
 3. **AI-Powered Master Report & Execution Profile:** Toggle `AI-Powered Master Report` and choose between **`Economic / Fast Batch`** (`skip_filing_hydration=True`, faster & lower quota usage) or **`Full Deep Hydration`** (`skip_filing_hydration=False`, full SEC/Crypto doc extraction + qualitative synthesis). Section 1 embeds the optional *Executive AI Thesis & Cross-Asset Risk Synthesis* when active, and degrades cleanly without an API key.
-4. **Interactive Visual Intelligence Dashboard & Plain-English Metric Glossary (12 Tab 1 Charts + 5 Tab 2/3 Charts = 17 Charts Total):**
+4. **Interactive Visual Intelligence Dashboard & Plain-English Metric Glossary (11 Tab 1 Charts + 5 Tab 2/3 Charts = 16 Charts Total):**
    * Expand **`📖 Plain-English Metric Glossary`** for clear intuitive definitions of `P/TBV`, `PEGY`, `Sloan Ratio`, `ROIC vs. WACC`, `MVRV`, `NUPL`, `aSOPR`, `VaR/CVaR`, `Sortino`, and `Calmar`.
    * *Macroeconomic & Yield Curve:* Comprehensive Macro Overview & Treasury Yield Curve / ICSA Claims.
    * *Valuation & Global Banks:* Multi-Method Forward Valuation Comparison & Global Banks `P/TBV vs. ROE` Scatter Matrix.
    * *Crypto On-Chain & Tokenomics:* BTC `aSOPR 1.0`, Pi Cycle Top / `200W SMA` / Hash Ribbon / MMC, MVRV Z-Score & NUPL, and NVM & CDD Whale Alerts.
-   * *Real Historical Backtest, VaR, Correlation & Daily TWR Snapshots (3Y):* Cumulative Portfolio Equity Curve vs. `SPY` & `BTC-USD`, rolling Drawdown subplot, Top-12 Cross-Asset Correlation Heatmap, Daily VaR & CVaR (`95%` / `99%`), **Shannon Inflow vs. Passive DCA simulation**, Historical Regime Stress-Tests (`COVID-19`, `2022 Bear`, `VIX > 35`), and **Daily Portfolio Snapshots & Real Time-Weighted Return (`TWR`)** net of external cash inflows/outflows.
+   * *Real Historical Backtest, VaR & Correlation (3Y):* Cumulative Portfolio Equity Curve vs. `SPY` & `BTC-USD`, rolling Drawdown subplot, Top-12 Cross-Asset Correlation Heatmap, Daily VaR & CVaR (`95%` / `99%`), **Shannon Inflow vs. Passive DCA simulation**, and Historical Regime Stress-Tests (`COVID-19`, `2022 Bear`, `VIX > 35`).
 5. **On-Demand Compile and Download the 360° Master Report:**
    * Click **`⚡ Generate & Compile 360° Master Report (.PDF — ALL 7 SECTIONS)`** to hydrate AI/filings (if enabled) and compile all 7 chapters via headless Chromium/Edge on demand (keeping initial dashboard boot instant), then click **`📥 DOWNLOAD 360° MASTER REPORT (.PDF)`**:
      * *Section 1:* Global Macroeconomics, Leading/Lagging Indicators & Geopolitical Impact Matrix (+ optional Executive AI Thesis).
@@ -134,21 +134,18 @@ The executive command center summarizing overarching allocation, interactive vis
 
 ---
 
-### ⚙️ Tab 2: Portfolio Manager (SQLite CRUD, Custody Ledger & Excel Export)
+### ⚙️ Tab 2: Portfolio Manager (SQLite Target Allocations & Excel Export)
 
-Enables full interactive custodial portfolio management with immediate ACID persistence in `portfolio_store.db` and `portfolio_config.json` mirroring.
+Enables interactive target allocation management with immediate ACID persistence in `portfolio_store.db` (`portfolio_assets`) and `portfolio_config.json` mirroring.
 
-1. **Add or Edit an Asset:** Configure `Ticker`, `Name`, `Asset Class`, `Sector Vertical`, `Target Weight (%)`, `Average Buy Price (USD)`, `Fair Price`, and `LTV Turbo Collateral Eligible`, then click **`➕ Save / Update Asset in SQLite`**.
-2. **Delete an Asset:** Select any holding and click **`🗑️ Confirm Asset Deletion`**.
-3. **Portfolio Weight Gauge & 100.00% Normalization:** Inspect the live Plotly weight gauge and click **`⚖️ Automatically Normalize Weights to 100.00%`** to proportionally rescale portfolio weights:
+1. **Add or Edit an Asset:** Configure `Ticker`, `Name`, `Asset Class`, `Sector Vertical`, `Target Weight (%)`, `Average Reference Price (USD)`, and `LTV Turbo Collateral Eligible`, then click **`💾 Save / Update Asset in SQLite`**.
+2. **Delete an Asset:** Select any holding and click **`🗑️ Remove Selected Asset`**.
+3. **Portfolio Weight Gauge & 100.00% Normalization:** Inspect the live Plotly weight gauge and click **`⚖️ Normalize Weights Automatically to 100.00%`** to proportionally rescale portfolio weights:
 
    $$w_{\text{new}, i} = \frac{w_{\text{old}, i}}{\sum_{j=1}^{N} w_{\text{old}, j}} \times 100\%$$
 
 4. **Deep ETF Look-Through Decomposition:** Dynamically merges live `yfinance.funds_data.top_holdings` across index/thematic ETFs (`SPY`, `QQQ`, `SMH`, `ITA`, and `QLD 2x`) to calculate true **Gross Effective Exposure** per underlying company across all `ETF`-classified holdings.
-5. **Real Custody Transactions Ledger, Read-Only Brokerage/Wallet Sync, CSV Import & `.xlsx` Workbook Export:**
-   * Record real `BUY`, `SELL`, `DIVIDEND`, and `STAKING` events in SQLite (`transactions_ledger`), automatically computing weighted-average cost basis, net custody units, realized P&L, and income/yield, with 1-click **`🔄 Sync Ledger Avg Cost -> Portfolio Assets`**.
-   * **Read-Only Automatic Custody Sync:** Connect **Interactive Brokers (Flex Query XML)**, **Binance Spot (Read-Only API)** with dynamic asset discovery, or **Public Bitcoin & EVM (`0x...` / custom ERC-20) Wallets** (zero private keys) with idempotent `[ref:...]` deduplication.
-   * Bulk-import holdings or trades via `.csv` upload, and download a styled 5-sheet Excel workbook (**`📊 Export Auditable Multi-Sheet Institutional Workbook (.XLSX)`**) built with `openpyxl`.
+5. **Auditable `.xlsx` Decision Workbook Export:** Download a styled 4-sheet Excel workbook (**`📊 Export Auditable Multi-Sheet Institutional Workbook (.XLSX)`**) built with `openpyxl` (`Portfolio_Holdings`, `ETF_LookThrough`, `Equities_Forensic_Valuation`, and `Crypto_OnChain_Tokenomics`).
 
 ---
 
@@ -369,13 +366,13 @@ The application opens at `http://localhost:8501`.
 ## 🛠️ Technology Stack
 
 * **Core Engine:** Python 3.11 / 3.12 (`typing`, `dataclasses`, `pydantic >= 2.0.0`, `pandas`, `numpy`).
-* **Frontend UI:** [Streamlit](https://streamlit.io/) + **17 Interactive [Plotly](https://plotly.com/python/) Dashboards** (dark institutional theme + `USD`/`BRL` live currency display).
+* **Frontend UI:** [Streamlit](https://streamlit.io/) + **16 Interactive [Plotly](https://plotly.com/python/) Dashboards** (dark institutional theme + global live multi-currency FX display).
 * **AI & Agent Frameworks:**
   * [`google-genai >= 3.2.0`](https://pypi.org/project/google-genai/) — Gemini Interactions API (`store=False`), Pydantic Structured Outputs, Economic/Deep Master PDF synthesis, and Google Search grounding fallback.
   * [`google-antigravity >= 0.1.23`](https://pypi.org/project/google-antigravity/) — Read-only tool-calling agent with `BuiltinTools.none()`, `policy.deny_all()`, and local SQLite session persistence.
   * [`python-dotenv`](https://pypi.org/project/python-dotenv/) — Local `.env` credential management.
-* **Market, On-Chain & Regulatory Data:** Binance Spot & Futures (`premiumIndex`, `openInterest`, `24hr`), CoinCap, DeFiLlama (TVL, Fees, Stablecoins, Audits, Hacks), CoinMetrics Community (`CapMVRVCur`, `SplyCur`), CoinGecko (`/global`), [`yfinance`](https://github.com/ranaroussi/yfinance) (Quotes, Statements, 5y Crypto SMAs, ETF `top_holdings`), FRED CSV (`FEDFUNDS`, `IPMAN`, CPI, Payrolls, ICSA, M2), SEC EDGAR XBRL/REST API, Snapshot DAO, GitHub API, Interactive Brokers Flex Query XML/Web Service, Blockstream/Mempool BTC REST, and EVM JSON-RPC.
-* **Storage & Exports:** SQLite3 ACID relational engine (`portfolio_store.db`: `portfolio_assets`, `transactions_ledger`, `portfolio_snapshots`), JSON mirror (`portfolio_config.json`), Parquet backtest cache (`backtest_prices_3y.parquet`), Styled 5-Sheet Excel Workbook (`openpyxl`), and Headless Chromium Vector PDF (`msedge.exe` / `chrome.exe --headless=new --print-to-pdf`).
+* **Market, On-Chain & Regulatory Data:** Binance Spot & Futures (`premiumIndex`, `openInterest`, `24hr`), CoinCap, DeFiLlama (TVL, Fees, Stablecoins, Audits, Hacks), CoinMetrics Community (`CapMVRVCur`, `SplyCur`), CoinGecko (`/global`), [`yfinance`](https://github.com/ranaroussi/yfinance) (Quotes, Statements, Multi-Currency FX, 5y Crypto SMAs, ETF `top_holdings`), FRED CSV (`FEDFUNDS`, `IPMAN`, CPI, Payrolls, ICSA, M2), SEC EDGAR XBRL/REST API, Snapshot DAO, and GitHub API.
+* **Storage & Exports:** SQLite3 ACID relational engine (`portfolio_store.db`: `portfolio_assets`), JSON mirror (`portfolio_config.json`), Parquet backtest cache (`backtest_prices_3y.parquet`), Styled 4-Sheet Excel Workbook (`openpyxl`), and Headless Chromium Vector PDF (`msedge.exe` / `chrome.exe --headless=new --print-to-pdf`).
 * **Automated Testing & Scheduling:** Stdlib `unittest` (`tests/test_terminal_invariants.py`), GitHub Actions CI template (`docs/github_ci_workflow.yml`), and Windows Task Scheduler (`schtasks.exe`) integration for zero-daemon resource consumption.
 
 ---

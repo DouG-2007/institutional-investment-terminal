@@ -172,6 +172,49 @@ def fetch_live_vix_and_fx() -> Dict[str, float]:
     return res
 
 
+GLOBAL_CURRENCY_OPTIONS: Dict[str, Tuple[str, float]] = {
+    "USD ($)": ("$", 1.0),
+    "EUR (€)": ("€", 0.92),
+    "GBP (£)": ("£", 0.79),
+    "BRL (R$)": ("R$", 5.85),
+    "CHF (CHF )": ("CHF ", 0.88),
+    "CAD (CA$)": ("CA$", 1.40),
+    "AUD (A$)": ("A$", 1.54),
+    "JPY (¥)": ("¥", 154.0),
+}
+
+_CURRENCY_FALLBACK_RATES: Dict[str, float] = {
+    k.split()[0].upper(): float(v[1]) for k, v in GLOBAL_CURRENCY_OPTIONS.items()
+}
+
+
+def fetch_live_currency_rate(ccy_code: str) -> float:
+    """
+    Fetches live USD -> <CCY> FX multiplier from Yahoo Finance (`USD<CCY>=X`) with
+    a 15-minute disk cache and graceful fallback. Supports any 3-letter ISO currency.
+    """
+    ccy = (ccy_code or "USD").strip().upper()[:3]
+    if not ccy or ccy == "USD":
+        return 1.0
+    if ccy == "BRL":
+        try:
+            return float(fetch_live_vix_and_fx().get("usd_brl") or _CURRENCY_FALLBACK_RATES["BRL"])
+        except Exception:
+            return _CURRENCY_FALLBACK_RATES["BRL"]
+
+    cached = _load_cache_bucket("fx_rates", ccy, _TTL_FAST_SEC)
+    if isinstance(cached, dict) and cached.get("rate"):
+        return float(cached["rate"])
+
+    live_rate = _fetch_yahoo_chart_last(f"USD{ccy}=X")
+    if live_rate is not None and live_rate > 0:
+        rate = round(float(live_rate), 4)
+        _save_cache_bucket("fx_rates", ccy, {"rate": rate})
+        return rate
+
+    return float(_CURRENCY_FALLBACK_RATES.get(ccy, 1.0))
+
+
 def fetch_live_etf_constituents(
     etf_tickers: Sequence[str] = ("SPY", "QQQ", "SMH", "ITA"),
 ) -> Dict[str, Dict[str, float]]:

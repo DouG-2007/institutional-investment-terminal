@@ -11,16 +11,11 @@ MODULE 1.4 & MODULE 6: PORTFOLIO OVERVIEW, DYNAMIC PORTFOLIO MANAGER (SQLite CRU
 from __future__ import annotations
 
 from contextlib import contextmanager
-import csv
-import datetime
-import io
 import json
 import os
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
-import pandas as pd
-import yfinance as yf
+from typing import Any, Dict, List, Optional
 from core.market_data import fetch_all_quotes_parallel
 
 
@@ -248,37 +243,8 @@ class PortfolioEngine:
                 )
                 """
             )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS transactions_ledger (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tx_date TEXT NOT NULL,
-                    ticker TEXT NOT NULL,
-                    tx_type TEXT NOT NULL,
-                    quantity REAL NOT NULL,
-                    price_usd REAL NOT NULL,
-                    fee_usd REAL DEFAULT 0.0,
-                    notes TEXT DEFAULT ''
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-                    snap_date TEXT PRIMARY KEY,
-                    total_value_usd REAL NOT NULL,
-                    net_cash_flow_usd REAL DEFAULT 0.0,
-                    unrealized_pnl_usd REAL DEFAULT 0.0,
-                    unrealized_pnl_pct REAL DEFAULT 0.0,
-                    crypto_pct REAL DEFAULT 0.0,
-                    hard_assets_pct REAL DEFAULT 0.0,
-                    vix_current REAL DEFAULT 0.0,
-                    spy_close REAL DEFAULT 0.0,
-                    btc_close REAL DEFAULT 0.0,
-                    notes TEXT DEFAULT ''
-                )
-                """
-            )
+            conn.execute("DROP TABLE IF EXISTS transactions_ledger")
+            conn.execute("DROP TABLE IF EXISTS portfolio_snapshots")
             cur = conn.execute("SELECT COUNT(*) FROM portfolio_assets")
             count = cur.fetchone()[0]
             if count == 0 and os.path.exists(self.config_path):
@@ -547,449 +513,6 @@ class PortfolioEngine:
             conn.commit()
         self._sync_sqlite_to_json()
 
-    # ==========================================================================
-    # REAL CUSTODY TRANSACTIONS LEDGER & CSV IMPORT
-    # ==========================================================================
-    def add_transaction(
-        self,
-        tx_date: str,
-        ticker: str,
-        tx_type: str,
-        quantity: float,
-        price_usd: float,
-        fee_usd: float = 0.0,
-        notes: str = "",
-    ) -> int:
-        tk = (ticker or "").strip().upper()
-        ttype = (tx_type or "BUY").strip().upper()
-        if ttype not in ("BUY", "SELL", "DIVIDEND", "STAKING"):
-            raise ValueError(f"Unsupported tx_type '{tx_type}'. Use BUY, SELL, DIVIDEND, or STAKING.")
-        qty = float(quantity)
-        px = float(price_usd)
-        fee = max(0.0, float(fee_usd or 0.0))
-        if not tk or qty <= 0 or px < 0:
-            raise ValueError("Ticker, positive quantity, and non-negative price_usd are required.")
-
-        dt_clean = (tx_date or datetime.date.today().isoformat()).strip()[:10]
-        with self._connect() as conn:
-            cur = conn.execute(
-                """
-                INSERT INTO transactions_ledger (tx_date, ticker, tx_type, quantity, price_usd, fee_usd, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (dt_clean, tk, ttype, qty, px, fee, (notes or "").strip()),
-            )
-            conn.commit()
-            return int(cur.lastrowid or 0)
-
-    def get_transactions(self, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            conn.row_factory = sqlite3.Row
-            if ticker and ticker.strip():
-                rows = conn.execute(
-                    "SELECT * FROM transactions_ledger WHERE ticker = ? ORDER BY tx_date ASC, id ASC",
-                    (ticker.strip().upper(),),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM transactions_ledger ORDER BY tx_date ASC, id ASC"
-                ).fetchall()
-        return [
-            {
-                "id": int(r["id"]),
-                "tx_date": str(r["tx_date"]),
-                "ticker": str(r["ticker"]),
-                "tx_type": str(r["tx_type"]),
-                "quantity": float(r["quantity"]),
-                "price_usd": float(r["price_usd"]),
-                "fee_usd": float(r["fee_usd"] or 0.0),
-                "notes": str(r["notes"] or ""),
-            }
-            for r in rows
-        ]
-
-    def delete_transaction(self, tx_id: int) -> None:
-        with self._connect() as conn:
-            conn.execute("DELETE FROM transactions_ledger WHERE id = ?", (int(tx_id),))
-            conn.commit()
-
-    def compute_ledger_summary(self, live_prices: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
-        """Computes per-ticker weighted average cost, net custody units, realized P&L & income."""
-        txs = self.get_transactions()
-        if not txs:
-            return {
-                "has_transactions": False,
-                "total_transactions": 0,
-                "total_market_value_usd": 0.0,
-                "total_cost_basis_usd": 0.0,
-                "total_unrealized_pnl_usd": 0.0,
-                "total_realized_pnl_usd": 0.0,
-                "total_income_usd": 0.0,
-                "by_ticker": {},
-            }
-
-        px_map = dict(live_prices or {})
-        missing = [t["ticker"] for t in txs if t["ticker"] not in px_map]
-        if missing:
-            try:
-                px_map.update(fetch_all_quotes_parallel(list(dict.fromkeys(missing))))
-            except Exception:
-                pass
-
-        state: Dict[str, Dict[str, float]] = {}
-        for t in txs:
-            tk = t["ticker"]
-            acc = state.setdefault(
-                tk,
-                {
-                    "units": 0.0,
-                    "cost_basis_usd": 0.0,
-                    "realized_pnl_usd": 0.0,
-                    "income_usd": 0.0,
-                    "fees_usd": 0.0,
-                },
-            )
-            qty = t["quantity"]
-            px = t["price_usd"]
-            fee = t["fee_usd"]
-            acc["fees_usd"] += fee
-
-            if t["tx_type"] == "BUY":
-                acc["units"] += qty
-                acc["cost_basis_usd"] += (qty * px) + fee
-            elif t["tx_type"] == "SELL":
-                if acc["units"] > 0:
-                    sell_qty = min(qty, acc["units"])
-                    avg_cost = acc["cost_basis_usd"] / acc["units"]
-                    proceeds = (sell_qty * px) - fee
-                    cost_sold = sell_qty * avg_cost
-                    acc["realized_pnl_usd"] += proceeds - cost_sold
-                    acc["units"] = max(0.0, acc["units"] - sell_qty)
-                    acc["cost_basis_usd"] = max(0.0, acc["cost_basis_usd"] - cost_sold)
-            elif t["tx_type"] in ("DIVIDEND", "STAKING"):
-                # Supports logging total dividend cash (qty=1, price=cash) or per-unit distribution
-                acc["income_usd"] += (qty * px) - fee
-
-        by_ticker: Dict[str, Dict[str, Any]] = {}
-        tot_mv = 0.0
-        tot_cb = 0.0
-        tot_real = 0.0
-        tot_inc = 0.0
-
-        for tk, acc in state.items():
-            units = round(acc["units"], 6)
-            cb = round(acc["cost_basis_usd"], 2)
-            avg_px = (cb / units) if units > 0 else 0.0
-            spot = float(px_map.get(tk) or DEFAULT_SPOT_PRICES.get(tk) or avg_px)
-            mv = round(units * spot, 2)
-            unreal = round(mv - cb, 2)
-            unreal_pct = round(((mv / cb) - 1.0) * 100.0, 2) if cb > 0 else 0.0
-
-            by_ticker[tk] = {
-                "ticker": tk,
-                "net_quantity": units,
-                "avg_buy_price_usd": round(avg_px, 4),
-                "spot_price_usd": round(spot, 4),
-                "market_value_usd": mv,
-                "cost_basis_usd": cb,
-                "unrealized_pnl_usd": unreal,
-                "unrealized_pnl_pct": unreal_pct,
-                "realized_pnl_usd": round(acc["realized_pnl_usd"], 2),
-                "income_usd": round(acc["income_usd"], 2),
-                "fees_usd": round(acc["fees_usd"], 2),
-            }
-            tot_mv += mv
-            tot_cb += cb
-            tot_real += acc["realized_pnl_usd"]
-            tot_inc += acc["income_usd"]
-
-        return {
-            "has_transactions": True,
-            "total_transactions": len(txs),
-            "total_market_value_usd": round(tot_mv, 2),
-            "total_cost_basis_usd": round(tot_cb, 2),
-            "total_unrealized_pnl_usd": round(tot_mv - tot_cb, 2),
-            "total_realized_pnl_usd": round(tot_real, 2),
-            "total_income_usd": round(tot_inc, 2),
-            "by_ticker": by_ticker,
-        }
-
-    def sync_ledger_cost_basis_to_assets(self) -> int:
-        """
-        Syncs weighted-average cost basis (`avg_buy_price_usd`) computed from
-        `transactions_ledger` into `portfolio_assets.avg_buy_price` for active holdings.
-        Returns count of updated holdings.
-        """
-        summary = self.compute_ledger_summary()
-        by_tk = summary.get("by_ticker") or {}
-        if not by_tk:
-            return 0
-
-        updated = 0
-        with self._connect() as conn:
-            existing = {
-                r[0]
-                for r in conn.execute("SELECT ticker FROM portfolio_assets").fetchall()
-            }
-            for tk, stats in by_tk.items():
-                if (
-                    tk in existing
-                    and float(stats.get("net_quantity") or 0.0) > 0.0
-                    and float(stats.get("avg_buy_price_usd") or 0.0) > 0.0
-                ):
-                    conn.execute(
-                        "UPDATE portfolio_assets SET avg_buy_price = ? WHERE ticker = ?",
-                        (round(float(stats["avg_buy_price_usd"]), 4), tk),
-                    )
-                    updated += 1
-        if updated > 0:
-            self._sync_sqlite_to_json()
-        return updated
-
-    # ==========================================================================
-    # DAILY PORTFOLIO SNAPSHOTS & REAL TIME-WEIGHTED RETURN (TWR) ENGINE
-    # ==========================================================================
-    def record_daily_snapshot(
-        self,
-        snap_date: str,
-        total_value_usd: float,
-        net_cash_flow_usd: float = 0.0,
-        unrealized_pnl_usd: float = 0.0,
-        unrealized_pnl_pct: float = 0.0,
-        crypto_pct: float = 0.0,
-        hard_assets_pct: float = 0.0,
-        vix_current: float = 0.0,
-        spy_close: float = 0.0,
-        btc_close: float = 0.0,
-        notes: str = "",
-    ) -> None:
-        """Idempotent daily portfolio valuation & external cash-flow snapshot in SQLite."""
-        dt_clean = (snap_date or datetime.date.today().isoformat()).strip()[:10]
-        val_usd = float(total_value_usd)
-        if val_usd <= 0:
-            raise ValueError("total_value_usd must be positive.")
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO portfolio_snapshots (
-                    snap_date, total_value_usd, net_cash_flow_usd, unrealized_pnl_usd,
-                    unrealized_pnl_pct, crypto_pct, hard_assets_pct,
-                    vix_current, spy_close, btc_close, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    dt_clean,
-                    round(val_usd, 2),
-                    round(float(net_cash_flow_usd or 0.0), 2),
-                    round(float(unrealized_pnl_usd or 0.0), 2),
-                    round(float(unrealized_pnl_pct or 0.0), 2),
-                    round(float(crypto_pct or 0.0), 2),
-                    round(float(hard_assets_pct or 0.0), 2),
-                    round(float(vix_current or 0.0), 2),
-                    round(float(spy_close or 0.0), 4),
-                    round(float(btc_close or 0.0), 4),
-                    (notes or "").strip(),
-                ),
-            )
-
-    def get_portfolio_snapshots(self, limit: int = 365) -> List[Dict[str, Any]]:
-        """Returns up to `limit` latest daily snapshots ordered chronologically (oldest first)."""
-        lim = max(1, int(limit))
-        with self._connect() as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
-                SELECT * FROM (
-                    SELECT * FROM portfolio_snapshots ORDER BY snap_date DESC LIMIT ?
-                ) ORDER BY snap_date ASC
-                """,
-                (lim,),
-            ).fetchall()
-        return [
-            {
-                "snap_date": str(r["snap_date"]),
-                "total_value_usd": float(r["total_value_usd"]),
-                "net_cash_flow_usd": float(r["net_cash_flow_usd"] or 0.0),
-                "unrealized_pnl_usd": float(r["unrealized_pnl_usd"] or 0.0),
-                "unrealized_pnl_pct": float(r["unrealized_pnl_pct"] or 0.0),
-                "crypto_pct": float(r["crypto_pct"] or 0.0),
-                "hard_assets_pct": float(r["hard_assets_pct"] or 0.0),
-                "vix_current": float(r["vix_current"] or 0.0),
-                "spy_close": float(r["spy_close"] or 0.0),
-                "btc_close": float(r["btc_close"] or 0.0),
-                "notes": str(r["notes"] or ""),
-            }
-            for r in rows
-        ]
-
-    def delete_snapshot(self, snap_date: str) -> None:
-        dt_clean = (snap_date or "").strip()[:10]
-        if not dt_clean:
-            return
-        with self._connect() as conn:
-            conn.execute("DELETE FROM portfolio_snapshots WHERE snap_date = ?", (dt_clean,))
-
-    def compute_twr_metrics(
-        self, snapshots: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
-        """
-        Computes chain-linked Time-Weighted Return (TWR) across recorded snapshots:
-          sub_return_t = (V_t - CF_t) / V_{t-1} - 1.0
-          twr_factor = prod_t (1 + sub_return_t)
-        Eliminates external deposit/withdrawal distortion and normalizes SPY & BTC-USD to Base 100.
-        """
-        snaps = sorted(list(snapshots) if snapshots is not None else self.get_portfolio_snapshots(), key=lambda x: str(x["snap_date"]))
-        if not snaps:
-            return {
-                "count": 0,
-                "has_enough_data": False,
-                "cumulative_twr_pct": 0.0,
-                "annualized_twr_pct": 0.0,
-                "is_annualized": False,
-                "latest_value_usd": 0.0,
-                "total_net_cash_flow_usd": 0.0,
-                "series_df": pd.DataFrame(),
-                "snapshots": [],
-            }
-
-        spy_base = next((float(s.get("spy_close") or 0.0) for s in snaps if float(s.get("spy_close") or 0.0) > 0), 0.0)
-        btc_base = next((float(s.get("btc_close") or 0.0) for s in snaps if float(s.get("btc_close") or 0.0) > 0), 0.0)
-
-        twr_factor = 1.0
-        prev_val = float(snaps[0]["total_value_usd"])
-        series_rows: List[Dict[str, Any]] = []
-        tot_cf = 0.0
-
-        for idx, s in enumerate(snaps):
-            val = float(s["total_value_usd"])
-            cf = float(s.get("net_cash_flow_usd") or 0.0)
-            tot_cf += cf if idx > 0 else 0.0
-            if idx == 0:
-                sub_ret = 0.0
-            elif prev_val > 0:
-                sub_ret = ((val - cf) / prev_val) - 1.0
-                twr_factor *= max(0.0, 1.0 + sub_ret)
-            else:
-                sub_ret = 0.0
-            prev_val = val
-
-            spy_px = float(s.get("spy_close") or 0.0)
-            btc_px = float(s.get("btc_close") or 0.0)
-            row_dict: Dict[str, Any] = {
-                "snap_date": str(s["snap_date"]),
-                "Portfolio_TWR": round(twr_factor * 100.0, 4),
-                "Sub_Period_Return_Pct": round(sub_ret * 100.0, 3),
-                "Total_Value_USD": val,
-                "Net_Cash_Flow_USD": cf,
-            }
-            if spy_base > 0 and spy_px > 0:
-                row_dict["SPY_Index"] = round((spy_px / spy_base) * 100.0, 4)
-            if btc_base > 0 and btc_px > 0:
-                row_dict["BTC_Index"] = round((btc_px / btc_base) * 100.0, 4)
-            series_rows.append(row_dict)
-
-        series_df = pd.DataFrame(series_rows)
-        if not series_df.empty:
-            series_df = series_df.set_index("snap_date")
-
-        cum_twr_pct = round((twr_factor - 1.0) * 100.0, 2)
-        span_days = 0
-        try:
-            d0 = datetime.date.fromisoformat(str(snaps[0]["snap_date"])[:10])
-            d1 = datetime.date.fromisoformat(str(snaps[-1]["snap_date"])[:10])
-            span_days = max(0, (d1 - d0).days)
-        except ValueError:
-            span_days = 0
-
-        is_annualized = span_days >= 30 and twr_factor > 0
-        if is_annualized:
-            ann_twr_pct = round(((twr_factor ** (365.25 / span_days)) - 1.0) * 100.0, 2)
-        else:
-            ann_twr_pct = cum_twr_pct
-
-        return {
-            "count": len(snaps),
-            "has_enough_data": len(snaps) >= 2,
-            "cumulative_twr_pct": cum_twr_pct,
-            "annualized_twr_pct": ann_twr_pct,
-            "is_annualized": is_annualized,
-            "span_days": span_days,
-            "latest_value_usd": float(snaps[-1]["total_value_usd"]),
-            "total_net_cash_flow_usd": round(tot_cf, 2),
-            "series_df": series_df,
-            "snapshots": snaps,
-        }
-
-    def import_assets_from_csv(self, csv_bytes: bytes) -> Tuple[int, List[str]]:
-        """Imports or updates portfolio holdings from CSV bytes (`ticker` column required)."""
-        text = csv_bytes.decode("utf-8-sig", errors="replace")
-        reader = csv.DictReader(io.StringIO(text))
-        count = 0
-        errors: List[str] = []
-        for idx, row in enumerate(reader, 2):
-            norm_row = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
-            tk = norm_row.get("ticker", "").upper()
-            if not tk:
-                errors.append(f"Row {idx}: missing ticker.")
-                continue
-            try:
-                w = float(norm_row.get("target_weight_pct") or norm_row.get("weight") or 2.5)
-                avg_px = float(norm_row.get("avg_buy_price") or norm_row.get("avg_price") or 0.0)
-                ltv_raw = norm_row.get("ltv_turbo_eligible", "true").lower()
-                ltv_ok = ltv_raw in ("1", "true", "yes", "y", "sim")
-                cat_ui = norm_row.get("asset_class") or norm_row.get("category") or "Stock"
-                sec_ui = norm_row.get("sector_vertical") or norm_row.get("sector") or ""
-                if cat_ui in ("Hard-Asset Stock", "Hard-Asset ETF", "Crypto BTC", "Crypto Altcoin"):
-                    self.upsert_asset(
-                        ticker=tk,
-                        name=norm_row.get("name") or tk,
-                        category=cat_ui,
-                        sector_vertical=sec_ui or "TECH_HIGH_GROWTH",
-                        target_weight_pct=w,
-                        avg_buy_price=avg_px,
-                        ltv_turbo_eligible=ltv_ok,
-                        role_description=norm_row.get("role_description") or None,
-                    )
-                else:
-                    self.upsert_asset(
-                        ticker=tk,
-                        name=norm_row.get("name") or tk,
-                        asset_class_ui=cat_ui,
-                        sector_ui=sec_ui,
-                        target_weight_pct=w,
-                        avg_buy_price=avg_px,
-                        ltv_turbo_eligible=ltv_ok,
-                        role_description=norm_row.get("role_description") or None,
-                    )
-                count += 1
-            except Exception as exc:
-                errors.append(f"Row {idx} ({tk}): {exc}")
-        return count, errors
-
-    def import_transactions_from_csv(self, csv_bytes: bytes) -> Tuple[int, List[str]]:
-        """Imports buy/sell/dividend/staking rows from CSV bytes into `transactions_ledger`."""
-        text = csv_bytes.decode("utf-8-sig", errors="replace")
-        reader = csv.DictReader(io.StringIO(text))
-        count = 0
-        errors: List[str] = []
-        for idx, row in enumerate(reader, 2):
-            norm_row = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
-            tk = norm_row.get("ticker", "").upper()
-            try:
-                self.add_transaction(
-                    tx_date=norm_row.get("tx_date") or norm_row.get("date") or datetime.date.today().isoformat(),
-                    ticker=tk,
-                    tx_type=norm_row.get("tx_type") or norm_row.get("type") or "BUY",
-                    quantity=float(norm_row.get("quantity") or norm_row.get("qty") or 0.0),
-                    price_usd=float(norm_row.get("price_usd") or norm_row.get("price") or 0.0),
-                    fee_usd=float(norm_row.get("fee_usd") or norm_row.get("fee") or 0.0),
-                    notes=norm_row.get("notes") or "",
-                )
-                count += 1
-            except Exception as exc:
-                errors.append(f"Row {idx} ({tk or '?'}): {exc}")
-        return count, errors
-
     def load_config(self) -> Dict[str, Any]:
         assets = self.get_all_assets_from_db()
         crypto_w = sum(a["target_weight_pct"] for a in assets if "Crypto" in a["category"])
@@ -1026,28 +549,17 @@ class PortfolioEngine:
         else:
             weight_msg = f"⚠️ UNDER-ALLOCATION WARNING: Target Weight Sum at {target_weight_sum:.2f}% ({abs(diff_100):.2f}% short of 100%)"
 
-        ledger_summary = self.compute_ledger_summary(live_prices=live_prices)
-        ledger_by_tk = ledger_summary.get("by_ticker") or {}
-        use_custody_ledger = bool(ledger_summary.get("has_transactions") and float(ledger_summary.get("total_market_value_usd", 0.0)) > 0.0)
-
-        # First pass: determine real or organic mark-to-market dollar value per holding
+        # Compute organic mark-to-market dollar value and drift from target weights & cost basis
         precomputed: List[Dict[str, Any]] = []
         total_raw_mv = 0.0
         for a in assets_cfg:
             tk = a["ticker"]
             t_w = float(a.get("target_weight_pct", 2.5))
             px = live_prices.get(tk) or DEFAULT_SPOT_PRICES.get(tk) or float(a.get("fair_price", 100.0))
-            led_item = ledger_by_tk.get(tk)
-            if use_custody_ledger and led_item and float(led_item.get("net_quantity", 0.0)) > 0:
-                avg_buy = float(led_item["avg_buy_price_usd"]) if float(led_item["avg_buy_price_usd"]) > 0 else px
-                raw_mv = float(led_item["market_value_usd"])
-                qty_override = float(led_item["net_quantity"])
-            else:
-                avg_buy = float(a.get("avg_buy_price", DEFAULT_AVG_BUY_PRICES.get(tk, px * 0.82)))
-                if avg_buy <= 0:
-                    avg_buy = px
-                raw_mv = max(1.0, (t_w / 100.0) * capital_usd * (px / avg_buy))
-                qty_override = None
+            avg_buy = float(a.get("avg_buy_price", DEFAULT_AVG_BUY_PRICES.get(tk, px * 0.82)))
+            if avg_buy <= 0:
+                avg_buy = px
+            raw_mv = max(1.0, (t_w / 100.0) * capital_usd * (px / avg_buy))
             total_raw_mv += raw_mv
             precomputed.append({
                 "asset": a,
@@ -1056,14 +568,13 @@ class PortfolioEngine:
                 "px": px,
                 "avg_buy": avg_buy,
                 "raw_mv": raw_mv,
-                "qty_override": qty_override,
             })
 
         ltv_eligible_stocks_w = 0.0
         ltv_eligible_btc_w = 0.0
         total_pnl_usd = 0.0
         total_cost_basis_usd = 0.0
-        norm_target = target_weight_sum if (target_weight_sum > 0 and not use_custody_ledger) else 100.0
+        norm_target = target_weight_sum if target_weight_sum > 0 else 100.0
 
         for item in precomputed:
             a = item["asset"]
@@ -1072,17 +583,12 @@ class PortfolioEngine:
             px = item["px"]
             avg_buy = item["avg_buy"]
             raw_mv = item["raw_mv"]
-            qty_override = item["qty_override"]
 
             c_w = round((raw_mv / max(1.0, total_raw_mv)) * norm_target, 3) if total_raw_mv > 0 else round(t_w, 3)
             ltv_ok = bool(a.get("ltv_turbo_eligible", True))
 
-            if qty_override is not None:
-                qty = qty_override
-                alloc_usd = qty * px
-            else:
-                alloc_usd = (c_w / 100.0) * capital_usd
-                qty = alloc_usd / px if px > 0 else 0.0
+            alloc_usd = (c_w / 100.0) * capital_usd
+            qty = alloc_usd / px if px > 0 else 0.0
             cost_basis_usd = qty * avg_buy
             pnl_usd = alloc_usd - cost_basis_usd
             pnl_pct = ((px / avg_buy) - 1.0) * 100.0 if avg_buy > 0 else 0.0

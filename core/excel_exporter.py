@@ -4,7 +4,7 @@ INSTITUTIONAL EXCEL WORKBOOK EXPORTER (.XLSX)
 ================================================================================
 Exports auditable multi-sheet spreadsheets covering Portfolio Holdings,
 ETF Look-Through Overlap, Equities Forensic & Forward NTM Valuations,
-Crypto On-Chain & Tokenomics, and Real Custody Transactions Ledger.
+and Crypto On-Chain & Tokenomics.
 ================================================================================
 """
 
@@ -139,27 +139,6 @@ def build_institutional_excel_bytes(
             ss.get("unlock_pct_of_circ"), ss.get("theoretical_post_unlock_price_usd"), ds.get("funding_rate_8h_pct"), ds.get("oi_to_mcap_pct"),
         ])
     _write_styled_sheet(ws_cr, cr_headers, cr_rows)
-
-    # 5. Transactions Ledger (+ Backtest Summary metadata rows if empty)
-    ws_tx = wb.create_sheet("Transactions_Ledger")
-    tx_headers = ["ID", "Date", "Ticker", "Type", "Quantity", "Price (USD)", "Fee (USD)", "Notional (USD)", "Notes"]
-    tx_rows = [
-        [
-            t.get("id"), t.get("tx_date"), t.get("ticker"), t.get("tx_type"),
-            t.get("quantity"), t.get("price_usd"), t.get("fee_usd", 0.0),
-            round(float(t.get("quantity", 0.0)) * float(t.get("price_usd", 0.0)), 2),
-            t.get("notes", ""),
-        ]
-        for t in (transactions or [])
-    ]
-    if not tx_rows and isinstance(backtest, dict):
-        tx_rows.append([
-            "SUMMARY", "LTM/3Y", "PORTFOLIO", backtest.get("data_source", ""),
-            backtest.get("period_days", 0), backtest.get("portfolio_cagr_pct", 0.0),
-            backtest.get("sharpe_ratio", 0.0), backtest.get("max_drawdown_pct", 0.0),
-            f"Calmar={backtest.get('calmar_ratio', 0.0)} | Sortino={backtest.get('sortino_ratio', 0.0)}",
-        ])
-    _write_styled_sheet(ws_tx, tx_headers, tx_rows)
 
     buf = io.BytesIO()
     wb.save(buf)

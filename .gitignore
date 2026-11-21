@@ -24,7 +24,6 @@ chrome_profile/
 .env.*
 !.env.example
 notifier_config.json
-custody_sync_config.json
 data_cache/ai_sessions/
 data_cache/custom_filings_cache.json
 data_cache/ai_master_insights_cache.json

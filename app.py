@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from core.macro_engine import MacroEngine, MacroDataBundle
-from core.portfolio_engine import PortfolioEngine, PortfolioOverviewBundle, DEFAULT_SPOT_PRICES
+from core.portfolio_engine import PortfolioEngine, PortfolioOverviewBundle
 from core.equity_engine import EquityEngine, EquityFullAnalysis
 from core.crypto_engine import CryptoEngine, CryptoFullProfile
 from core.filings_engine import FilingsEngine, EquityDocumentaryDossier, CryptoDocumentaryDossier
@@ -36,19 +36,13 @@ from core.gemini_client import is_gemini_configured
 from core.ai_analyst import InstitutionalAIAnalyst
 from core.ai_report_orchestrator import AIReportOrchestrator, clear_ai_master_insights_cache
 from core.backtest_engine import run_portfolio_backtest
-from core.custody_sync import (
-    fetch_binance_readonly_snapshot,
-    fetch_ibkr_flex_query,
-    fetch_public_wallet_balances,
-    get_custody_env_credentials,
-    import_custody_events_to_ledger,
-    load_custody_sync_config,
-    parse_erc20_spec_lines,
-    parse_ibkr_flex_xml,
-    save_custody_sync_config,
-)
 from core.excel_exporter import build_institutional_excel_bytes
-from core.live_quant_fetcher import fetch_live_adtv_map, fetch_live_vix_and_fx
+from core.live_quant_fetcher import (
+    GLOBAL_CURRENCY_OPTIONS,
+    fetch_live_adtv_map,
+    fetch_live_currency_rate,
+    fetch_live_vix_and_fx,
+)
 from core.charts import (
     build_banks_ptbv_vs_roe_scatter,
     build_btc_asopr_chart,
@@ -64,7 +58,6 @@ from core.charts import (
     build_multi_method_valuation_chart,
     build_portfolio_correlation_heatmap_chart,
     build_portfolio_equity_curve_chart,
-    build_portfolio_twr_snapshots_chart,
     build_portfolio_weight_gauge_chart,
     build_yield_curve_and_icsa_chart,
 )
@@ -403,13 +396,13 @@ def main() -> None:
 
     port_eng_live = PortfolioEngine()
     db_assets_live = port_eng_live.get_all_assets()
-    tx_count_live = len(port_eng_live.get_transactions())
     db_sig = "|".join(
         f"{a['ticker']}:{a['target_weight_pct']:.2f}:{a['avg_buy_price']:.2f}:{int(a['ltv_turbo_eligible'])}"
         for a in db_assets_live
-    ) + f"|tx:{tx_count_live}"
+    )
+    gemini_ready = is_gemini_configured()
 
-    # Lean sidebar: Base capital, Fiscal preset & Tax-Drag rate, FX display, Live Refresh & Master PDF
+    # Lean sidebar: Base capital, Global Tax Rate, Multi-Currency Display & Unified Refresh
     with st.sidebar:
         st.markdown("### 🏛️ Master Report Controls")
         capital_usd = st.number_input(
@@ -421,21 +414,25 @@ def main() -> None:
             format="%.0f",
         )
         jurisdiction_preset = st.selectbox(
-            "Fiscal Jurisdiction Preset",
+            "Tax Jurisdiction Preset",
             [
-                "Brazil DARF Swing / Offshore (15%)",
+                "Global / Custom Rate (%)",
+                "Tax-Free Jurisdiction (0% — UAE / SG / CH)",
                 "US Long-Term Cap Gains (15%)",
                 "US Short-Term Cap Gains (30%)",
-                "Custom",
+                "EU / UK Standard (~25%)",
+                "Brazil DARF / Offshore (15%)",
             ],
             index=0,
             key="sidebar_fiscal_preset",
-            help="Sets default capital gains tax rate for Tax-Drag Hurdle Rate. Losses always yield 0.0% hurdle (BR R$20k/mo stocks & R$35k/mo crypto exemptions apply externally).",
+            help="Quick-fills Capital Gains Tax Rate (%) for Tax-Drag Hurdle calculations; you can edit the rate freely for any country.",
         )
         preset_rates = {
-            "Brazil DARF Swing / Offshore (15%)": 15.0,
+            "Tax-Free Jurisdiction (0% — UAE / SG / CH)": 0.0,
             "US Long-Term Cap Gains (15%)": 15.0,
             "US Short-Term Cap Gains (30%)": 30.0,
+            "EU / UK Standard (~25%)": 25.0,
+            "Brazil DARF / Offshore (15%)": 15.0,
         }
         if st.session_state.get("_last_fiscal_preset") != jurisdiction_preset:
             st.session_state["_last_fiscal_preset"] = jurisdiction_preset
@@ -448,21 +445,35 @@ def main() -> None:
             max_value=45.0,
             step=0.5,
             format="%.1f",
-            disabled=(jurisdiction_preset != "Custom"),
+            disabled=False,
             key="sidebar_tax_rate_input",
             help="Used deterministically to compute Tax-Drag Hurdle Rate (0.0% when at unrealized loss).",
         )
         display_ccy = st.selectbox(
             "UI Display Currency",
-            ["USD", "BRL (Live FX)"],
+            list(GLOBAL_CURRENCY_OPTIONS.keys()),
             index=0,
             key="sidebar_display_ccy",
+            help="Live FX rate fetched dynamically via Yahoo Finance (USD<CCY>=X).",
         )
-        if st.button("🔄 Refresh Live Quotes & Clear Caches", width="stretch", type="primary"):
+        also_refresh_ai = (
+            st.checkbox(
+                "Also Regenerate AI Insights & Filings Cache",
+                value=False,
+                key="sidebar_refresh_ai_chk",
+                help="Clears cached Gemini qualitative synthesis & SEC/Crypto filing extracts in addition to live quotes.",
+            )
+            if gemini_ready
+            else False
+        )
+        if st.button("🔄 Refresh All Data & Live Quotes", width="stretch", type="primary", key="btn_unified_refresh"):
             st.cache_data.clear()
             st.session_state["ai_pdf_cache"] = {}
             st.session_state["det_pdf_cache"] = {}
             st.session_state["refresh_token"] += 1
+            if also_refresh_ai:
+                clear_ai_master_insights_cache()
+                st.session_state["force_refresh_all_ai"] = True
             st.rerun()
 
     with st.spinner("Loading 360° Quantitative & Forensic Engine Bundle..."):
@@ -480,17 +491,23 @@ def main() -> None:
     risk_timing: RiskLeverageTimingBundle = bundle["risk_timing"]
     backtest_res: Dict[str, Any] = bundle.get("backtest") or {}
     fx_usd_brl: float = float(bundle.get("fx_usd_brl") or 5.85)
-    ccy_mult = fx_usd_brl if display_ccy.startswith("BRL") else 1.0
-    ccy_prefix = "R$" if display_ccy.startswith("BRL") else "$"
+    ccy_code = display_ccy.split()[0].upper()
+    ccy_prefix = GLOBAL_CURRENCY_OPTIONS.get(display_ccy, ("$", 1.0))[0]
+    ccy_mult = (
+        1.0
+        if ccy_code == "USD"
+        else (fx_usd_brl if ccy_code == "BRL" else fetch_live_currency_rate(ccy_code))
+    )
 
     with st.sidebar:
         sidebar_dl_placeholder = st.empty()
+        fx_strip = f"USD/{ccy_code} `{ccy_mult:.2f}`" if ccy_code != "USD" else f"USD/BRL `{fx_usd_brl:.2f}`"
         st.markdown(
             f"**Live Macro Telemetry:** VIX `{bundle.get('vix_current', 18.4):.2f}` | "
             f"US10Y `{macro.yield_curve.get('us10y_pct', 4.42):.2f}%` | "
             f"HY Spread `{macro.monetary_aggregates.get('hy_credit_spread_pct', 3.45):.2f}%` | "
             f"Fed `{bundle.get('fed_funds_rate_pct', 4.25):.2f}%` | "
-            f"USD/BRL `{fx_usd_brl:.2f}`"
+            f"{fx_strip}"
         )
         st.caption(
             f"Last synchronization: **{macro.timestamp}** | "
@@ -514,7 +531,6 @@ def main() -> None:
         "🤖 5. AI Portfolio Analyst",
     ])
 
-    gemini_ready = is_gemini_configured()
     active_master_pdf_bytes: Optional[bytes] = None
 
     # ==========================================================================
@@ -547,8 +563,9 @@ def main() -> None:
         if not gemini_ready:
             st.caption("ℹ️ `GEMINI_API_KEY` not detected in `.env` — Master PDF runs in 100% deterministic mode.")
 
-        force_refresh_insights = False
-        force_refresh_filings = False
+        force_refresh_all_ai = bool(st.session_state.get("force_refresh_all_ai", False))
+        force_refresh_insights = force_refresh_all_ai
+        force_refresh_filings = force_refresh_all_ai
         is_economic_mode = False
         if include_ai_master and gemini_ready:
             ai_profile = st.radio(
@@ -563,33 +580,12 @@ def main() -> None:
             )
             is_economic_mode = ai_profile.startswith("Economic")
 
-            ai_ctrl_c1, ai_ctrl_c2 = st.columns(2)
-            with ai_ctrl_c1:
-                if st.button(
-                    "🧠 Regenerate All AI Insights (Matrices, Moats, Events & Thesis)",
-                    key="btn_regen_all_ai_insights",
-                    width="stretch",
-                ):
-                    force_refresh_insights = True
-                    clear_ai_master_insights_cache()
-                    st.session_state["ai_pdf_cache"] = {}
-            with ai_ctrl_c2:
-                if st.button(
-                    "📑 Force Re-Fetch All Portfolio SEC & Crypto Filings",
-                    key="btn_refetch_all_filings",
-                    width="stretch",
-                ):
-                    force_refresh_filings = True
-                    force_refresh_insights = True
-                    clear_ai_master_insights_cache()
-                    st.session_state["ai_pdf_cache"] = {}
-
         ai_bundle: Optional[Dict[str, Any]] = None
         ai_exec_summary: Optional[Dict[str, Any]] = None
         ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}|{int(is_economic_mode)}"
         det_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}"
 
-        if include_ai_master and gemini_ready and not (force_refresh_insights or force_refresh_filings):
+        if include_ai_master and gemini_ready and not force_refresh_all_ai:
             cached_entry = st.session_state["ai_pdf_cache"].get(ai_cache_key)
             if isinstance(cached_entry, dict) and cached_entry.get("pdf_bytes"):
                 ai_bundle = cached_entry.get("ai_bundle")
@@ -600,34 +596,25 @@ def main() -> None:
             if cached_det:
                 active_master_pdf_bytes = cached_det
 
-        c_dl1, c_dl2 = st.columns([2, 1])
         compile_clicked = False
-        with c_dl1:
-            if active_master_pdf_bytes is not None:
-                st.download_button(
-                    label="📥 DOWNLOAD 360° MASTER REPORT (.PDF — ALL 7 SECTIONS)",
-                    data=active_master_pdf_bytes,
-                    file_name="Master_Institutional_Report_360.pdf",
-                    mime="application/pdf",
-                    width="stretch",
-                    type="primary",
-                    key="btn_main_master_pdf",
-                )
-            else:
-                compile_clicked = st.button(
-                    "⚡ Generate & Compile 360° Master Report (.PDF — ALL 7 SECTIONS)",
-                    width="stretch",
-                    type="primary",
-                    key="btn_main_compile_pdf",
-                    help="On-demand compilation keeps dashboard startup instant and avoids unnecessary AI API calls.",
-                )
-        with c_dl2:
-            if st.button("🔄 Recalculate with Live Market Quotes", width="stretch", key="btn_main_refresh"):
-                st.cache_data.clear()
-                st.session_state["ai_pdf_cache"] = {}
-                st.session_state["det_pdf_cache"] = {}
-                st.session_state["refresh_token"] += 1
-                st.rerun()
+        if active_master_pdf_bytes is not None:
+            st.download_button(
+                label="📥 DOWNLOAD 360° MASTER REPORT (.PDF — ALL 7 SECTIONS)",
+                data=active_master_pdf_bytes,
+                file_name="Master_Institutional_Report_360.pdf",
+                mime="application/pdf",
+                width="stretch",
+                type="primary",
+                key="btn_main_master_pdf",
+            )
+        else:
+            compile_clicked = st.button(
+                "⚡ Generate & Compile 360° Master Report (.PDF — ALL 7 SECTIONS)",
+                width="stretch",
+                type="primary",
+                key="btn_main_compile_pdf",
+                help="On-demand compilation keeps dashboard startup instant and avoids unnecessary AI API calls.",
+            )
 
         with sidebar_dl_placeholder.container():
             if active_master_pdf_bytes is not None:
@@ -653,6 +640,7 @@ def main() -> None:
         )
 
         if should_compile_now:
+            st.session_state.pop("force_refresh_all_ai", None)
             compiled_bytes: Optional[bytes] = None
             if include_ai_master and gemini_ready:
                 with st.status("Running Full-Portfolio AI Intelligence & Compiling 360° Master PDF...", expanded=True) as status_box:
@@ -812,7 +800,7 @@ def main() -> None:
 
         render_section_header(
             "Interactive Visual Intelligence Dashboard (Live Charts & Real Backtest)",
-            "All 17 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, correlation, VaR/CVaR, TWR snapshots, and 3-year historical portfolio engines",
+            "All 16 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, correlation, VaR/CVaR, and 3-year historical portfolio engines",
         )
         with st.expander("📖 Plain-English Metric Glossary (P/TBV, PEGY, Sloan, MVRV, NUPL, aSOPR, VaR/CVaR, Sortino, Calmar)", expanded=False):
             glossary_df = pd.DataFrame([
@@ -897,94 +885,6 @@ def main() -> None:
                     for r in st_rows
                 ]
                 render_clean_table(pd.DataFrame(st_disp))
-
-            st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
-            st.markdown("##### 📅 Real Portfolio Daily Snapshots & Time-Weighted Return (TWR)")
-            st.caption("Tracks genuine realized account growth over time net of external deposits/withdrawals (`portfolio_snapshots`), indexed against SPY & BTC-USD.")
-
-            twr_bundle = port_eng_live.compute_twr_metrics()
-            twr_k1, twr_k2, twr_k3, twr_k4 = st.columns(4)
-            with twr_k1:
-                render_kpi_card(
-                    "Cumulative Real TWR",
-                    f"{twr_bundle['cumulative_twr_pct']:+.2f}%",
-                    "Net of External Cash Flows",
-                    tone="emerald" if twr_bundle["cumulative_twr_pct"] >= 0 else "rose",
-                )
-            with twr_k2:
-                ann_sub = "Annualized (>=30d span)" if twr_bundle.get("is_annualized") else f"Period Span ({twr_bundle.get('span_days', 0)}d)"
-                render_kpi_card(
-                    "Annualized TWR",
-                    f"{twr_bundle['annualized_twr_pct']:+.2f}%",
-                    ann_sub,
-                    tone="blue",
-                )
-            with twr_k3:
-                render_kpi_card(
-                    "Snapshots Logged",
-                    f"{twr_bundle['count']}",
-                    f"Net Flows: {ccy_prefix}{twr_bundle['total_net_cash_flow_usd'] * ccy_mult:+,.0f}",
-                    tone="purple",
-                )
-            with twr_k4:
-                latest_eq = twr_bundle["latest_value_usd"] if twr_bundle["count"] > 0 else capital_usd
-                render_kpi_card(
-                    "Latest Logged Equity",
-                    f"{ccy_prefix}{latest_eq * ccy_mult:,.2f}",
-                    "SQLite `portfolio_snapshots`",
-                    tone="amber",
-                )
-
-            st.plotly_chart(build_portfolio_twr_snapshots_chart(twr_bundle), width="stretch")
-
-            led_for_snap = port_eng_live.compute_ledger_summary({p.ticker: p.current_price_usd for p in portfolio.positions})
-            default_snap_equity = (
-                float(led_for_snap["total_market_value_usd"])
-                if led_for_snap.get("has_transactions") and float(led_for_snap.get("total_market_value_usd") or 0.0) > 0
-                else float(capital_usd)
-            )
-            spy_snap_px = next((p.current_price_usd for p in portfolio.positions if p.ticker == "SPY"), DEFAULT_SPOT_PRICES.get("SPY", 592.0))
-            btc_snap_px = next((p.current_price_usd for p in portfolio.positions if p.ticker == "BTC-USD"), DEFAULT_SPOT_PRICES.get("BTC-USD", 89500.0))
-
-            with st.form("form_record_daily_snapshot", clear_on_submit=False):
-                sc1, sc2, sc3, sc4 = st.columns([1.1, 1.2, 1.2, 1.5])
-                with sc1:
-                    snap_date_in = st.text_input("Snapshot Date (YYYY-MM-DD)", value=datetime.date.today().isoformat())
-                with sc2:
-                    snap_equity_in = st.number_input("Total Portfolio Equity (USD)", min_value=1.0, value=max(1.0, default_snap_equity), step=500.0, format="%.2f")
-                with sc3:
-                    snap_cf_in = st.number_input("Net External Cash Flow (USD)", value=0.0, step=500.0, format="%.2f", help="Positive = deposit, Negative = withdrawal since prior snapshot.")
-                with sc4:
-                    snap_notes_in = st.text_input("Notes (Optional)", value="")
-                if st.form_submit_button("📸 Record Today's Snapshot into SQLite", width="stretch", type="primary"):
-                    port_eng_live.record_daily_snapshot(
-                        snap_date=snap_date_in,
-                        total_value_usd=snap_equity_in,
-                        net_cash_flow_usd=snap_cf_in,
-                        unrealized_pnl_usd=portfolio.total_portfolio_pnl_usd,
-                        unrealized_pnl_pct=portfolio.total_portfolio_pnl_pct,
-                        crypto_pct=portfolio.total_crypto_pct,
-                        hard_assets_pct=portfolio.total_hard_assets_pct,
-                        vix_current=float(bundle.get("vix_current", 18.4)),
-                        spy_close=float(spy_snap_px),
-                        btc_close=float(btc_snap_px),
-                        notes=snap_notes_in,
-                    )
-                    st.success(f"Recorded portfolio snapshot for `{snap_date_in.strip()[:10]}`!")
-                    st.rerun()
-
-            if twr_bundle["snapshots"]:
-                with st.expander(f"📋 Manage Recorded Snapshots ({twr_bundle['count']} rows)", expanded=False):
-                    render_clean_table(pd.DataFrame(twr_bundle["snapshots"]))
-                    del_snap_dt = st.selectbox(
-                        "Select Snapshot Date to Remove",
-                        options=[s["snap_date"] for s in twr_bundle["snapshots"]],
-                        key="del_snap_date_sel",
-                    )
-                    if st.button("🗑️ Delete Selected Snapshot", key="btn_del_snapshot"):
-                        port_eng_live.delete_snapshot(del_snap_dt)
-                        st.warning(f"Deleted snapshot `{del_snap_dt}`.")
-                        st.rerun()
 
     # ==========================================================================
     # TAB 2: DYNAMIC PORTFOLIO MANAGER (SQLITE CRUD)
@@ -1101,13 +1001,11 @@ def main() -> None:
 
         st.plotly_chart(build_portfolio_weight_gauge_chart(total_w), width="stretch")
 
-        tx_list_all = port_eng_live.get_transactions()
         excel_bytes = build_institutional_excel_bytes(
             portfolio=portfolio,
             equities=equities,
             cryptos=cryptos,
             risk_timing=risk_timing,
-            transactions=tx_list_all,
             backtest=backtest_res,
         )
         st.download_button(
@@ -1119,261 +1017,6 @@ def main() -> None:
             key="btn_export_xlsx",
         )
 
-        with st.expander("📒 Real Custody Transactions Ledger (`transactions_ledger`) & CSV Broker Import", expanded=False):
-            led_summary = port_eng_live.compute_ledger_summary({p.ticker: p.current_price_usd for p in portfolio.positions})
-            lk1, lk2, lk3, lk4 = st.columns(4)
-            with lk1:
-                render_kpi_card("Custody Market Value", f"{ccy_prefix}{led_summary['total_market_value_usd'] * ccy_mult:,.2f}", f"{led_summary['total_transactions']} Logged Events", tone="blue")
-            with lk2:
-                render_kpi_card("Unrealized Custody P&L", f"{ccy_prefix}{led_summary['total_unrealized_pnl_usd'] * ccy_mult:+,.2f}", f"Cost Basis: {ccy_prefix}{led_summary['total_cost_basis_usd'] * ccy_mult:,.0f}", tone="emerald")
-            with lk3:
-                render_kpi_card("Realized P&L (Sells)", f"{ccy_prefix}{led_summary['total_realized_pnl_usd'] * ccy_mult:+,.2f}", "Weighted Avg Cost Method", tone="purple")
-            with lk4:
-                render_kpi_card("Dividends & Staking Income", f"{ccy_prefix}{led_summary['total_income_usd'] * ccy_mult:+,.2f}", "Cumulative Cash Yield", tone="amber")
-
-            if led_summary.get("has_transactions"):
-                if st.button("🔄 Sync Ledger Avg Cost -> Portfolio Assets", width="stretch", key="btn_sync_ledger_cost"):
-                    n_upd = port_eng_live.sync_ledger_cost_basis_to_assets()
-                    st.cache_data.clear()
-                    st.session_state["ai_pdf_cache"] = {}
-                    st.session_state["det_pdf_cache"] = {}
-                    st.session_state["refresh_token"] += 1
-                    st.success(f"Synchronized weighted-average cost basis for {n_upd} holding(s) into `portfolio_assets`.")
-                    st.rerun()
-
-            tx_c1, tx_c2 = st.columns([2, 1])
-            with tx_c1:
-                with st.form("form_add_tx", clear_on_submit=True):
-                    st.markdown("##### ➕ Record Transaction (`BUY` / `SELL` / `DIVIDEND` / `STAKING`)")
-                    tc1, tc2, tc3 = st.columns(3)
-                    with tc1:
-                        tx_dt = st.text_input("Date (YYYY-MM-DD)", value=datetime.date.today().isoformat())
-                        tx_tk = st.text_input("Ticker", value=all_tks[0] if all_tks else "NVDA")
-                    with tc2:
-                        tx_tp = st.selectbox("Type", ["BUY", "SELL", "DIVIDEND", "STAKING"])
-                        tx_qt = st.number_input("Quantity (or 1 for Cash Div)", min_value=0.0001, value=1.0, step=1.0, format="%.4f")
-                    with tc3:
-                        tx_px = st.number_input("Unit Price / Cash (USD)", min_value=0.0, value=100.0, step=1.0)
-                        tx_fee = st.number_input("Fee (USD)", min_value=0.0, value=0.0, step=0.5)
-                    tx_notes = st.text_input("Notes (Optional)", value="")
-                    if st.form_submit_button("💾 Record Transaction in SQLite", width="stretch", type="primary"):
-                        port_eng_live.add_transaction(tx_dt, tx_tk, tx_tp, tx_qt, tx_px, tx_fee, tx_notes)
-                        st.cache_data.clear()
-                        st.session_state["refresh_token"] += 1
-                        st.success(f"Recorded {tx_tp} for {tx_tk.upper()}.")
-                        st.rerun()
-            with tx_c2:
-                st.markdown("##### 📥 CSV Broker Import")
-                csv_mode = st.radio("CSV Target", ["Holdings (`portfolio_assets`)", "Transactions (`transactions_ledger`)"], key="csv_imp_mode")
-                csv_file = st.file_uploader("Upload CSV file", type=["csv"], key="csv_imp_uploader")
-                if csv_file is not None and st.button("⬆️ Import CSV into SQLite", width="stretch", key="btn_imp_csv"):
-                    raw_csv = csv_file.read()
-                    if csv_mode.startswith("Holdings"):
-                        n_ok, errs = port_eng_live.import_assets_from_csv(raw_csv)
-                    else:
-                        n_ok, errs = port_eng_live.import_transactions_from_csv(raw_csv)
-                    st.cache_data.clear()
-                    st.session_state["refresh_token"] += 1
-                    st.success(f"Imported {n_ok} row(s)." + (f" Warnings: {len(errs)}" if errs else ""))
-                    st.rerun()
-
-            if tx_list_all:
-                render_clean_table(pd.DataFrame(tx_list_all))
-                del_tx_id = st.selectbox("Select Transaction ID to Remove", options=[t["id"] for t in tx_list_all], key="del_tx_sel")
-                if st.button("🗑️ Delete Transaction", key="btn_del_tx"):
-                    port_eng_live.delete_transaction(int(del_tx_id))
-                    st.cache_data.clear()
-                    st.session_state["refresh_token"] += 1
-                    st.rerun()
-
-        with st.expander("🔗 Read-Only Custody Sync (IBKR Flex XML • Binance Read-Only • Public BTC/EVM Wallets)", expanded=False):
-            st.caption("100% read-only brokerage & on-chain synchronization. API credentials are read strictly from `.env` or session-only password inputs and never stored in SQLite or Git.")
-            env_creds = get_custody_env_credentials()
-
-            # 1. Interactive Brokers Flex Query XML
-            st.markdown("##### 🏛️ 1. Interactive Brokers (IBKR Flex Query XML)")
-            ib_c1, ib_c2 = st.columns([1.15, 1.35])
-            with ib_c1:
-                ib_xml_file = st.file_uploader("Upload IBKR Flex Query XML", type=["xml"], key="ibkr_xml_uploader")
-                if ib_xml_file is not None and st.button("⬆️ Parse & Sync Uploaded Flex XML -> Ledger", width="stretch", key="btn_sync_ibkr_upload"):
-                    try:
-                        parsed_ib = parse_ibkr_flex_xml(ib_xml_file.read())
-                        ins_n, skip_n = import_custody_events_to_ledger(
-                            port_eng_live, parsed_ib["events"], source_tag="IBKR_FLEX"
-                        )
-                        st.session_state["ibkr_last_positions"] = parsed_ib.get("positions") or []
-                        st.cache_data.clear()
-                        st.session_state["refresh_token"] += 1
-                        st.success(
-                            f"IBKR Flex XML synced: inserted {ins_n} new ledger event(s), "
-                            f"skipped {skip_n} duplicate(s). Open positions parsed: {parsed_ib['summary']['open_positions']}."
-                        )
-                    except Exception as exc:
-                        st.error(f"IBKR Flex XML parse failed: {exc}")
-            with ib_c2:
-                ib_tok_in = st.text_input(
-                    "IBKR Flex Token (Read-Only Web Service)",
-                    value="",
-                    type="password",
-                    placeholder="Configured in .env" if env_creds["ibkr_flex_token"] else "Paste Flex Token or set IBKR_FLEX_TOKEN in .env",
-                    key="ibkr_flex_tok_in",
-                )
-                ib_qid_in = st.text_input(
-                    "IBKR Flex Query ID",
-                    value="",
-                    placeholder="Configured in .env" if env_creds["ibkr_flex_query_id"] else "Numeric Flex Query ID or set IBKR_FLEX_QUERY_ID in .env",
-                    key="ibkr_flex_qid_in",
-                )
-                if st.button("🌐 Fetch IBKR Flex Web Service -> Sync Ledger", width="stretch", key="btn_sync_ibkr_ws"):
-                    use_tok = ib_tok_in.strip() or env_creds["ibkr_flex_token"]
-                    use_qid = ib_qid_in.strip() or env_creds["ibkr_flex_query_id"]
-                    try:
-                        raw_xml = fetch_ibkr_flex_query(use_tok, use_qid)
-                        parsed_ib = parse_ibkr_flex_xml(raw_xml)
-                        ins_n, skip_n = import_custody_events_to_ledger(
-                            port_eng_live, parsed_ib["events"], source_tag="IBKR_FLEX_WS"
-                        )
-                        st.session_state["ibkr_last_positions"] = parsed_ib.get("positions") or []
-                        st.cache_data.clear()
-                        st.session_state["refresh_token"] += 1
-                        st.success(f"IBKR Web Service synced: inserted {ins_n} event(s), skipped {skip_n} duplicate(s).")
-                    except Exception as exc:
-                        st.error(f"IBKR Flex Web Service error: {exc}")
-
-            if st.session_state.get("ibkr_last_positions"):
-                st.markdown("**Parsed IBKR Open Positions Snapshot**")
-                render_clean_table(pd.DataFrame(st.session_state["ibkr_last_positions"]))
-
-            st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
-
-            # 2. Binance Read-Only Spot API
-            st.markdown("##### 🟡 2. Binance Spot (Read-Only API — Dynamic Asset Discovery)")
-            bn_c1, bn_c2, bn_c3 = st.columns([1.2, 1.2, 0.9])
-            with bn_c1:
-                bn_key_in = st.text_input(
-                    "Binance Read-Only API Key",
-                    value="",
-                    type="password",
-                    placeholder="Configured in .env" if env_creds["binance_api_key"] else "Set BINANCE_API_KEY in .env or paste here",
-                    key="bn_key_in",
-                )
-            with bn_c2:
-                bn_sec_in = st.text_input(
-                    "Binance Read-Only API Secret",
-                    value="",
-                    type="password",
-                    placeholder="Configured in .env" if env_creds["binance_api_secret"] else "Set BINANCE_API_SECRET in .env or paste here",
-                    key="bn_sec_in",
-                )
-            with bn_c3:
-                bn_pairs_in = st.text_input(
-                    "Pairs for Trade Sync (Optional CSV)",
-                    value="",
-                    placeholder="Auto-discover from balances",
-                    key="bn_pairs_in",
-                )
-                bn_inc_stables = st.checkbox("Include USD Stablecoins?", value=False, key="bn_inc_stables")
-
-            bn_btn_c1, bn_btn_c2 = st.columns(2)
-            with bn_btn_c1:
-                if st.button("🔄 Fetch Binance Read-Only Snapshot", width="stretch", key="btn_fetch_binance_ro"):
-                    use_key = bn_key_in.strip() or env_creds["binance_api_key"]
-                    use_sec = bn_sec_in.strip() or env_creds["binance_api_secret"]
-                    pair_list = [s.strip() for s in bn_pairs_in.split(",") if s.strip()] if bn_pairs_in.strip() else None
-                    bn_res = fetch_binance_readonly_snapshot(
-                        api_key=use_key,
-                        api_secret=use_sec,
-                        symbols=pair_list,
-                        include_stablecoins=bn_inc_stables,
-                    )
-                    if bn_res.get("error"):
-                        st.error(bn_res["error"])
-                    else:
-                        st.session_state["binance_sync_preview"] = bn_res
-                        st.success(
-                            f"Fetched {len(bn_res.get('balances') or [])} non-zero Binance Spot balance(s) "
-                            f"and {len(bn_res.get('events') or [])} trade fill(s)."
-                        )
-            with bn_btn_c2:
-                bn_prev = st.session_state.get("binance_sync_preview") or {}
-                if bn_prev.get("events") and st.button("⬆️ Import Binance Fills -> Custody Ledger", width="stretch", key="btn_imp_binance_trades"):
-                    ins_n, skip_n = import_custody_events_to_ledger(
-                        port_eng_live, bn_prev["events"], source_tag="BINANCE_RO"
-                    )
-                    st.cache_data.clear()
-                    st.session_state["refresh_token"] += 1
-                    st.success(f"Binance trades synced: inserted {ins_n} row(s), skipped {skip_n} duplicate(s).")
-
-            if st.session_state.get("binance_sync_preview") and st.session_state["binance_sync_preview"].get("balances"):
-                render_clean_table(pd.DataFrame(st.session_state["binance_sync_preview"]["balances"]))
-
-            st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
-
-            # 3. Public Bitcoin & EVM Wallets (Zero Private Keys)
-            st.markdown("##### 🔗 3. Public Bitcoin & EVM Wallets (Zero Private Keys)")
-            cust_cfg = load_custody_sync_config()
-            erc20_default_lines = "\n".join(
-                f"{t['symbol']}:{t['contract']}:{t.get('decimals', 18)}"
-                for t in (cust_cfg.get("erc20_tokens") or [])
-            )
-            wc1, wc2 = st.columns(2)
-            with wc1:
-                btc_addr_in = st.text_input(
-                    "Public Bitcoin Address (bc1... / 1... / 3...)",
-                    value=cust_cfg.get("btc_address", ""),
-                    key="pub_btc_addr_in",
-                )
-                evm_addr_in = st.text_input(
-                    "Public EVM Address (0x...)",
-                    value=cust_cfg.get("evm_address", ""),
-                    key="pub_evm_addr_in",
-                )
-            with wc2:
-                erc20_text_in = st.text_area(
-                    "Optional ERC-20 Token Contracts (one per line: SYMBOL:0xCONTRACT:DECIMALS)",
-                    value=erc20_default_lines,
-                    height=112,
-                    placeholder="LINK:0x514910771AF9Ca656af840dff83E8264EcF986CA:18\nUNI:0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984:18",
-                    key="pub_erc20_specs_in",
-                )
-
-            wb1, wb2 = st.columns(2)
-            with wb1:
-                if st.button("💾 Save Public Wallet Config (Local Gitignored JSON)", width="stretch", key="btn_save_pub_wallets"):
-                    parsed_tokens = parse_erc20_spec_lines(erc20_text_in)
-                    save_custody_sync_config(
-                        {
-                            "btc_address": btc_addr_in,
-                            "evm_address": evm_addr_in,
-                            "erc20_tokens": parsed_tokens,
-                            "last_sync_utc": cust_cfg.get("last_sync_utc", ""),
-                        }
-                    )
-                    st.success(f"Saved public wallet addresses cleanly ({len(parsed_tokens)} custom ERC-20 contract(s)).")
-            with wb2:
-                if st.button("🔍 Query Live On-Chain Public Balances", width="stretch", type="primary", key="btn_query_pub_wallets"):
-                    parsed_tokens = parse_erc20_spec_lines(erc20_text_in)
-                    wallet_res = fetch_public_wallet_balances(
-                        btc_address=btc_addr_in,
-                        evm_address=evm_addr_in,
-                        erc20_tokens=parsed_tokens,
-                    )
-                    st.session_state["wallet_sync_preview"] = wallet_res
-                    save_custody_sync_config(
-                        {
-                            "btc_address": btc_addr_in,
-                            "evm_address": evm_addr_in,
-                            "erc20_tokens": parsed_tokens,
-                            "last_sync_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-                        }
-                    )
-                    if wallet_res.get("errors"):
-                        st.warning(" | ".join(wallet_res["errors"]))
-                    if wallet_res.get("balances"):
-                        st.success(f"Verified {len(wallet_res['balances'])} public on-chain balance(s).")
-
-            if st.session_state.get("wallet_sync_preview") and st.session_state["wallet_sync_preview"].get("balances"):
-                render_clean_table(pd.DataFrame(st.session_state["wallet_sync_preview"]["balances"]))
 
     # ==========================================================================
     # TAB 3: SINGLE-ASSET DEEP DIVE (ON-DEMAND STOCK & CRYPTO PICKER)
