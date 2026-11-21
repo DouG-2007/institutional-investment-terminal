@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from core.macro_engine import MacroEngine, MacroDataBundle
-from core.portfolio_engine import PortfolioEngine, PortfolioOverviewBundle
+from core.portfolio_engine import PortfolioEngine, PortfolioOverviewBundle, DEFAULT_SPOT_PRICES
 from core.equity_engine import EquityEngine, EquityFullAnalysis
 from core.crypto_engine import CryptoEngine, CryptoFullProfile
 from core.filings_engine import FilingsEngine, EquityDocumentaryDossier, CryptoDocumentaryDossier
@@ -36,6 +36,17 @@ from core.gemini_client import is_gemini_configured
 from core.ai_analyst import InstitutionalAIAnalyst
 from core.ai_report_orchestrator import AIReportOrchestrator, clear_ai_master_insights_cache
 from core.backtest_engine import run_portfolio_backtest
+from core.custody_sync import (
+    fetch_binance_readonly_snapshot,
+    fetch_ibkr_flex_query,
+    fetch_public_wallet_balances,
+    get_custody_env_credentials,
+    import_custody_events_to_ledger,
+    load_custody_sync_config,
+    parse_erc20_spec_lines,
+    parse_ibkr_flex_xml,
+    save_custody_sync_config,
+)
 from core.excel_exporter import build_institutional_excel_bytes
 from core.live_quant_fetcher import fetch_live_adtv_map, fetch_live_vix_and_fx
 from core.charts import (
@@ -53,6 +64,7 @@ from core.charts import (
     build_multi_method_valuation_chart,
     build_portfolio_correlation_heatmap_chart,
     build_portfolio_equity_curve_chart,
+    build_portfolio_twr_snapshots_chart,
     build_portfolio_weight_gauge_chart,
     build_yield_curve_and_icsa_chart,
 )
@@ -800,7 +812,7 @@ def main() -> None:
 
         render_section_header(
             "Interactive Visual Intelligence Dashboard (Live Charts & Real Backtest)",
-            "All 16 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, correlation, VaR/CVaR, and 3-year historical portfolio engines",
+            "All 17 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, correlation, VaR/CVaR, TWR snapshots, and 3-year historical portfolio engines",
         )
         with st.expander("📖 Plain-English Metric Glossary (P/TBV, PEGY, Sloan, MVRV, NUPL, aSOPR, VaR/CVaR, Sortino, Calmar)", expanded=False):
             glossary_df = pd.DataFrame([
@@ -885,6 +897,94 @@ def main() -> None:
                     for r in st_rows
                 ]
                 render_clean_table(pd.DataFrame(st_disp))
+
+            st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
+            st.markdown("##### 📅 Real Portfolio Daily Snapshots & Time-Weighted Return (TWR)")
+            st.caption("Tracks genuine realized account growth over time net of external deposits/withdrawals (`portfolio_snapshots`), indexed against SPY & BTC-USD.")
+
+            twr_bundle = port_eng_live.compute_twr_metrics()
+            twr_k1, twr_k2, twr_k3, twr_k4 = st.columns(4)
+            with twr_k1:
+                render_kpi_card(
+                    "Cumulative Real TWR",
+                    f"{twr_bundle['cumulative_twr_pct']:+.2f}%",
+                    "Net of External Cash Flows",
+                    tone="emerald" if twr_bundle["cumulative_twr_pct"] >= 0 else "rose",
+                )
+            with twr_k2:
+                ann_sub = "Annualized (>=30d span)" if twr_bundle.get("is_annualized") else f"Period Span ({twr_bundle.get('span_days', 0)}d)"
+                render_kpi_card(
+                    "Annualized TWR",
+                    f"{twr_bundle['annualized_twr_pct']:+.2f}%",
+                    ann_sub,
+                    tone="blue",
+                )
+            with twr_k3:
+                render_kpi_card(
+                    "Snapshots Logged",
+                    f"{twr_bundle['count']}",
+                    f"Net Flows: {ccy_prefix}{twr_bundle['total_net_cash_flow_usd'] * ccy_mult:+,.0f}",
+                    tone="purple",
+                )
+            with twr_k4:
+                latest_eq = twr_bundle["latest_value_usd"] if twr_bundle["count"] > 0 else capital_usd
+                render_kpi_card(
+                    "Latest Logged Equity",
+                    f"{ccy_prefix}{latest_eq * ccy_mult:,.2f}",
+                    "SQLite `portfolio_snapshots`",
+                    tone="amber",
+                )
+
+            st.plotly_chart(build_portfolio_twr_snapshots_chart(twr_bundle), width="stretch")
+
+            led_for_snap = port_eng_live.compute_ledger_summary({p.ticker: p.current_price_usd for p in portfolio.positions})
+            default_snap_equity = (
+                float(led_for_snap["total_market_value_usd"])
+                if led_for_snap.get("has_transactions") and float(led_for_snap.get("total_market_value_usd") or 0.0) > 0
+                else float(capital_usd)
+            )
+            spy_snap_px = next((p.current_price_usd for p in portfolio.positions if p.ticker == "SPY"), DEFAULT_SPOT_PRICES.get("SPY", 592.0))
+            btc_snap_px = next((p.current_price_usd for p in portfolio.positions if p.ticker == "BTC-USD"), DEFAULT_SPOT_PRICES.get("BTC-USD", 89500.0))
+
+            with st.form("form_record_daily_snapshot", clear_on_submit=False):
+                sc1, sc2, sc3, sc4 = st.columns([1.1, 1.2, 1.2, 1.5])
+                with sc1:
+                    snap_date_in = st.text_input("Snapshot Date (YYYY-MM-DD)", value=datetime.date.today().isoformat())
+                with sc2:
+                    snap_equity_in = st.number_input("Total Portfolio Equity (USD)", min_value=1.0, value=max(1.0, default_snap_equity), step=500.0, format="%.2f")
+                with sc3:
+                    snap_cf_in = st.number_input("Net External Cash Flow (USD)", value=0.0, step=500.0, format="%.2f", help="Positive = deposit, Negative = withdrawal since prior snapshot.")
+                with sc4:
+                    snap_notes_in = st.text_input("Notes (Optional)", value="")
+                if st.form_submit_button("📸 Record Today's Snapshot into SQLite", width="stretch", type="primary"):
+                    port_eng_live.record_daily_snapshot(
+                        snap_date=snap_date_in,
+                        total_value_usd=snap_equity_in,
+                        net_cash_flow_usd=snap_cf_in,
+                        unrealized_pnl_usd=portfolio.total_portfolio_pnl_usd,
+                        unrealized_pnl_pct=portfolio.total_portfolio_pnl_pct,
+                        crypto_pct=portfolio.total_crypto_pct,
+                        hard_assets_pct=portfolio.total_hard_assets_pct,
+                        vix_current=float(bundle.get("vix_current", 18.4)),
+                        spy_close=float(spy_snap_px),
+                        btc_close=float(btc_snap_px),
+                        notes=snap_notes_in,
+                    )
+                    st.success(f"Recorded portfolio snapshot for `{snap_date_in.strip()[:10]}`!")
+                    st.rerun()
+
+            if twr_bundle["snapshots"]:
+                with st.expander(f"📋 Manage Recorded Snapshots ({twr_bundle['count']} rows)", expanded=False):
+                    render_clean_table(pd.DataFrame(twr_bundle["snapshots"]))
+                    del_snap_dt = st.selectbox(
+                        "Select Snapshot Date to Remove",
+                        options=[s["snap_date"] for s in twr_bundle["snapshots"]],
+                        key="del_snap_date_sel",
+                    )
+                    if st.button("🗑️ Delete Selected Snapshot", key="btn_del_snapshot"):
+                        port_eng_live.delete_snapshot(del_snap_dt)
+                        st.warning(f"Deleted snapshot `{del_snap_dt}`.")
+                        st.rerun()
 
     # ==========================================================================
     # TAB 2: DYNAMIC PORTFOLIO MANAGER (SQLITE CRUD)
@@ -1085,6 +1185,195 @@ def main() -> None:
                     st.cache_data.clear()
                     st.session_state["refresh_token"] += 1
                     st.rerun()
+
+        with st.expander("🔗 Read-Only Custody Sync (IBKR Flex XML • Binance Read-Only • Public BTC/EVM Wallets)", expanded=False):
+            st.caption("100% read-only brokerage & on-chain synchronization. API credentials are read strictly from `.env` or session-only password inputs and never stored in SQLite or Git.")
+            env_creds = get_custody_env_credentials()
+
+            # 1. Interactive Brokers Flex Query XML
+            st.markdown("##### 🏛️ 1. Interactive Brokers (IBKR Flex Query XML)")
+            ib_c1, ib_c2 = st.columns([1.15, 1.35])
+            with ib_c1:
+                ib_xml_file = st.file_uploader("Upload IBKR Flex Query XML", type=["xml"], key="ibkr_xml_uploader")
+                if ib_xml_file is not None and st.button("⬆️ Parse & Sync Uploaded Flex XML -> Ledger", width="stretch", key="btn_sync_ibkr_upload"):
+                    try:
+                        parsed_ib = parse_ibkr_flex_xml(ib_xml_file.read())
+                        ins_n, skip_n = import_custody_events_to_ledger(
+                            port_eng_live, parsed_ib["events"], source_tag="IBKR_FLEX"
+                        )
+                        st.session_state["ibkr_last_positions"] = parsed_ib.get("positions") or []
+                        st.cache_data.clear()
+                        st.session_state["refresh_token"] += 1
+                        st.success(
+                            f"IBKR Flex XML synced: inserted {ins_n} new ledger event(s), "
+                            f"skipped {skip_n} duplicate(s). Open positions parsed: {parsed_ib['summary']['open_positions']}."
+                        )
+                    except Exception as exc:
+                        st.error(f"IBKR Flex XML parse failed: {exc}")
+            with ib_c2:
+                ib_tok_in = st.text_input(
+                    "IBKR Flex Token (Read-Only Web Service)",
+                    value="",
+                    type="password",
+                    placeholder="Configured in .env" if env_creds["ibkr_flex_token"] else "Paste Flex Token or set IBKR_FLEX_TOKEN in .env",
+                    key="ibkr_flex_tok_in",
+                )
+                ib_qid_in = st.text_input(
+                    "IBKR Flex Query ID",
+                    value="",
+                    placeholder="Configured in .env" if env_creds["ibkr_flex_query_id"] else "Numeric Flex Query ID or set IBKR_FLEX_QUERY_ID in .env",
+                    key="ibkr_flex_qid_in",
+                )
+                if st.button("🌐 Fetch IBKR Flex Web Service -> Sync Ledger", width="stretch", key="btn_sync_ibkr_ws"):
+                    use_tok = ib_tok_in.strip() or env_creds["ibkr_flex_token"]
+                    use_qid = ib_qid_in.strip() or env_creds["ibkr_flex_query_id"]
+                    try:
+                        raw_xml = fetch_ibkr_flex_query(use_tok, use_qid)
+                        parsed_ib = parse_ibkr_flex_xml(raw_xml)
+                        ins_n, skip_n = import_custody_events_to_ledger(
+                            port_eng_live, parsed_ib["events"], source_tag="IBKR_FLEX_WS"
+                        )
+                        st.session_state["ibkr_last_positions"] = parsed_ib.get("positions") or []
+                        st.cache_data.clear()
+                        st.session_state["refresh_token"] += 1
+                        st.success(f"IBKR Web Service synced: inserted {ins_n} event(s), skipped {skip_n} duplicate(s).")
+                    except Exception as exc:
+                        st.error(f"IBKR Flex Web Service error: {exc}")
+
+            if st.session_state.get("ibkr_last_positions"):
+                st.markdown("**Parsed IBKR Open Positions Snapshot**")
+                render_clean_table(pd.DataFrame(st.session_state["ibkr_last_positions"]))
+
+            st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
+
+            # 2. Binance Read-Only Spot API
+            st.markdown("##### 🟡 2. Binance Spot (Read-Only API — Dynamic Asset Discovery)")
+            bn_c1, bn_c2, bn_c3 = st.columns([1.2, 1.2, 0.9])
+            with bn_c1:
+                bn_key_in = st.text_input(
+                    "Binance Read-Only API Key",
+                    value="",
+                    type="password",
+                    placeholder="Configured in .env" if env_creds["binance_api_key"] else "Set BINANCE_API_KEY in .env or paste here",
+                    key="bn_key_in",
+                )
+            with bn_c2:
+                bn_sec_in = st.text_input(
+                    "Binance Read-Only API Secret",
+                    value="",
+                    type="password",
+                    placeholder="Configured in .env" if env_creds["binance_api_secret"] else "Set BINANCE_API_SECRET in .env or paste here",
+                    key="bn_sec_in",
+                )
+            with bn_c3:
+                bn_pairs_in = st.text_input(
+                    "Pairs for Trade Sync (Optional CSV)",
+                    value="",
+                    placeholder="Auto-discover from balances",
+                    key="bn_pairs_in",
+                )
+                bn_inc_stables = st.checkbox("Include USD Stablecoins?", value=False, key="bn_inc_stables")
+
+            bn_btn_c1, bn_btn_c2 = st.columns(2)
+            with bn_btn_c1:
+                if st.button("🔄 Fetch Binance Read-Only Snapshot", width="stretch", key="btn_fetch_binance_ro"):
+                    use_key = bn_key_in.strip() or env_creds["binance_api_key"]
+                    use_sec = bn_sec_in.strip() or env_creds["binance_api_secret"]
+                    pair_list = [s.strip() for s in bn_pairs_in.split(",") if s.strip()] if bn_pairs_in.strip() else None
+                    bn_res = fetch_binance_readonly_snapshot(
+                        api_key=use_key,
+                        api_secret=use_sec,
+                        symbols=pair_list,
+                        include_stablecoins=bn_inc_stables,
+                    )
+                    if bn_res.get("error"):
+                        st.error(bn_res["error"])
+                    else:
+                        st.session_state["binance_sync_preview"] = bn_res
+                        st.success(
+                            f"Fetched {len(bn_res.get('balances') or [])} non-zero Binance Spot balance(s) "
+                            f"and {len(bn_res.get('events') or [])} trade fill(s)."
+                        )
+            with bn_btn_c2:
+                bn_prev = st.session_state.get("binance_sync_preview") or {}
+                if bn_prev.get("events") and st.button("⬆️ Import Binance Fills -> Custody Ledger", width="stretch", key="btn_imp_binance_trades"):
+                    ins_n, skip_n = import_custody_events_to_ledger(
+                        port_eng_live, bn_prev["events"], source_tag="BINANCE_RO"
+                    )
+                    st.cache_data.clear()
+                    st.session_state["refresh_token"] += 1
+                    st.success(f"Binance trades synced: inserted {ins_n} row(s), skipped {skip_n} duplicate(s).")
+
+            if st.session_state.get("binance_sync_preview") and st.session_state["binance_sync_preview"].get("balances"):
+                render_clean_table(pd.DataFrame(st.session_state["binance_sync_preview"]["balances"]))
+
+            st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
+
+            # 3. Public Bitcoin & EVM Wallets (Zero Private Keys)
+            st.markdown("##### 🔗 3. Public Bitcoin & EVM Wallets (Zero Private Keys)")
+            cust_cfg = load_custody_sync_config()
+            erc20_default_lines = "\n".join(
+                f"{t['symbol']}:{t['contract']}:{t.get('decimals', 18)}"
+                for t in (cust_cfg.get("erc20_tokens") or [])
+            )
+            wc1, wc2 = st.columns(2)
+            with wc1:
+                btc_addr_in = st.text_input(
+                    "Public Bitcoin Address (bc1... / 1... / 3...)",
+                    value=cust_cfg.get("btc_address", ""),
+                    key="pub_btc_addr_in",
+                )
+                evm_addr_in = st.text_input(
+                    "Public EVM Address (0x...)",
+                    value=cust_cfg.get("evm_address", ""),
+                    key="pub_evm_addr_in",
+                )
+            with wc2:
+                erc20_text_in = st.text_area(
+                    "Optional ERC-20 Token Contracts (one per line: SYMBOL:0xCONTRACT:DECIMALS)",
+                    value=erc20_default_lines,
+                    height=112,
+                    placeholder="LINK:0x514910771AF9Ca656af840dff83E8264EcF986CA:18\nUNI:0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984:18",
+                    key="pub_erc20_specs_in",
+                )
+
+            wb1, wb2 = st.columns(2)
+            with wb1:
+                if st.button("💾 Save Public Wallet Config (Local Gitignored JSON)", width="stretch", key="btn_save_pub_wallets"):
+                    parsed_tokens = parse_erc20_spec_lines(erc20_text_in)
+                    save_custody_sync_config(
+                        {
+                            "btc_address": btc_addr_in,
+                            "evm_address": evm_addr_in,
+                            "erc20_tokens": parsed_tokens,
+                            "last_sync_utc": cust_cfg.get("last_sync_utc", ""),
+                        }
+                    )
+                    st.success(f"Saved public wallet addresses cleanly ({len(parsed_tokens)} custom ERC-20 contract(s)).")
+            with wb2:
+                if st.button("🔍 Query Live On-Chain Public Balances", width="stretch", type="primary", key="btn_query_pub_wallets"):
+                    parsed_tokens = parse_erc20_spec_lines(erc20_text_in)
+                    wallet_res = fetch_public_wallet_balances(
+                        btc_address=btc_addr_in,
+                        evm_address=evm_addr_in,
+                        erc20_tokens=parsed_tokens,
+                    )
+                    st.session_state["wallet_sync_preview"] = wallet_res
+                    save_custody_sync_config(
+                        {
+                            "btc_address": btc_addr_in,
+                            "evm_address": evm_addr_in,
+                            "erc20_tokens": parsed_tokens,
+                            "last_sync_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+                        }
+                    )
+                    if wallet_res.get("errors"):
+                        st.warning(" | ".join(wallet_res["errors"]))
+                    if wallet_res.get("balances"):
+                        st.success(f"Verified {len(wallet_res['balances'])} public on-chain balance(s).")
+
+            if st.session_state.get("wallet_sync_preview") and st.session_state["wallet_sync_preview"].get("balances"):
+                render_clean_table(pd.DataFrame(st.session_state["wallet_sync_preview"]["balances"]))
 
     # ==========================================================================
     # TAB 3: SINGLE-ASSET DEEP DIVE (ON-DEMAND STOCK & CRYPTO PICKER)

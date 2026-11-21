@@ -262,6 +262,23 @@ class PortfolioEngine:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                    snap_date TEXT PRIMARY KEY,
+                    total_value_usd REAL NOT NULL,
+                    net_cash_flow_usd REAL DEFAULT 0.0,
+                    unrealized_pnl_usd REAL DEFAULT 0.0,
+                    unrealized_pnl_pct REAL DEFAULT 0.0,
+                    crypto_pct REAL DEFAULT 0.0,
+                    hard_assets_pct REAL DEFAULT 0.0,
+                    vix_current REAL DEFAULT 0.0,
+                    spy_close REAL DEFAULT 0.0,
+                    btc_close REAL DEFAULT 0.0,
+                    notes TEXT DEFAULT ''
+                )
+                """
+            )
             cur = conn.execute("SELECT COUNT(*) FROM portfolio_assets")
             count = cur.fetchone()[0]
             if count == 0 and os.path.exists(self.config_path):
@@ -728,6 +745,180 @@ class PortfolioEngine:
         if updated > 0:
             self._sync_sqlite_to_json()
         return updated
+
+    # ==========================================================================
+    # DAILY PORTFOLIO SNAPSHOTS & REAL TIME-WEIGHTED RETURN (TWR) ENGINE
+    # ==========================================================================
+    def record_daily_snapshot(
+        self,
+        snap_date: str,
+        total_value_usd: float,
+        net_cash_flow_usd: float = 0.0,
+        unrealized_pnl_usd: float = 0.0,
+        unrealized_pnl_pct: float = 0.0,
+        crypto_pct: float = 0.0,
+        hard_assets_pct: float = 0.0,
+        vix_current: float = 0.0,
+        spy_close: float = 0.0,
+        btc_close: float = 0.0,
+        notes: str = "",
+    ) -> None:
+        """Idempotent daily portfolio valuation & external cash-flow snapshot in SQLite."""
+        dt_clean = (snap_date or datetime.date.today().isoformat()).strip()[:10]
+        val_usd = float(total_value_usd)
+        if val_usd <= 0:
+            raise ValueError("total_value_usd must be positive.")
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO portfolio_snapshots (
+                    snap_date, total_value_usd, net_cash_flow_usd, unrealized_pnl_usd,
+                    unrealized_pnl_pct, crypto_pct, hard_assets_pct,
+                    vix_current, spy_close, btc_close, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    dt_clean,
+                    round(val_usd, 2),
+                    round(float(net_cash_flow_usd or 0.0), 2),
+                    round(float(unrealized_pnl_usd or 0.0), 2),
+                    round(float(unrealized_pnl_pct or 0.0), 2),
+                    round(float(crypto_pct or 0.0), 2),
+                    round(float(hard_assets_pct or 0.0), 2),
+                    round(float(vix_current or 0.0), 2),
+                    round(float(spy_close or 0.0), 4),
+                    round(float(btc_close or 0.0), 4),
+                    (notes or "").strip(),
+                ),
+            )
+
+    def get_portfolio_snapshots(self, limit: int = 365) -> List[Dict[str, Any]]:
+        """Returns up to `limit` latest daily snapshots ordered chronologically (oldest first)."""
+        lim = max(1, int(limit))
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT * FROM (
+                    SELECT * FROM portfolio_snapshots ORDER BY snap_date DESC LIMIT ?
+                ) ORDER BY snap_date ASC
+                """,
+                (lim,),
+            ).fetchall()
+        return [
+            {
+                "snap_date": str(r["snap_date"]),
+                "total_value_usd": float(r["total_value_usd"]),
+                "net_cash_flow_usd": float(r["net_cash_flow_usd"] or 0.0),
+                "unrealized_pnl_usd": float(r["unrealized_pnl_usd"] or 0.0),
+                "unrealized_pnl_pct": float(r["unrealized_pnl_pct"] or 0.0),
+                "crypto_pct": float(r["crypto_pct"] or 0.0),
+                "hard_assets_pct": float(r["hard_assets_pct"] or 0.0),
+                "vix_current": float(r["vix_current"] or 0.0),
+                "spy_close": float(r["spy_close"] or 0.0),
+                "btc_close": float(r["btc_close"] or 0.0),
+                "notes": str(r["notes"] or ""),
+            }
+            for r in rows
+        ]
+
+    def delete_snapshot(self, snap_date: str) -> None:
+        dt_clean = (snap_date or "").strip()[:10]
+        if not dt_clean:
+            return
+        with self._connect() as conn:
+            conn.execute("DELETE FROM portfolio_snapshots WHERE snap_date = ?", (dt_clean,))
+
+    def compute_twr_metrics(
+        self, snapshots: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Computes chain-linked Time-Weighted Return (TWR) across recorded snapshots:
+          sub_return_t = (V_t - CF_t) / V_{t-1} - 1.0
+          twr_factor = prod_t (1 + sub_return_t)
+        Eliminates external deposit/withdrawal distortion and normalizes SPY & BTC-USD to Base 100.
+        """
+        snaps = sorted(list(snapshots) if snapshots is not None else self.get_portfolio_snapshots(), key=lambda x: str(x["snap_date"]))
+        if not snaps:
+            return {
+                "count": 0,
+                "has_enough_data": False,
+                "cumulative_twr_pct": 0.0,
+                "annualized_twr_pct": 0.0,
+                "is_annualized": False,
+                "latest_value_usd": 0.0,
+                "total_net_cash_flow_usd": 0.0,
+                "series_df": pd.DataFrame(),
+                "snapshots": [],
+            }
+
+        spy_base = next((float(s.get("spy_close") or 0.0) for s in snaps if float(s.get("spy_close") or 0.0) > 0), 0.0)
+        btc_base = next((float(s.get("btc_close") or 0.0) for s in snaps if float(s.get("btc_close") or 0.0) > 0), 0.0)
+
+        twr_factor = 1.0
+        prev_val = float(snaps[0]["total_value_usd"])
+        series_rows: List[Dict[str, Any]] = []
+        tot_cf = 0.0
+
+        for idx, s in enumerate(snaps):
+            val = float(s["total_value_usd"])
+            cf = float(s.get("net_cash_flow_usd") or 0.0)
+            tot_cf += cf if idx > 0 else 0.0
+            if idx == 0:
+                sub_ret = 0.0
+            elif prev_val > 0:
+                sub_ret = ((val - cf) / prev_val) - 1.0
+                twr_factor *= max(0.0, 1.0 + sub_ret)
+            else:
+                sub_ret = 0.0
+            prev_val = val
+
+            spy_px = float(s.get("spy_close") or 0.0)
+            btc_px = float(s.get("btc_close") or 0.0)
+            row_dict: Dict[str, Any] = {
+                "snap_date": str(s["snap_date"]),
+                "Portfolio_TWR": round(twr_factor * 100.0, 4),
+                "Sub_Period_Return_Pct": round(sub_ret * 100.0, 3),
+                "Total_Value_USD": val,
+                "Net_Cash_Flow_USD": cf,
+            }
+            if spy_base > 0 and spy_px > 0:
+                row_dict["SPY_Index"] = round((spy_px / spy_base) * 100.0, 4)
+            if btc_base > 0 and btc_px > 0:
+                row_dict["BTC_Index"] = round((btc_px / btc_base) * 100.0, 4)
+            series_rows.append(row_dict)
+
+        series_df = pd.DataFrame(series_rows)
+        if not series_df.empty:
+            series_df = series_df.set_index("snap_date")
+
+        cum_twr_pct = round((twr_factor - 1.0) * 100.0, 2)
+        span_days = 0
+        try:
+            d0 = datetime.date.fromisoformat(str(snaps[0]["snap_date"])[:10])
+            d1 = datetime.date.fromisoformat(str(snaps[-1]["snap_date"])[:10])
+            span_days = max(0, (d1 - d0).days)
+        except ValueError:
+            span_days = 0
+
+        is_annualized = span_days >= 30 and twr_factor > 0
+        if is_annualized:
+            ann_twr_pct = round(((twr_factor ** (365.25 / span_days)) - 1.0) * 100.0, 2)
+        else:
+            ann_twr_pct = cum_twr_pct
+
+        return {
+            "count": len(snaps),
+            "has_enough_data": len(snaps) >= 2,
+            "cumulative_twr_pct": cum_twr_pct,
+            "annualized_twr_pct": ann_twr_pct,
+            "is_annualized": is_annualized,
+            "span_days": span_days,
+            "latest_value_usd": float(snaps[-1]["total_value_usd"]),
+            "total_net_cash_flow_usd": round(tot_cf, 2),
+            "series_df": series_df,
+            "snapshots": snaps,
+        }
 
     def import_assets_from_csv(self, csv_bytes: bytes) -> Tuple[int, List[str]]:
         """Imports or updates portfolio holdings from CSV bytes (`ticker` column required)."""

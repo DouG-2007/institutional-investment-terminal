@@ -34,11 +34,20 @@ from core.charts import (
     build_multi_method_valuation_chart,
     build_portfolio_correlation_heatmap_chart,
     build_portfolio_equity_curve_chart,
+    build_portfolio_twr_snapshots_chart,
     build_portfolio_weight_gauge_chart,
     build_yield_curve_and_icsa_chart,
 )
 from core.backtest_engine import run_portfolio_backtest
 from core.crypto_engine import CryptoEngine
+from core.custody_sync import (
+    fetch_binance_readonly_snapshot,
+    fetch_public_evm_balances,
+    import_custody_events_to_ledger,
+    parse_btc_address_payload,
+    parse_erc20_spec_lines,
+    parse_ibkr_flex_xml,
+)
 from core.deep_dive_engine import DeepDiveEngine
 from core.equity_engine import EquityEngine
 from core.excel_exporter import build_institutional_excel_bytes
@@ -184,7 +193,115 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertEqual(errs, [])
             pe.delete_asset("COST")
 
-    def test_3_all_16_plotly_charts_and_backtest_risk_metrics(self) -> None:
+            # Daily Portfolio Snapshots & exact Time-Weighted Return (TWR) net of cash inflows
+            pe.record_daily_snapshot("2026-04-01", total_value_usd=100_000.0, net_cash_flow_usd=0.0, spy_close=500.0, btc_close=80_000.0)
+            pe.record_daily_snapshot("2026-04-02", total_value_usd=110_000.0, net_cash_flow_usd=0.0, spy_close=510.0, btc_close=84_000.0)
+            pe.record_daily_snapshot("2026-04-03", total_value_usd=132_000.0, net_cash_flow_usd=10_000.0, spy_close=525.0, btc_close=88_000.0)
+            snaps = pe.get_portfolio_snapshots()
+            self.assertEqual(len(snaps), 3)
+            twr = pe.compute_twr_metrics(snaps)
+            self.assertTrue(twr["has_enough_data"])
+            self.assertAlmostEqual(twr["cumulative_twr_pct"], 22.0, places=2)
+            self.assertAlmostEqual(twr["total_net_cash_flow_usd"], 10_000.0, places=2)
+            pe.delete_snapshot("2026-04-03")
+            self.assertEqual(len(pe.get_portfolio_snapshots()), 2)
+
+            # IBKR Flex Query XML parsing + idempotent ledger import (zero duplicates on re-sync)
+            sample_flex_xml = b"""
+            <FlexQueryResponse queryName="CustodySync" type="AF">
+              <FlexStatements count="1">
+                <FlexStatement accountId="U1234567">
+                  <Trades>
+                    <Trade symbol="ASML" assetCategory="STK" buySell="BUY" tradeDate="20260410" quantity="5" tradePrice="720.0" ibCommission="-2.5" currency="USD" transactionID="T9001" />
+                  </Trades>
+                  <CashTransactions>
+                    <CashTransaction symbol="MSFT" type="Dividends" dateTime="2026-04-12" amount="45.0" currency="USD" transactionID="D9002" />
+                  </CashTransactions>
+                  <OpenPositions>
+                    <OpenPosition symbol="ASML" assetCategory="STK" position="5" markPrice="740.0" costBasisPrice="720.5" positionValue="3700.0" currency="USD" />
+                  </OpenPositions>
+                </FlexStatement>
+              </FlexStatements>
+            </FlexQueryResponse>
+            """
+            flex_parsed = parse_ibkr_flex_xml(sample_flex_xml)
+            self.assertEqual(flex_parsed["summary"]["trades"], 1)
+            self.assertEqual(flex_parsed["summary"]["dividends"], 1)
+            self.assertEqual(flex_parsed["summary"]["open_positions"], 1)
+            ins_1, skip_1 = import_custody_events_to_ledger(pe, flex_parsed["events"], source_tag="IBKR_TEST")
+            self.assertEqual((ins_1, skip_1), (2, 0))
+            ins_2, skip_2 = import_custody_events_to_ledger(pe, flex_parsed["events"], source_tag="IBKR_TEST")
+            self.assertEqual((ins_2, skip_2), (0, 2))
+
+            # Public BTC payload math
+            btc_bal = parse_btc_address_payload(
+                "bc1qtestaddr",
+                {
+                    "chain_stats": {"funded_txo_sum": 250_000_000, "spent_txo_sum": 50_000_000},
+                    "mempool_stats": {"funded_txo_sum": 10_000_000, "spent_txo_sum": 0},
+                },
+            )
+            self.assertAlmostEqual(btc_bal["balance"], 2.1, places=6)
+
+            # Dynamic Binance read-only asset discovery (supports arbitrary new tokens like XYZ -> XYZ-USD)
+            class _MockResp:
+                def __init__(self, status_code: int, payload):
+                    self.status_code = status_code
+                    self._payload = payload
+
+                def json(self):
+                    return self._payload
+
+            def _mock_binance_get(url, headers=None, timeout=10):
+                if "/api/v3/time" in url:
+                    return _MockResp(200, {"serverTime": 1_760_000_000_000})
+                if "/api/v3/account" in url:
+                    return _MockResp(
+                        200,
+                        {
+                            "balances": [
+                                {"asset": "XYZ", "free": "125.5", "locked": "4.5"},
+                                {"asset": "USDT", "free": "500.0", "locked": "0.0"},
+                            ]
+                        },
+                    )
+                if "/api/v3/myTrades" in url:
+                    return _MockResp(
+                        200,
+                        [
+                            {
+                                "id": 7711,
+                                "qty": "130.0",
+                                "price": "2.40",
+                                "commission": "0.25",
+                                "commissionAsset": "USDT",
+                                "time": 1_760_000_000_000,
+                                "isBuyer": True,
+                            }
+                        ],
+                    )
+                return _MockResp(404, {})
+
+            with mock.patch("core.custody_sync.requests.get", side_effect=_mock_binance_get):
+                bn = fetch_binance_readonly_snapshot("ro_key", "ro_sec")
+                self.assertIsNone(bn["error"])
+                self.assertEqual(len(bn["balances"]), 1)
+                self.assertEqual(bn["balances"][0]["ticker"], "XYZ-USD")
+                self.assertAlmostEqual(bn["balances"][0]["total"], 130.0, places=4)
+                self.assertEqual(len(bn["events"]), 1)
+                self.assertEqual(bn["events"][0]["ticker"], "XYZ-USD")
+
+            # Dynamic ERC-20 public RPC query
+            erc20_specs = parse_erc20_spec_lines("LINK:0x514910771AF9Ca656af840dff83E8264EcF986CA:18")
+            self.assertEqual(len(erc20_specs), 1)
+            with mock.patch("core.custody_sync._eth_json_rpc", side_effect=[("0xde0b6b3a7640000", "mock-rpc"), ("0x1bc16d674ec80000", "mock-rpc")]):
+                evm_res = fetch_public_evm_balances("0x1111111111111111111111111111111111111111", erc20_tokens=erc20_specs)
+                self.assertIsNone(evm_res["error"])
+                self.assertAlmostEqual(evm_res["balances"][0]["balance"], 1.0, places=4)
+                self.assertEqual(evm_res["balances"][1]["ticker"], "LINK-USD")
+                self.assertAlmostEqual(evm_res["balances"][1]["balance"], 2.0, places=4)
+
+    def test_3_all_17_plotly_charts_and_backtest_risk_metrics(self) -> None:
         dd_eq = DeepDiveEngine(self.rf_pct).analyze_single_ticker("NVDA", portfolio=self.portfolio)
         dd_cr = DeepDiveEngine(self.rf_pct).analyze_single_ticker("BTC-USD", portfolio=self.portfolio)
         corr_sample = pd.DataFrame({
@@ -195,6 +312,16 @@ class TestTerminalInvariants(unittest.TestCase):
             "equity_curve_df": dd_cr.crypto_profile.chart_series["Price"].to_frame(name="Portfolio"),
             "drawdown_series": dd_cr.crypto_profile.chart_series["MVRV_Z"] * 0.0 - 5.0,
             "corr_matrix_df": corr_sample,
+        }
+        mock_twr = {
+            "series_df": pd.DataFrame(
+                {
+                    "Portfolio_TWR": [100.0, 110.0, 122.0],
+                    "SPY_Index": [100.0, 102.0, 105.0],
+                    "BTC_Index": [100.0, 105.0, 110.0],
+                },
+                index=["2026-04-01", "2026-04-02", "2026-04-03"],
+            )
         }
         btc_prof = self.cryptos.get("BTC-USD") or next(iter(self.cryptos.values()))
 
@@ -215,8 +342,9 @@ class TestTerminalInvariants(unittest.TestCase):
             build_crypto_github_and_earnings_chart(dd_cr),
             build_portfolio_equity_curve_chart(mock_bt),
             build_portfolio_correlation_heatmap_chart(mock_bt),
+            build_portfolio_twr_snapshots_chart(mock_twr),
         ]
-        self.assertEqual(len(figs), 16)
+        self.assertEqual(len(figs), 17)
         for fig in figs:
             self.assertGreater(len(fig.data), 0)
 
