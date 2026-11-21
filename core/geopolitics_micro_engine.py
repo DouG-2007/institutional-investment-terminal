@@ -222,7 +222,8 @@ class GeopoliticsMicroEngine:
                 db_path = os.path.join(_ROOT_DIR, "portfolio_store.db")
                 if not os.path.exists(db_path):
                     db_path = "portfolio_store.db"
-                with sqlite3.connect(db_path) as conn:
+                from contextlib import closing
+                with closing(sqlite3.connect(db_path)) as conn:
                     rows = conn.execute("SELECT ticker FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 tickers = [r[0].upper() for r in rows]
             except Exception:

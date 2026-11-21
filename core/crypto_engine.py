@@ -575,8 +575,9 @@ class CryptoEngine:
     def analyze_portfolio_cryptos(self, symbols: Optional[List[str]] = None) -> Dict[str, CryptoFullProfile]:
         if symbols is None:
             try:
+                from contextlib import closing
                 import sqlite3
-                with sqlite3.connect("portfolio_store.db") as conn:
+                with closing(sqlite3.connect("portfolio_store.db")) as conn:
                     rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 symbols = [
                     r[0] for r in rows

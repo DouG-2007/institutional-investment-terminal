@@ -761,6 +761,21 @@ def fetch_live_crypto_metrics(symbols: Sequence[str]) -> Dict[str, Dict[str, Any
             for k in ("mvrv_z", "nupl", "circ_m"):
                 if k in cm_asset:
                     entry[k] = cm_asset[k]
+            if "mvrv_z" in entry or "nupl" in entry:
+                entry["onchain_source"] = "LIVE_COINMETRICS"
+        elif s_px is not None and len(s_px) >= 180:
+            # Real-time quantitative Z-Score & Unrealized proxy for altcoins absent from CoinMetrics free tier
+            px_now = float(s_px.iloc[-1])
+            win_s = s_px.iloc[-365:] if len(s_px) >= 365 else s_px
+            log_w = np.log(np.maximum(win_s.values.astype(float), 1e-8))
+            std_w = float(np.std(log_w))
+            if std_w > 1e-6:
+                z_365 = (float(np.log(max(px_now, 1e-8))) - float(np.mean(log_w))) / std_w
+                entry["mvrv_z"] = round(float(np.clip(z_365 * 0.85, -1.2, 5.5)), 2)
+            sma_365 = float(win_s.mean())
+            if px_now > 0 and sma_365 > 0:
+                entry["nupl"] = round(float(np.clip((px_now - sma_365) / px_now, -0.60, 0.85)), 2)
+            entry["onchain_source"] = "LIVE_5Y_ZSCORE_PROXY"
 
         if entry:
             entry["data_source"] = "LIVE_CRYPTO_APIS"

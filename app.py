@@ -51,6 +51,7 @@ from core.charts import (
     build_deep_dive_valuation_cockpit_chart,
     build_macro_comprehensive_chart,
     build_multi_method_valuation_chart,
+    build_portfolio_correlation_heatmap_chart,
     build_portfolio_equity_curve_chart,
     build_portfolio_weight_gauge_chart,
     build_yield_curve_and_icsa_chart,
@@ -385,6 +386,8 @@ def main() -> None:
         st.session_state["ai_pdf_cache"] = {}
     if "det_pdf_cache" not in st.session_state:
         st.session_state["det_pdf_cache"] = {}
+    if "sidebar_tax_rate_input" not in st.session_state:
+        st.session_state["sidebar_tax_rate_input"] = 15.0
 
     port_eng_live = PortfolioEngine()
     db_assets_live = port_eng_live.get_all_assets()
@@ -394,7 +397,7 @@ def main() -> None:
         for a in db_assets_live
     ) + f"|tx:{tx_count_live}"
 
-    # Lean sidebar: Base capital, Tax-Drag rate, FX display, Live Refresh & 1-Click Master PDF
+    # Lean sidebar: Base capital, Fiscal preset & Tax-Drag rate, FX display, Live Refresh & Master PDF
     with st.sidebar:
         st.markdown("### 🏛️ Master Report Controls")
         capital_usd = st.number_input(
@@ -405,14 +408,37 @@ def main() -> None:
             step=10_000.0,
             format="%.0f",
         )
+        jurisdiction_preset = st.selectbox(
+            "Fiscal Jurisdiction Preset",
+            [
+                "Brazil DARF Swing / Offshore (15%)",
+                "US Long-Term Cap Gains (15%)",
+                "US Short-Term Cap Gains (30%)",
+                "Custom",
+            ],
+            index=0,
+            key="sidebar_fiscal_preset",
+            help="Sets default capital gains tax rate for Tax-Drag Hurdle Rate. Losses always yield 0.0% hurdle (BR R$20k/mo stocks & R$35k/mo crypto exemptions apply externally).",
+        )
+        preset_rates = {
+            "Brazil DARF Swing / Offshore (15%)": 15.0,
+            "US Long-Term Cap Gains (15%)": 15.0,
+            "US Short-Term Cap Gains (30%)": 30.0,
+        }
+        if st.session_state.get("_last_fiscal_preset") != jurisdiction_preset:
+            st.session_state["_last_fiscal_preset"] = jurisdiction_preset
+            if jurisdiction_preset in preset_rates:
+                st.session_state["sidebar_tax_rate_input"] = preset_rates[jurisdiction_preset]
+
         tax_rate_pct = st.number_input(
             "Capital Gains Tax Rate (%) — Tax-Drag",
             min_value=0.0,
-            max_value=35.0,
-            value=15.0,
+            max_value=45.0,
             step=0.5,
             format="%.1f",
-            help="Used deterministically to compute Tax-Drag Hurdle Rate (e.g., 15% BR foreign/crypto or US LTCG).",
+            disabled=(jurisdiction_preset != "Custom"),
+            key="sidebar_tax_rate_input",
+            help="Used deterministically to compute Tax-Drag Hurdle Rate (0.0% when at unrealized loss).",
         )
         display_ccy = st.selectbox(
             "UI Display Currency",
@@ -420,7 +446,7 @@ def main() -> None:
             index=0,
             key="sidebar_display_ccy",
         )
-        if st.button("🔄 Refresh Live Quotes & Recalculate PDF", use_container_width=True, type="primary"):
+        if st.button("🔄 Refresh Live Quotes & Clear Caches", width="stretch", type="primary"):
             st.cache_data.clear()
             st.session_state["ai_pdf_cache"] = {}
             st.session_state["det_pdf_cache"] = {}
@@ -529,7 +555,7 @@ def main() -> None:
                 if st.button(
                     "🧠 Regenerate All AI Insights (Matrices, Moats, Events & Thesis)",
                     key="btn_regen_all_ai_insights",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     force_refresh_insights = True
                     clear_ai_master_insights_cache()
@@ -538,7 +564,7 @@ def main() -> None:
                 if st.button(
                     "📑 Force Re-Fetch All Portfolio SEC & Crypto Filings",
                     key="btn_refetch_all_filings",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     force_refresh_filings = True
                     force_refresh_insights = True
@@ -547,10 +573,75 @@ def main() -> None:
 
         ai_bundle: Optional[Dict[str, Any]] = None
         ai_exec_summary: Optional[Dict[str, Any]] = None
-        if include_ai_master and gemini_ready:
-            ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}|{int(is_economic_mode)}"
-            cached_entry = None if (force_refresh_insights or force_refresh_filings) else st.session_state["ai_pdf_cache"].get(ai_cache_key)
-            if cached_entry is None:
+        ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}|{int(is_economic_mode)}"
+        det_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}"
+
+        if include_ai_master and gemini_ready and not (force_refresh_insights or force_refresh_filings):
+            cached_entry = st.session_state["ai_pdf_cache"].get(ai_cache_key)
+            if isinstance(cached_entry, dict) and cached_entry.get("pdf_bytes"):
+                ai_bundle = cached_entry.get("ai_bundle")
+                ai_exec_summary = cached_entry.get("summary")
+                active_master_pdf_bytes = cached_entry.get("pdf_bytes")
+        elif not (include_ai_master and gemini_ready):
+            cached_det = st.session_state["det_pdf_cache"].get(det_cache_key)
+            if cached_det:
+                active_master_pdf_bytes = cached_det
+
+        c_dl1, c_dl2 = st.columns([2, 1])
+        compile_clicked = False
+        with c_dl1:
+            if active_master_pdf_bytes is not None:
+                st.download_button(
+                    label="📥 DOWNLOAD 360° MASTER REPORT (.PDF — ALL 7 SECTIONS)",
+                    data=active_master_pdf_bytes,
+                    file_name="Master_Institutional_Report_360.pdf",
+                    mime="application/pdf",
+                    width="stretch",
+                    type="primary",
+                    key="btn_main_master_pdf",
+                )
+            else:
+                compile_clicked = st.button(
+                    "⚡ Generate & Compile 360° Master Report (.PDF — ALL 7 SECTIONS)",
+                    width="stretch",
+                    type="primary",
+                    key="btn_main_compile_pdf",
+                    help="On-demand compilation keeps dashboard startup instant and avoids unnecessary AI API calls.",
+                )
+        with c_dl2:
+            if st.button("🔄 Recalculate with Live Market Quotes", width="stretch", key="btn_main_refresh"):
+                st.cache_data.clear()
+                st.session_state["ai_pdf_cache"] = {}
+                st.session_state["det_pdf_cache"] = {}
+                st.session_state["refresh_token"] += 1
+                st.rerun()
+
+        with sidebar_dl_placeholder.container():
+            if active_master_pdf_bytes is not None:
+                st.download_button(
+                    label="📥 DOWNLOAD 360° MASTER REPORT (.PDF)",
+                    data=active_master_pdf_bytes,
+                    file_name="Master_Institutional_Report_360.pdf",
+                    mime="application/pdf",
+                    width="stretch",
+                    type="primary",
+                    key="btn_sidebar_master_pdf",
+                )
+            else:
+                if st.button("⚡ Compile Master Report (.PDF)", width="stretch", type="primary", key="btn_sidebar_compile_pdf"):
+                    st.session_state["trigger_compile_master"] = True
+                    st.rerun()
+
+        should_compile_now = bool(
+            compile_clicked
+            or st.session_state.pop("trigger_compile_master", False)
+            or force_refresh_insights
+            or force_refresh_filings
+        )
+
+        if should_compile_now:
+            compiled_bytes: Optional[bytes] = None
+            if include_ai_master and gemini_ready:
                 with st.status("Running Full-Portfolio AI Intelligence & Compiling 360° Master PDF...", expanded=True) as status_box:
                     prog_bar = st.progress(0.0)
                     prog_label = st.empty()
@@ -574,8 +665,7 @@ def main() -> None:
                     if ai_bundle and ai_bundle.get("enabled"):
                         prog_label.caption("Compiling 7-Section Vector PDF with AI Insights & Portfolio Dossiers...")
                         ai_exec_summary = ai_bundle.get("executive_summary")
-                        ai_pdf_exp = InstitutionalPDFExporter()
-                        ai_pdf_bytes = ai_pdf_exp.generate_pdf_bytes(
+                        compiled_bytes = InstitutionalPDFExporter().generate_pdf_bytes(
                             macro=macro,
                             portfolio=portfolio,
                             equities=equities,
@@ -593,9 +683,8 @@ def main() -> None:
                         st.session_state["ai_pdf_cache"][ai_cache_key] = {
                             "ai_bundle": ai_bundle,
                             "summary": ai_exec_summary,
-                            "pdf_bytes": ai_pdf_bytes,
+                            "pdf_bytes": compiled_bytes,
                         }
-                        active_master_pdf_bytes = ai_pdf_bytes
                         fh_info = ai_bundle.get("filings_hydration") or {}
                         if fh_info.get("hydrated_equities") or fh_info.get("hydrated_cryptos"):
                             load_full_intelligence_bundle.clear()
@@ -606,21 +695,14 @@ def main() -> None:
                         )
                     else:
                         status_box.update(
-                            label="⚠️ Gemini API unreachable — fell back gracefully to deterministic Master PDF.",
+                            label="⚠️ Gemini API unreachable — compiling deterministic Master PDF fallback.",
                             state="error",
                             expanded=False,
                         )
-            else:
-                ai_bundle = cached_entry.get("ai_bundle")
-                ai_exec_summary = cached_entry.get("summary")
-                active_master_pdf_bytes = cached_entry.get("pdf_bytes")
 
-        if active_master_pdf_bytes is None:
-            det_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}"
-            det_pdf_bytes = st.session_state["det_pdf_cache"].get(det_cache_key)
-            if det_pdf_bytes is None:
+            if compiled_bytes is None:
                 with st.spinner("Compiling 360° Deterministic Master Report (.PDF)..."):
-                    det_pdf_bytes = InstitutionalPDFExporter().generate_pdf_bytes(
+                    compiled_bytes = InstitutionalPDFExporter().generate_pdf_bytes(
                         macro=macro,
                         portfolio=portfolio,
                         equities=equities,
@@ -633,38 +715,8 @@ def main() -> None:
                         crypto_screener=bundle["crypto_screener"],
                         risk_timing=risk_timing,
                     )
-                    st.session_state["det_pdf_cache"][det_cache_key] = det_pdf_bytes
-            active_master_pdf_bytes = det_pdf_bytes
-
-        with sidebar_dl_placeholder.container():
-            st.download_button(
-                label="📥 DOWNLOAD 360° MASTER REPORT (.PDF)",
-                data=active_master_pdf_bytes,
-                file_name="Master_Institutional_Report_360.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="primary",
-                key="btn_sidebar_master_pdf",
-            )
-
-        c_dl1, c_dl2 = st.columns([2, 1])
-        with c_dl1:
-            st.download_button(
-                label="📥 DOWNLOAD 360° MASTER REPORT (.PDF — ALL 7 SECTIONS)",
-                data=active_master_pdf_bytes,
-                file_name="Master_Institutional_Report_360.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="primary",
-                key="btn_main_master_pdf",
-            )
-        with c_dl2:
-            if st.button("🔄 Recalculate with Live Market Quotes", use_container_width=True, key="btn_main_refresh"):
-                st.cache_data.clear()
-                st.session_state["ai_pdf_cache"] = {}
-                st.session_state["det_pdf_cache"] = {}
-                st.session_state["refresh_token"] += 1
-                st.rerun()
+                    st.session_state["det_pdf_cache"][det_cache_key] = compiled_bytes
+            st.rerun()
 
         if ai_bundle and ai_bundle.get("enabled"):
             with st.expander("🧠 AI Insights Coverage & Executive Thesis Preview", expanded=False):
@@ -745,33 +797,49 @@ def main() -> None:
 
         render_section_header(
             "Interactive Visual Intelligence Dashboard (Live Charts & Real Backtest)",
-            "All 15 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, and 3-year historical portfolio engines",
+            "All 16 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, correlation, VaR/CVaR, and 3-year historical portfolio engines",
         )
+        with st.expander("📖 Plain-English Metric Glossary (P/TBV, PEGY, Sloan, MVRV, NUPL, aSOPR, VaR/CVaR, Sortino, Calmar)", expanded=False):
+            glossary_df = pd.DataFrame([
+                {"Metric": "P/TBV vs. ROE (Banks)", "Plain-English Meaning": "Market price divided by Tangible Book Value (equity minus Goodwill/intangibles). Compares bank price multiple against Return on Equity (ROE); banks below P/B 1.0x destroy capital."},
+                {"Metric": "Enterprise / Financial PEGY", "Plain-English Meaning": "Valuation multiple divided by (Expected Growth + Dividend & Buyback Yield). Gold Band <= 1.20x (Non-Banks) or <= 1.00x (Banks)."},
+                {"Metric": "Sloan Accruals Ratio", "Plain-English Meaning": "(Net Income - Operating Cash Flow - Investing Cash Flow) / Total Assets. Negative (< 0% or < -10%) means real cash exceeds accounting profit."},
+                {"Metric": "ROIC vs. WACC Spread", "Plain-English Meaning": "Return on Invested Capital (incl. Goodwill) minus cost of capital (WACC). Positive spread = moat generating real Economic Value Added (EVA)."},
+                {"Metric": "MVRV Z-Score & NUPL", "Plain-English Meaning": "Measures how far Market Cap is above on-chain Realized Cost Basis (< 0 = capitulation/deep value; > 0.75 NUPL or > 3-7 MVRV = euphoria risk)."},
+                {"Metric": "aSOPR (1.0 Benchmark)", "Plain-English Meaning": "Ratio of spent coins' realized price vs. purchase price. Staying >= 1.0 signals bull-market profit taking; dropping < 1.0 flags capitulation."},
+                {"Metric": "VaR / CVaR (95% & 99%)", "Plain-English Meaning": "Daily Value-at-Risk (maximum normal daily loss threshold) and Conditional VaR / Expected Shortfall (average loss inside the worst 5% or 1% crash days)."},
+                {"Metric": "Sortino & Calmar Ratio", "Plain-English Meaning": "Sortino penalizes only downside volatility (higher > Sharpe means upside skew). Calmar = 3Y CAGR divided by Maximum Drawdown."},
+            ])
+            render_clean_table(glossary_df)
+
         viz_tabs = st.tabs([
             "🌍 Macro & Yield Curve",
             "🏛️ Equities Valuation & Banks",
             "₿ Crypto On-Chain Cycle",
-            "📈 Real Historical Backtest",
+            "📈 Real Historical Backtest, VaR & Correlation",
         ])
         with viz_tabs[0]:
-            st.plotly_chart(build_macro_comprehensive_chart(macro), use_container_width=True)
-            st.plotly_chart(build_yield_curve_and_icsa_chart(macro), use_container_width=True)
+            st.plotly_chart(build_macro_comprehensive_chart(macro), width="stretch")
+            st.plotly_chart(build_yield_curve_and_icsa_chart(macro), width="stretch")
         with viz_tabs[1]:
-            st.plotly_chart(build_multi_method_valuation_chart(equities), use_container_width=True)
-            st.plotly_chart(build_banks_ptbv_vs_roe_scatter(equities), use_container_width=True)
+            st.caption("Fair Value vs. Spot compares NTM DCF (with 10% Margin of Safety) to live prices; P/TBV vs. ROE tests whether bank multiples are justified by Return on Equity.")
+            st.plotly_chart(build_multi_method_valuation_chart(equities), width="stretch")
+            st.plotly_chart(build_banks_ptbv_vs_roe_scatter(equities), width="stretch")
         with viz_tabs[2]:
+            st.caption("On-chain cycle gauges: aSOPR 1.0 acts as bull support; MVRV Z-Score < 0.5 / NUPL < 0 signal accumulation; 200W SMA & Mining Cost (MMC) anchor cycle floors.")
             btc_or_first = cryptos.get("BTC-USD") or (next(iter(cryptos.values())) if cryptos else None)
             if btc_or_first is not None:
                 cr_c1, cr_c2 = st.columns(2)
                 with cr_c1:
-                    st.plotly_chart(build_btc_asopr_chart(btc_or_first), use_container_width=True)
-                    st.plotly_chart(build_crypto_mvrv_nupl_chart(btc_or_first), use_container_width=True)
+                    st.plotly_chart(build_btc_asopr_chart(btc_or_first), width="stretch")
+                    st.plotly_chart(build_crypto_mvrv_nupl_chart(btc_or_first), width="stretch")
                 with cr_c2:
-                    st.plotly_chart(build_btc_picycle_200w_hashribbon_mmc_chart(btc_or_first), use_container_width=True)
-                    st.plotly_chart(build_crypto_nvm_and_cdd_chart(btc_or_first), use_container_width=True)
+                    st.plotly_chart(build_btc_picycle_200w_hashribbon_mmc_chart(btc_or_first), width="stretch")
+                    st.plotly_chart(build_crypto_nvm_and_cdd_chart(btc_or_first), width="stretch")
             else:
                 st.info("No portfolio cryptoassets active for on-chain cycle charting.")
         with viz_tabs[3]:
+            st.caption("3-Year historical daily simulation aligned to SPY trading days: evaluates risk-adjusted returns (Sharpe/Sortino/Calmar), tail losses (VaR/CVaR), cross-asset correlation, and historical crash stress-tests.")
             b_k1, b_k2, b_k3, b_k4, b_k5 = st.columns(5)
             with b_k1:
                 render_kpi_card("Portfolio 3Y CAGR", f"{backtest_res.get('portfolio_cagr_pct', 0.0):+.2f}%", f"Vol: {backtest_res.get('annualized_vol_pct', 0.0):.1f}% p.a.", tone="emerald")
@@ -783,7 +851,37 @@ def main() -> None:
                 render_kpi_card("Max Drawdown", f"-{backtest_res.get('max_drawdown_pct', 0.0):.2f}%", f"Calmar: {backtest_res.get('calmar_ratio', 0.0):.2f}x", tone="amber")
             with b_k5:
                 render_kpi_card("Benchmarks (CAGR)", f"SPY {backtest_res.get('spy_cagr_pct', 0.0):+.1f}%", f"BTC {backtest_res.get('btc_cagr_pct', 0.0):+.1f}% | {backtest_res.get('period_days', 0)}d", tone="blue")
-            st.plotly_chart(build_portfolio_equity_curve_chart(backtest_res), use_container_width=True)
+
+            st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
+            sh_res = backtest_res.get("shannon_vs_bh") or {}
+            r_k1, r_k2, r_k3, r_k4 = st.columns(4)
+            with r_k1:
+                render_kpi_card("Daily VaR (95%)", f"-{backtest_res.get('var_95_daily_pct', 0.0):.2f}%", f"CVaR 95%: -{backtest_res.get('cvar_95_daily_pct', 0.0):.2f}%", tone="amber")
+            with r_k2:
+                render_kpi_card("Daily VaR (99%)", f"-{backtest_res.get('var_99_daily_pct', 0.0):.2f}%", f"CVaR 99%: -{backtest_res.get('cvar_99_daily_pct', 0.0):.2f}%", tone="rose")
+            with r_k3:
+                render_kpi_card("Shannon Inflow DCA", f"{ccy_prefix}{float(sh_res.get('shannon_final_usd', capital_usd)) * ccy_mult:,.0f}", f"Passive DCA: {ccy_prefix}{float(sh_res.get('passive_final_usd', capital_usd)) * ccy_mult:,.0f}", tone="emerald")
+            with r_k4:
+                alpha_usd = float(sh_res.get("shannon_alpha_usd", 0.0))
+                alpha_pct = float(sh_res.get("shannon_alpha_pct", 0.0))
+                render_kpi_card("Shannon Rebalance Alpha", f"{alpha_pct:+.2f}%", f"{ccy_prefix}{alpha_usd * ccy_mult:+,.0f} ({int(sh_res.get('months_simulated', 0))} mo @ $2k/mo)", tone="blue")
+
+            st.plotly_chart(build_portfolio_equity_curve_chart(backtest_res), width="stretch")
+            st.plotly_chart(build_portfolio_correlation_heatmap_chart(backtest_res), width="stretch")
+
+            st_rows = backtest_res.get("stress_tests") or []
+            if st_rows:
+                st.markdown("##### 🛡️ Historical Regime & Realized Tail Stress-Tests")
+                st_disp = [
+                    {
+                        "Scenario": r["Scenario"],
+                        "Shock Assumptions": r["Shock Assumptions"],
+                        "Estimated Portfolio Impact (%)": f"{float(r['Estimated Portfolio Impact (%)']):+.2f}%",
+                        f"Estimated Capital Impact ({display_ccy.split()[0]})": f"{ccy_prefix}{float(r['Estimated Capital Impact (USD)']) * ccy_mult:+,.0f}",
+                    }
+                    for r in st_rows
+                ]
+                render_clean_table(pd.DataFrame(st_disp))
 
     # ==========================================================================
     # TAB 2: DYNAMIC PORTFOLIO MANAGER (SQLITE CRUD)
@@ -844,7 +942,7 @@ def main() -> None:
                     "Structural Portfolio Role",
                     value="AI GPU computing monopoly and CUDA accelerated computing infrastructure.",
                 )
-                if st.form_submit_button("💾 Save / Update Asset in SQLite", use_container_width=True, type="primary"):
+                if st.form_submit_button("💾 Save / Update Asset in SQLite", width="stretch", type="primary"):
                     port_eng_live.upsert_asset(
                         ticker=in_ticker,
                         name=in_name,
@@ -864,7 +962,7 @@ def main() -> None:
             st.markdown("##### 🗑️ Remove Asset or Normalize to 100%")
             all_tks = [p.ticker for p in portfolio.positions]
             del_tk = st.selectbox("Select Asset to Remove", options=all_tks)
-            if st.button("🗑️ Remove Selected Asset", use_container_width=True):
+            if st.button("🗑️ Remove Selected Asset", width="stretch"):
                 port_eng_live.delete_asset(del_tk)
                 st.cache_data.clear()
                 st.session_state["refresh_token"] += 1
@@ -873,7 +971,7 @@ def main() -> None:
 
             st.markdown("<hr style='border-color:#334155;'>", unsafe_allow_html=True)
             st.caption("If the sum of target weights differs from 100.00%, click below to rescale proportionally:")
-            if st.button("⚖️ Normalize Weights Automatically to 100.00%", use_container_width=True):
+            if st.button("⚖️ Normalize Weights Automatically to 100.00%", width="stretch"):
                 port_eng_live.normalize_weights_to_100()
                 st.cache_data.clear()
                 st.session_state["refresh_token"] += 1
@@ -898,7 +996,7 @@ def main() -> None:
         ])
         render_clean_table(df_ledger, badge_cols=["LTV Collateral"])
 
-        st.plotly_chart(build_portfolio_weight_gauge_chart(total_w), use_container_width=True)
+        st.plotly_chart(build_portfolio_weight_gauge_chart(total_w), width="stretch")
 
         tx_list_all = port_eng_live.get_transactions()
         excel_bytes = build_institutional_excel_bytes(
@@ -914,7 +1012,7 @@ def main() -> None:
             data=excel_bytes,
             file_name="Institutional_Portfolio_Workbook.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
             key="btn_export_xlsx",
         )
 
@@ -929,6 +1027,16 @@ def main() -> None:
                 render_kpi_card("Realized P&L (Sells)", f"{ccy_prefix}{led_summary['total_realized_pnl_usd'] * ccy_mult:+,.2f}", "Weighted Avg Cost Method", tone="purple")
             with lk4:
                 render_kpi_card("Dividends & Staking Income", f"{ccy_prefix}{led_summary['total_income_usd'] * ccy_mult:+,.2f}", "Cumulative Cash Yield", tone="amber")
+
+            if led_summary.get("has_transactions"):
+                if st.button("🔄 Sync Ledger Avg Cost -> Portfolio Assets", width="stretch", key="btn_sync_ledger_cost"):
+                    n_upd = port_eng_live.sync_ledger_cost_basis_to_assets()
+                    st.cache_data.clear()
+                    st.session_state["ai_pdf_cache"] = {}
+                    st.session_state["det_pdf_cache"] = {}
+                    st.session_state["refresh_token"] += 1
+                    st.success(f"Synchronized weighted-average cost basis for {n_upd} holding(s) into `portfolio_assets`.")
+                    st.rerun()
 
             tx_c1, tx_c2 = st.columns([2, 1])
             with tx_c1:
@@ -945,7 +1053,7 @@ def main() -> None:
                         tx_px = st.number_input("Unit Price / Cash (USD)", min_value=0.0, value=100.0, step=1.0)
                         tx_fee = st.number_input("Fee (USD)", min_value=0.0, value=0.0, step=0.5)
                     tx_notes = st.text_input("Notes (Optional)", value="")
-                    if st.form_submit_button("💾 Record Transaction in SQLite", use_container_width=True, type="primary"):
+                    if st.form_submit_button("💾 Record Transaction in SQLite", width="stretch", type="primary"):
                         port_eng_live.add_transaction(tx_dt, tx_tk, tx_tp, tx_qt, tx_px, tx_fee, tx_notes)
                         st.cache_data.clear()
                         st.session_state["refresh_token"] += 1
@@ -955,7 +1063,7 @@ def main() -> None:
                 st.markdown("##### 📥 CSV Broker Import")
                 csv_mode = st.radio("CSV Target", ["Holdings (`portfolio_assets`)", "Transactions (`transactions_ledger`)"], key="csv_imp_mode")
                 csv_file = st.file_uploader("Upload CSV file", type=["csv"], key="csv_imp_uploader")
-                if csv_file is not None and st.button("⬆️ Import CSV into SQLite", use_container_width=True, key="btn_imp_csv"):
+                if csv_file is not None and st.button("⬆️ Import CSV into SQLite", width="stretch", key="btn_imp_csv"):
                     raw_csv = csv_file.read()
                     if csv_mode.startswith("Holdings"):
                         n_ok, errs = port_eng_live.import_assets_from_csv(raw_csv)
@@ -1002,7 +1110,7 @@ def main() -> None:
             )
         with col_s3:
             st.markdown("<div style='height:1.72rem;'></div>", unsafe_allow_html=True)
-            if st.button("🔎 Run Deep Dive", use_container_width=True, type="primary"):
+            if st.button("🔎 Run Deep Dive", width="stretch", type="primary"):
                 st.session_state["deep_dive_ticker"] = typed_tk.strip().upper() or quick_pick
 
         active_dd_tk = typed_tk.strip().upper() if typed_tk.strip() else quick_pick
@@ -1056,7 +1164,7 @@ def main() -> None:
             data=dd_pdf_bytes,
             file_name=f"Deep_Dive_Dossier_{dd_res.normalized_ticker}.pdf",
             mime="application/pdf",
-            use_container_width=True,
+            width="stretch",
             type="primary",
             key=f"dl_dd_{dd_res.normalized_ticker}",
         )
@@ -1131,14 +1239,14 @@ def main() -> None:
                 f"Interactive 5-Year Forensic, DuPont & Valuation Cockpit Charts — {dd_res.normalized_ticker}",
                 "Live interactive Plotly visualization of historical quality, capital efficiency, and multi-method fair values",
             )
-            st.plotly_chart(build_deep_dive_forensic_5y_chart(dd_res), use_container_width=True)
+            st.plotly_chart(build_deep_dive_forensic_5y_chart(dd_res), width="stretch")
             dc1, dc2 = st.columns(2)
             with dc1:
-                st.plotly_chart(build_deep_dive_dupont_and_margins_chart(dd_res), use_container_width=True)
+                st.plotly_chart(build_deep_dive_dupont_and_margins_chart(dd_res), width="stretch")
             with dc2:
                 st.plotly_chart(
                     build_deep_dive_valuation_cockpit_chart(dd_res, macro.yield_curve.get("us10y_pct", 4.42)),
-                    use_container_width=True,
+                    width="stretch",
                 )
 
         elif dd_res.asset_class == "CRYPTO" and dd_res.crypto_profile:
@@ -1165,8 +1273,8 @@ def main() -> None:
                 f"Interactive On-Chain Gauges, GitHub Activity & Real Economics — {dd_res.normalized_ticker}",
                 "Live cycle gauges combined with real GitHub commit velocity and protocol Real Earnings breakdown",
             )
-            st.plotly_chart(build_crypto_onchain_gauges_chart(dd_res), use_container_width=True)
-            st.plotly_chart(build_crypto_github_and_earnings_chart(dd_res), use_container_width=True)
+            st.plotly_chart(build_crypto_onchain_gauges_chart(dd_res), width="stretch")
+            st.plotly_chart(build_crypto_github_and_earnings_chart(dd_res), width="stretch")
 
         with st.expander("📄 Dynamic Filing Dossier Extractor (Ad-Hoc Assets / Custom PDFs)", expanded=False):
             st.caption(
@@ -1198,7 +1306,7 @@ def main() -> None:
                 "🌐 Auto-Fetch ALL Official Docs & Extract Complete Dossier (No Download Needed)",
                 key="btn_auto_fetch_dossier",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 disabled=not gemini_ready,
             ):
                 fil_eng = FilingsEngine()
@@ -1392,7 +1500,7 @@ def main() -> None:
                 ),
             )
 
-            if st.button("💾 Save Notifier Settings (ON/OFF)", use_container_width=True, type="primary"):
+            if st.button("💾 Save Notifier Settings (ON/OFF)", width="stretch", type="primary"):
                 notif_cfg.enabled = enabled_now
                 notif_cfg.schedule_time_hhmm = sched_time
                 notif_cfg.telegram_bot_token = tg_token
@@ -1403,7 +1511,7 @@ def main() -> None:
                 st.success(f"Notifier state saved: {'ENABLED (ON)' if enabled_now else 'DISABLED (OFF — Silent Mode)'}!")
                 st.rerun()
 
-            if st.button("👁️ Preview Morning Briefing Payload", use_container_width=True, key="btn_preview_briefing"):
+            if st.button("👁️ Preview Morning Briefing Payload", width="stretch", key="btn_preview_briefing"):
                 with st.spinner("Building morning briefing payload..."):
                     preview_res = notifier_eng.build_morning_briefing_payload(
                         macro=macro,
@@ -1484,7 +1592,7 @@ def main() -> None:
                 key="ai_agent_model_select",
             )
             selected_agent_model = model_options[chosen_label]
-            if st.button("🗑️ New Chat Session", use_container_width=True, key="btn_reset_ai_chat"):
+            if st.button("🗑️ New Chat Session", width="stretch", key="btn_reset_ai_chat"):
                 st.session_state["ai_chat_history"] = []
                 st.session_state["ai_conversation_id"] = None
                 st.session_state["ai_pending_prompt"] = None
@@ -1493,32 +1601,32 @@ def main() -> None:
         st.markdown("##### ⚡ Quick Institutional Prompts")
         qp1, qp2, qp3, qp4, qp5 = st.columns(5)
         with qp1:
-            if st.button("📊 Audit Portfolio Look-Through & Risks", use_container_width=True, disabled=not agent_ok, key="qp_port"):
+            if st.button("📊 Audit Portfolio Look-Through & Risks", width="stretch", disabled=not agent_ok, key="qp_port"):
                 st.session_state["ai_pending_prompt"] = (
                     "Audit our current portfolio allocation, top ETF look-through overlap exposures, "
                     "macro cycle regime, and highlight the key geopolitical/valuation risks."
                 )
         with qp2:
-            if st.button("💧 Simulate $15k Shannon Inflow", use_container_width=True, disabled=not agent_ok, key="qp_shannon"):
+            if st.button("💧 Simulate $15k Shannon Inflow", width="stretch", disabled=not agent_ok, key="qp_shannon"):
                 st.session_state["ai_pending_prompt"] = (
                     "Simulate deploying a fresh $15,000 USD cash inflow using Shannon's Demon (zero tax-drag). "
                     "Show exact suggested USD allocations and current Sovereign Multiple metrics for qualified holdings."
                 )
         with qp3:
-            if st.button("🛡️ Stress-Test -35% Eq / -50% BTC LTV", use_container_width=True, disabled=not agent_ok, key="qp_ltv"):
+            if st.button("🛡️ Stress-Test -35% Eq / -50% BTC LTV", width="stretch", disabled=not agent_ok, key="qp_ltv"):
                 st.session_state["ai_pending_prompt"] = (
                     "Run a convex LTV stress test with a -35% shock on equities/ETFs and a -50% shock on Bitcoin "
                     "from a 20% initial LTV. Does it breach the 50% Hard-Cap and what is the estimated Aave V3 Health Factor?"
                 )
         with qp4:
-            if st.button("🔎 Screen Best 5-Filter Candidates", use_container_width=True, disabled=not agent_ok, key="qp_screen"):
+            if st.button("🔎 Screen Best 5-Filter Candidates", width="stretch", disabled=not agent_ok, key="qp_screen"):
                 st.session_state["ai_pending_prompt"] = (
                     "Run the 5-filter quantitative opportunity screener for both stocks and cryptoassets, "
                     "and rank candidates by framework discipline (Sloan, CFO/EBITDA, ROIC vs WACC, g_impl vs g_fund, Real Earnings, MVRV Z)."
                 )
         with qp5:
             active_tab3_tk = st.session_state.get("deep_dive_ticker", "NVDA")
-            if st.button(f"🔬 Deep-Audit {active_tab3_tk}", use_container_width=True, disabled=not agent_ok, key="qp_dd_active"):
+            if st.button(f"🔬 Deep-Audit {active_tab3_tk}", width="stretch", disabled=not agent_ok, key="qp_dd_active"):
                 st.session_state["ai_pending_prompt"] = (
                     f"Run a full forensic, valuation, M&A/protocol audit on {active_tab3_tk}, "
                     f"contrasting Reverse DCF / Sovereign Multiple against framework thresholds and macro context."

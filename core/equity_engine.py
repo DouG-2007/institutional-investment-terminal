@@ -1415,8 +1415,9 @@ class EquityEngine:
     def analyze_portfolio_equities(self, tickers: Optional[List[str]] = None) -> List[EquityFullAnalysis]:
         if tickers is None:
             try:
+                from contextlib import closing
                 import sqlite3
-                with sqlite3.connect("portfolio_store.db") as conn:
+                with closing(sqlite3.connect("portfolio_store.db")) as conn:
                     rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 tickers = [
                     r[0] for r in rows

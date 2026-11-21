@@ -515,11 +515,45 @@ class DeepDiveEngine:
             sec_vert = "TECH_CASH_COW"
             sec_label = f"Quality Compounder / Cash Cow ({sector_str})"
 
-        ebit_b = round(mcap_b / max(8.0, pe_curr * 0.78), 2)
-        ebitda_b = round(ebit_b * 1.18, 2)
-        fco_b = round(ebitda_b * 0.96, 2)
-        fcf_b = round(fco_b * 0.78, 2)
-        net_inc_b = round(mcap_b / max(6.0, pe_curr), 2)
+        live_ovr: Dict[str, Any] = {}
+        if not is_etf:
+            try:
+                from core.live_quant_fetcher import fetch_live_equity_fundamentals
+
+                live_ovr = (fetch_live_equity_fundamentals([ticker], {ticker: sec_vert}) or {}).get(ticker) or {}
+            except Exception:
+                live_ovr = {}
+
+        ebit_b = float(live_ovr.get("ebit_b") or round(mcap_b / max(8.0, pe_curr * 0.78), 2))
+        ebitda_b = float(live_ovr.get("ebitda_b") or round(ebit_b * 1.18, 2))
+        fco_b = float(live_ovr.get("fco_b") or round(ebitda_b * 0.96, 2))
+        fcf_b = float(live_ovr.get("fcf_b") or round(fco_b * 0.78, 2))
+        net_inc_b = float(live_ovr.get("net_income_b") or round(mcap_b / max(6.0, pe_curr), 2))
+        mcap_b = float(live_ovr.get("mcap_b") or mcap_b)
+        ev_b_val = float(live_ovr.get("ev_b") or round(mcap_b * 1.02, 2))
+        total_assets_b = float(live_ovr.get("total_assets_b") or round(mcap_b * 0.45, 2))
+        nwc_b_val = float(live_ovr.get("nwc_b") if live_ovr.get("nwc_b") is not None else round(mcap_b * 0.04, 2))
+        cash_b_val = float(live_ovr.get("cash_b") if live_ovr.get("cash_b") is not None else round(mcap_b * 0.08, 2))
+        sloan_val = float(live_ovr.get("sloan_pct") if live_ovr.get("sloan_pct") is not None else -7.8)
+        fci_val = float(live_ovr.get("fci_b") if live_ovr.get("fci_b") is not None else round(-fco_b * 0.25, 2))
+        curr_ratio_val = float(live_ovr.get("current_ratio") or 1.62)
+        int_cov_val = float(live_ovr.get("interest_coverage_x") or 24.5)
+        d_ebitda_val = float(live_ovr.get("debt_to_ebitda") if live_ovr.get("debt_to_ebitda") is not None else 0.95)
+        d_assets_val = float(live_ovr.get("debt_to_assets_pct") if live_ovr.get("debt_to_assets_pct") is not None else 18.5)
+        d_equity_val = float(live_ovr.get("debt_to_equity_pct") if live_ovr.get("debt_to_equity_pct") is not None else 38.0)
+        pe_curr = float(live_ovr.get("pe_curr") or pe_curr)
+        pe_ntm_val = float(live_ovr.get("pe_ntm") or round(pe_curr * 0.88, 1))
+        pb_curr = float(live_ovr.get("pb_curr") or pb_curr)
+        op_margin = float(live_ovr.get("roic_op_margin_pct") or op_margin)
+        beta = float(live_ovr.get("beta") or beta)
+        div_y = float(live_ovr.get("div_yield_pct") if live_ovr.get("div_yield_pct") is not None else div_y)
+        fco_hist = (
+            list(live_ovr["fco_5y_history_b"])[-5:]
+            if isinstance(live_ovr.get("fco_5y_history_b"), list) and len(live_ovr["fco_5y_history_b"]) >= 3
+            else [round(fco_b * 0.65, 2), round(fco_b * 0.74, 2), round(fco_b * 0.82, 2), round(fco_b * 0.91, 2), fco_b]
+        )
+        while len(fco_hist) < 5:
+            fco_hist.insert(0, round(fco_hist[0] * 0.92, 2))
         roic_g = round(max(12.0, min(48.0, roe_pct * 0.85)), 1)
         g_base = round(max(6.0, min(28.0, rev_g * 1.1)), 1)
 
@@ -529,37 +563,30 @@ class DeepDiveEngine:
             "sector_label": sec_label,
             "default_px": round(px, 2),
             "mcap_b": mcap_b,
-            "ev_b": round(mcap_b * 1.02, 2),
+            "ev_b": ev_b_val,
             "beta": beta,
-            "sloan_pct": -7.8,
+            "sloan_pct": sloan_val,
             "fco_b": fco_b,
-            "fci_b": round(-fco_b * 0.25, 2),
+            "fci_b": fci_val,
             "ebitda_b": ebitda_b,
             "ebit_b": ebit_b,
             "net_income_b": net_inc_b,
             "nopat_b": round(ebit_b * 0.82, 2),
-            "total_assets_b": round(mcap_b * 0.45, 2),
-            "nwc_b": round(mcap_b * 0.04, 2),
-            "fco_5y_history_b": [
-                round(fco_b * 0.65, 2),
-                round(fco_b * 0.74, 2),
-                round(fco_b * 0.82, 2),
-                round(fco_b * 0.91, 2),
-                fco_b,
-            ],
+            "total_assets_b": total_assets_b,
+            "nwc_b": nwc_b_val,
+            "fco_5y_history_b": fco_hist,
             "roic_goodwill_pct": roic_g,
             "goodwill_b": round(mcap_b * 0.05, 2),
             "dupont_margin_pct": round(max(8.0, op_margin * 0.82), 1),
             "dupont_turnover_x": 0.78,
             "dupont_leverage_x": 1.65,
-            "current_ratio": 1.62,
+            "current_ratio": curr_ratio_val,
             "cash_after_annual_exp_positive": True,
-            "cash_b": round(mcap_b * 0.08, 2),
-            "interest_coverage_x": 24.5,
-            "debt_to_ebitda": 0.95,
-            "debt_to_assets_pct": 18.5,
-            "debt_to_equity_pct": 38.0,
-            "altman_z": 6.80,
+            "cash_b": cash_b_val,
+            "interest_coverage_x": int_cov_val,
+            "debt_to_ebitda": d_ebitda_val,
+            "debt_to_assets_pct": d_assets_val,
+            "debt_to_equity_pct": d_equity_val,
             "sss_retail": "+4.2% Organic" if sec_vert == "RETAIL" else f"N/A ({sec_label})",
             "cagrs": {
                 "Revenue": {"3y": g_base, "5y": round(g_base * 1.05, 1), "10y": round(g_base * 0.95, 1)},
@@ -577,10 +604,10 @@ class DeepDiveEngine:
             },
             "fcf_b": fcf_b,
             "maint_capex_b": round(fco_b * 0.14, 2),
-            "da_b": round(ebitda_b - ebit_b, 2),
+            "da_b": round(max(0.05, ebitda_b - ebit_b), 2),
             "delta_nwc_b": 0.2,
             "pe_curr": pe_curr,
-            "pe_ntm": round(pe_curr * 0.88, 1),
+            "pe_ntm": pe_ntm_val,
             "pe_sector": 25.0,
             "pe_5y_avg": round(pe_curr * 1.04, 1),
             "ev_ebitda_curr": round(pe_curr * 0.76, 1),

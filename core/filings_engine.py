@@ -696,8 +696,9 @@ class FilingsEngine:
     def get_equity_dossiers(self, tickers: List[str] | None = None) -> List[EquityDocumentaryDossier]:
         if tickers is None:
             try:
+                from contextlib import closing
                 import sqlite3
-                with sqlite3.connect(_db_path()) as conn:
+                with closing(sqlite3.connect(_db_path())) as conn:
                     rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 tickers = [r[0] for r in rows if "Crypto" not in r[1] and "ETF" not in r[1]]
             except Exception:
@@ -738,8 +739,9 @@ class FilingsEngine:
     def get_crypto_dossiers(self, symbols: List[str] | None = None) -> List[CryptoDocumentaryDossier]:
         if symbols is None:
             try:
+                from contextlib import closing
                 import sqlite3
-                with sqlite3.connect(_db_path()) as conn:
+                with closing(sqlite3.connect(_db_path())) as conn:
                     rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
                 symbols = [r[0] for r in rows if "Crypto" in r[1] or r[0].endswith("-USD")]
             except Exception:

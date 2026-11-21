@@ -1147,3 +1147,51 @@ def build_portfolio_equity_curve_chart(backtest: Dict[str, Any]) -> go.Figure:
         legend_pos="top",
     )
 
+
+# ==============================================================================
+# 16. PORTFOLIO CROSS-ASSET CORRELATION HEATMAP (DIVERSIFICATION MATRIX)
+# ==============================================================================
+def build_portfolio_correlation_heatmap_chart(backtest: Dict[str, Any]) -> go.Figure:
+    corr_df = backtest.get("corr_matrix_df")
+    fig = go.Figure()
+
+    if isinstance(corr_df, pd.DataFrame) and not corr_df.empty:
+        labels = [str(c) for c in corr_df.columns]
+        z_vals = corr_df.values
+        text_vals = [[f"{float(v):+.2f}" for v in row] for row in z_vals]
+        fig.add_trace(
+            go.Heatmap(
+                z=z_vals,
+                x=labels,
+                y=labels,
+                zmin=-1.0,
+                zmax=1.0,
+                colorscale="RdBu_r",
+                text=text_vals,
+                texttemplate="%{text}",
+                textfont=dict(size=10),
+                colorbar=dict(title="Corr"),
+            )
+        )
+    else:
+        fig.add_trace(
+            go.Heatmap(
+                z=[[1.0]],
+                x=["Portfolio"],
+                y=["Portfolio"],
+                zmin=-1.0,
+                zmax=1.0,
+                colorscale="RdBu_r",
+                text=[["+1.00"]],
+                texttemplate="%{text}",
+            )
+        )
+
+    fig.update_yaxes(autorange="reversed")
+    return _apply_dark_theme(
+        fig,
+        height=490,
+        title="Cross-Asset Daily Return Correlation Matrix (Top Holdings — 3Y History)",
+        legend_pos="hidden",
+    )
+

@@ -697,6 +697,38 @@ class PortfolioEngine:
             "by_ticker": by_ticker,
         }
 
+    def sync_ledger_cost_basis_to_assets(self) -> int:
+        """
+        Syncs weighted-average cost basis (`avg_buy_price_usd`) computed from
+        `transactions_ledger` into `portfolio_assets.avg_buy_price` for active holdings.
+        Returns count of updated holdings.
+        """
+        summary = self.compute_ledger_summary()
+        by_tk = summary.get("by_ticker") or {}
+        if not by_tk:
+            return 0
+
+        updated = 0
+        with self._connect() as conn:
+            existing = {
+                r[0]
+                for r in conn.execute("SELECT ticker FROM portfolio_assets").fetchall()
+            }
+            for tk, stats in by_tk.items():
+                if (
+                    tk in existing
+                    and float(stats.get("net_quantity") or 0.0) > 0.0
+                    and float(stats.get("avg_buy_price_usd") or 0.0) > 0.0
+                ):
+                    conn.execute(
+                        "UPDATE portfolio_assets SET avg_buy_price = ? WHERE ticker = ?",
+                        (round(float(stats["avg_buy_price_usd"]), 4), tk),
+                    )
+                    updated += 1
+        if updated > 0:
+            self._sync_sqlite_to_json()
+        return updated
+
     def import_assets_from_csv(self, csv_bytes: bytes) -> Tuple[int, List[str]]:
         """Imports or updates portfolio holdings from CSV bytes (`ticker` column required)."""
         text = csv_bytes.decode("utf-8-sig", errors="replace")

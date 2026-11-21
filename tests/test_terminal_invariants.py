@@ -15,6 +15,7 @@ import unittest
 from unittest import mock
 
 import openpyxl
+import pandas as pd
 
 from core.ai_analyst import InstitutionalAIAnalyst, build_readonly_agent_config
 from core.background_notifier import BackgroundNotifierEngine
@@ -31,10 +32,12 @@ from core.charts import (
     build_deep_dive_valuation_cockpit_chart,
     build_macro_comprehensive_chart,
     build_multi_method_valuation_chart,
+    build_portfolio_correlation_heatmap_chart,
     build_portfolio_equity_curve_chart,
     build_portfolio_weight_gauge_chart,
     build_yield_curve_and_icsa_chart,
 )
+from core.backtest_engine import run_portfolio_backtest
 from core.crypto_engine import CryptoEngine
 from core.deep_dive_engine import DeepDiveEngine
 from core.equity_engine import EquityEngine
@@ -164,6 +167,12 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertAlmostEqual(nvda_led["realized_pnl_usd"], 192.5, places=2)
             self.assertAlmostEqual(nvda_led["income_usd"], 25.0, places=2)
 
+            # Sync ledger cost basis back to portfolio_assets
+            synced_n = pe.sync_ledger_cost_basis_to_assets()
+            self.assertEqual(synced_n, 1)
+            nvda_row = next(a for a in pe.get_all_assets() if a["ticker"] == "NVDA")
+            self.assertAlmostEqual(nvda_row["avg_buy_price"], 110.5, places=2)
+
             # CSV import
             csv_payload = b"ticker,name,asset_class,sector,target_weight_pct,avg_buy_price\nCOST,Costco,Stock,Defensive Retail,10.0,850.0\n"
             imported_cnt, errs = pe.import_assets_from_csv(csv_payload)
@@ -171,12 +180,17 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertEqual(errs, [])
             pe.delete_asset("COST")
 
-    def test_3_all_15_plotly_charts_build_cleanly(self) -> None:
+    def test_3_all_16_plotly_charts_and_backtest_risk_metrics(self) -> None:
         dd_eq = DeepDiveEngine(self.rf_pct).analyze_single_ticker("NVDA", portfolio=self.portfolio)
         dd_cr = DeepDiveEngine(self.rf_pct).analyze_single_ticker("BTC-USD", portfolio=self.portfolio)
+        corr_sample = pd.DataFrame({
+            "BTC-USD": dd_cr.crypto_profile.chart_series["Price"],
+            "MVRV_Z": dd_cr.crypto_profile.chart_series["MVRV_Z"],
+        }).pct_change().corr()
         mock_bt = {
             "equity_curve_df": dd_cr.crypto_profile.chart_series["Price"].to_frame(name="Portfolio"),
             "drawdown_series": dd_cr.crypto_profile.chart_series["MVRV_Z"] * 0.0 - 5.0,
+            "corr_matrix_df": corr_sample,
         }
         btc_prof = self.cryptos.get("BTC-USD") or next(iter(self.cryptos.values()))
 
@@ -196,10 +210,19 @@ class TestTerminalInvariants(unittest.TestCase):
             build_crypto_onchain_gauges_chart(dd_cr),
             build_crypto_github_and_earnings_chart(dd_cr),
             build_portfolio_equity_curve_chart(mock_bt),
+            build_portfolio_correlation_heatmap_chart(mock_bt),
         ]
-        self.assertEqual(len(figs), 15)
+        self.assertEqual(len(figs), 16)
         for fig in figs:
             self.assertGreater(len(fig.data), 0)
+
+        bt = run_portfolio_backtest(self.portfolio.positions, capital_usd=100_000.0, risk_free_rate_pct=self.rf_pct)
+        self.assertGreaterEqual(bt["var_95_daily_pct"], 0.0)
+        self.assertGreaterEqual(bt["cvar_95_daily_pct"], bt["var_95_daily_pct"])
+        self.assertGreaterEqual(bt["cvar_99_daily_pct"], bt["var_99_daily_pct"])
+        if bt["data_source"] == "LIVE_YFINANCE_HISTORY":
+            self.assertGreaterEqual(len(bt["stress_tests"]), 3)
+            self.assertFalse(bt["corr_matrix_df"].empty)
 
     def test_4_excel_exporter_valid_workbook(self) -> None:
         xlsx_bytes = build_institutional_excel_bytes(

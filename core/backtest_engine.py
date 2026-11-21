@@ -92,6 +92,20 @@ def run_portfolio_backtest(
         "calmar_ratio": 1.00,
         "spy_cagr_pct": 12.0,
         "btc_cagr_pct": 35.0,
+        "var_95_daily_pct": 1.85,
+        "cvar_95_daily_pct": 2.65,
+        "var_99_daily_pct": 3.10,
+        "cvar_99_daily_pct": 4.20,
+        "corr_matrix_df": pd.DataFrame(),
+        "stress_tests": [],
+        "shannon_vs_bh": {
+            "shannon_final_usd": float(capital_usd),
+            "passive_final_usd": float(capital_usd),
+            "shannon_alpha_usd": 0.0,
+            "shannon_alpha_pct": 0.0,
+            "months_simulated": 0,
+            "monthly_inflow_usd": 2000.0,
+        },
         "period_days": 0,
         "equity_curve_df": pd.DataFrame(),
         "drawdown_series": pd.Series(dtype=float),
@@ -179,6 +193,101 @@ def run_portfolio_backtest(
         eq_curves["BTC-USD"] = cum_btc
         btc_cagr = (max(0.01, float(cum_btc.iloc[-1] / capital_usd)) ** (1.0 / years) - 1.0) * 100.0
 
+    # Historical daily VaR & CVaR (Expected Shortfall at 95% and 99%)
+    ret_arr = port_ret.values.astype(float)
+    q05 = float(np.percentile(ret_arr, 5))
+    var_95_daily = round(max(0.0, -q05 * 100.0), 2)
+    tail_95 = ret_arr[ret_arr <= q05]
+    cvar_95_daily = round(max(var_95_daily, -float(tail_95.mean()) * 100.0 if len(tail_95) > 0 else var_95_daily), 2)
+
+    q01 = float(np.percentile(ret_arr, 1))
+    var_99_daily = round(max(0.0, -q01 * 100.0), 2)
+    tail_99 = ret_arr[ret_arr <= q01]
+    cvar_99_daily = round(max(var_99_daily, -float(tail_99.mean()) * 100.0 if len(tail_99) > 0 else var_99_daily), 2)
+
+    # Cross-Asset Correlation Matrix (Top 12 holdings by target weight)
+    top_cols = sorted(valid_cols, key=lambda c: raw_weights[c], reverse=True)[:12]
+    corr_matrix_df = ret_df[top_cols].corr().round(2) if len(top_cols) >= 2 else pd.DataFrame()
+    corr_matrix_df.columns = ["UNI-USD" if c == "UNI7083-USD" else c for c in corr_matrix_df.columns]
+    corr_matrix_df.index = ["UNI-USD" if c == "UNI7083-USD" else c for c in corr_matrix_df.index]
+
+    # Stress Tests: Parametric historical regimes + observed worst 5d/21d windows
+    tot_w_pos = sum(max(0.0, float(getattr(p, "target_weight_pct", 0.0) or 0.0)) for p in positions) or 100.0
+    crypto_frac = 0.0
+    eff_eq_frac = 0.0
+    for p in positions:
+        tk_p = str(getattr(p, "ticker", "")).strip().upper()
+        cat_p = str(getattr(p, "category", "")).upper()
+        w_p = max(0.0, float(getattr(p, "target_weight_pct", 0.0) or 0.0)) / tot_w_pos
+        if "CRYPTO" in cat_p or tk_p.endswith("-USD"):
+            crypto_frac += w_p
+        else:
+            eff_eq_frac += w_p * (2.0 if tk_p == "QLD" else 1.0)
+
+    stress_tests: List[Dict[str, Any]] = []
+    for s_name, eq_shock, cr_shock, desc in (
+        ("COVID-19 Liquidity Crash (Feb–Mar 2020)", -0.34, -0.50, "-34% Equities (2x QLD) / -50% Crypto"),
+        ("2022 Rate-Hike Tech & Crypto Bear", -0.25, -0.65, "-25% Equities (2x QLD) / -65% Crypto"),
+        ("VIX > 35 Volatility Shock", -0.15, -0.25, "-15% Equities (2x QLD) / -25% Crypto"),
+    ):
+        imp_pct = max(-95.0, min(0.0, (eff_eq_frac * eq_shock + crypto_frac * cr_shock) * 100.0))
+        stress_tests.append({
+            "Scenario": s_name,
+            "Shock Assumptions": desc,
+            "Estimated Portfolio Impact (%)": round(imp_pct, 2),
+            "Estimated Capital Impact (USD)": round(float(capital_usd) * (imp_pct / 100.0), 2),
+        })
+
+    if len(port_ret) >= 21:
+        worst_5d = float(((1.0 + port_ret).rolling(5).apply(np.prod, raw=True) - 1.0).min() * 100.0)
+        worst_21d = float(((1.0 + port_ret).rolling(21).apply(np.prod, raw=True) - 1.0).min() * 100.0)
+        stress_tests.append({
+            "Scenario": "Observed Worst 5-Day Window (Historical 3Y)",
+            "Shock Assumptions": "Realized tail week in 3Y portfolio returns",
+            "Estimated Portfolio Impact (%)": round(worst_5d, 2),
+            "Estimated Capital Impact (USD)": round(float(capital_usd) * (worst_5d / 100.0), 2),
+        })
+        stress_tests.append({
+            "Scenario": "Observed Worst 21-Day Window (Historical 3Y)",
+            "Shock Assumptions": "Realized worst trading month in 3Y history",
+            "Estimated Portfolio Impact (%)": round(worst_21d, 2),
+            "Estimated Capital Impact (USD)": round(float(capital_usd) * (worst_21d / 100.0), 2),
+        })
+
+    # Shannon Inflow vs Passive Proportional DCA simulation ($2,000/month over backtest dates)
+    monthly_inflow = 2000.0
+    px_mat = sub_df[valid_cols].values.astype(float)
+    p0 = np.maximum(px_mat[0], 1e-8)
+    sh_shares = (float(capital_usd) * norm_w) / p0
+    pa_shares = (float(capital_usd) * norm_w) / p0
+    months_sim = 0
+    for idx in range(21, len(px_mat), 21):
+        cur_p = np.maximum(px_mat[idx], 1e-8)
+        pa_shares += (monthly_inflow * norm_w) / cur_p
+
+        vals = sh_shares * cur_p
+        tot_v = float(vals.sum())
+        w_cur = vals / max(tot_v, 1e-8)
+        gaps = norm_w - w_cur
+        pos_idx = [i for i in np.argsort(-gaps) if gaps[i] > 0][:3]
+        if pos_idx:
+            sub_gaps = np.array([gaps[i] for i in pos_idx], dtype=float)
+            alloc_weights = np.zeros_like(norm_w)
+            alloc_weights[pos_idx] = sub_gaps / float(sub_gaps.sum())
+        else:
+            ratios = w_cur / np.maximum(norm_w, 1e-8)
+            min_i = int(np.argmin(ratios))
+            alloc_weights = np.zeros_like(norm_w)
+            alloc_weights[min_i] = 1.0
+        sh_shares += (monthly_inflow * alloc_weights) / cur_p
+        months_sim += 1
+
+    p_last = np.maximum(px_mat[-1], 1e-8)
+    shannon_final = float((sh_shares * p_last).sum())
+    passive_final = float((pa_shares * p_last).sum())
+    shannon_alpha_usd = shannon_final - passive_final
+    shannon_alpha_pct = ((shannon_final / passive_final) - 1.0) * 100.0 if passive_final > 0 else 0.0
+
     return {
         "portfolio_cagr_pct": round(float(port_cagr), 2),
         "annualized_vol_pct": round(float(ann_vol), 2),
@@ -188,6 +297,20 @@ def run_portfolio_backtest(
         "calmar_ratio": round(float(calmar), 2),
         "spy_cagr_pct": round(float(spy_cagr), 2),
         "btc_cagr_pct": round(float(btc_cagr), 2),
+        "var_95_daily_pct": var_95_daily,
+        "cvar_95_daily_pct": cvar_95_daily,
+        "var_99_daily_pct": var_99_daily,
+        "cvar_99_daily_pct": cvar_99_daily,
+        "corr_matrix_df": corr_matrix_df,
+        "stress_tests": stress_tests,
+        "shannon_vs_bh": {
+            "shannon_final_usd": round(shannon_final, 2),
+            "passive_final_usd": round(passive_final, 2),
+            "shannon_alpha_usd": round(shannon_alpha_usd, 2),
+            "shannon_alpha_pct": round(shannon_alpha_pct, 2),
+            "months_simulated": months_sim,
+            "monthly_inflow_usd": monthly_inflow,
+        },
         "period_days": int(n_days),
         "assets_covered": len(valid_cols),
         "equity_curve_df": pd.DataFrame(eq_curves),
