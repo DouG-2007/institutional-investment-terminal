@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime
 import html
+import os
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -803,6 +804,149 @@ def main() -> None:
             """,
             unsafe_allow_html=True,
         )
+
+        with st.expander("🔗 Auto-Sync from IBKR & Binance (Read-Only Custody Import — Eliminates Manual Entry)", expanded=False):
+            st.caption(
+                "Connect read-only Interactive Brokers (Flex Web Service or Activity XML) and/or Binance Spot "
+                "API keys to automatically import tickers, asset classes, sector verticals, average cost basis, "
+                "and portfolio weights into SQLite. Credentials are kept strictly in session memory / local `.env`."
+            )
+            sync_c1, sync_c2 = st.columns(2)
+            with sync_c1:
+                st.markdown("**🏦 Interactive Brokers (IBKR Flex Read-Only)**")
+                ibkr_tok = st.text_input(
+                    "IBKR Flex Token",
+                    value=os.getenv("IBKR_FLEX_TOKEN", ""),
+                    type="password",
+                    key="ibkr_flex_token_input",
+                )
+                ibkr_qid = st.text_input(
+                    "IBKR Flex Query ID",
+                    value=os.getenv("IBKR_FLEX_QUERY_ID", ""),
+                    key="ibkr_flex_qid_input",
+                )
+                ibkr_xml_file = st.file_uploader(
+                    "Or Upload IBKR Activity Flex XML (.xml)",
+                    type=["xml"],
+                    key="ibkr_xml_uploader",
+                )
+            with sync_c2:
+                st.markdown("**🪙 Binance Spot (Read-Only API Key)**")
+                bn_key = st.text_input(
+                    "Binance API Key (Enable Reading only)",
+                    value=os.getenv("BINANCE_API_KEY", ""),
+                    type="password",
+                    key="binance_api_key_input",
+                )
+                bn_sec = st.text_input(
+                    "Binance API Secret",
+                    value=os.getenv("BINANCE_API_SECRET", ""),
+                    type="password",
+                    key="binance_api_secret_input",
+                )
+                bn_cost_basis = st.checkbox(
+                    "Estimate Avg Buy Price from Trade History (myTrades)",
+                    value=True,
+                    key="binance_cost_basis_chk",
+                )
+                min_dust_usd = st.number_input(
+                    "Ignore Dust Positions Below (USD)",
+                    min_value=1.0,
+                    max_value=500.0,
+                    value=10.0,
+                    step=5.0,
+                    key="custody_min_dust_input",
+                )
+
+            if st.button("🔄 Fetch Live Positions from IBKR / Binance (Preview)", width="stretch", key="btn_fetch_custody"):
+                from core.custody_sync_engine import (
+                    combine_custody_results,
+                    fetch_binance_spot_positions,
+                    fetch_ibkr_flex_positions,
+                    parse_ibkr_flex_xml,
+                )
+
+                sync_results = []
+                with st.spinner("Fetching read-only positions from configured brokers..."):
+                    if ibkr_xml_file is not None:
+                        xml_str = ibkr_xml_file.getvalue().decode("utf-8", errors="ignore")
+                        sync_results.append(parse_ibkr_flex_xml(xml_str, min_dust_usd=float(min_dust_usd)))
+                    elif ibkr_tok.strip() and ibkr_qid.strip():
+                        sync_results.append(
+                            fetch_ibkr_flex_positions(ibkr_tok.strip(), ibkr_qid.strip(), min_dust_usd=float(min_dust_usd))
+                        )
+                    if bn_key.strip() and bn_sec.strip():
+                        sync_results.append(
+                            fetch_binance_spot_positions(
+                                bn_key.strip(),
+                                bn_sec.strip(),
+                                min_dust_usd=float(min_dust_usd),
+                                include_trade_cost_basis=bool(bn_cost_basis),
+                            )
+                        )
+
+                if not sync_results:
+                    st.warning("Provide IBKR Flex credentials/XML or Binance Read-Only API keys above first.")
+                else:
+                    combined_sync = combine_custody_results(sync_results)
+                    st.session_state["custody_sync_preview"] = combined_sync
+                    for res in sync_results:
+                        if not res.ok and res.error_message:
+                            st.error(res.error_message)
+
+            preview_sync = st.session_state.get("custody_sync_preview")
+            if preview_sync is not None and getattr(preview_sync, "ok", False) and preview_sync.positions:
+                st.success(
+                    f"Synced {len(preview_sync.positions)} positions ({preview_sync.source_summary}) — "
+                    f"Total Invested NAV: USD {preview_sync.total_nav_usd:,.2f} | "
+                    f"Stablecoins/Cash: USD {preview_sync.stablecoin_cash_usd:,.2f}"
+                )
+                for w_msg in preview_sync.warnings:
+                    st.caption(f"⚠️ {w_msg}")
+
+                df_sync_prev = pd.DataFrame([
+                    {
+                        "Ticker": p.ticker,
+                        "Source": p.source,
+                        "Qty": f"{p.quantity:,.6g}",
+                        "Market Value (USD)": f"${p.market_value_usd:,.2f}",
+                        "Avg Buy (USD)": f"${p.avg_buy_price_usd:,.4g}",
+                        "Actual Weight": f"{p.actual_weight_pct:.2f}%",
+                        "Auto-Class": p.asset_class_ui,
+                        "Sector Vertical": p.sector_ui,
+                        "LTV Collateral": "YES" if p.ltv_turbo_eligible else "NO",
+                    }
+                    for p in preview_sync.positions
+                ])
+                render_clean_table(df_sync_prev, badge_cols=["LTV Collateral"])
+
+                sync_mode_ui = st.radio(
+                    "SQLite Sync Mode",
+                    [
+                        "Merge & Preserve Existing Target Weights (Update Avg Cost + Add New Holdings)",
+                        "Replace Portfolio with Synced Custody Holdings (Use Actual Weights = 100%)",
+                    ],
+                    index=0,
+                    key="custody_sync_mode_radio",
+                )
+                if st.button("✅ Apply Synced Holdings to SQLite", type="primary", width="stretch", key="btn_apply_custody"):
+                    from core.custody_sync_engine import apply_synced_positions_to_sqlite
+
+                    mode_key = (
+                        "merge_preserve_targets"
+                        if sync_mode_ui.startswith("Merge")
+                        else "replace_with_actual_weights"
+                    )
+                    up_cnt, rm_cnt = apply_synced_positions_to_sqlite(
+                        port_eng_live,
+                        preview_sync.positions,
+                        sync_mode=mode_key,
+                        normalize_to_100=True,
+                    )
+                    st.cache_data.clear()
+                    st.session_state["refresh_token"] += 1
+                    st.success(f"Synced {up_cnt} positions into SQLite ({rm_cnt} removed) and normalized weights to 100.00%!")
+                    st.rerun()
 
         col_crud1, col_crud2 = st.columns([2, 1])
         with col_crud1:

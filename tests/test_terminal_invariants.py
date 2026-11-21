@@ -309,6 +309,80 @@ class TestTerminalInvariants(unittest.TestCase):
         self.assertEqual(audit.total_criteria_passed, 33)
         self.assertEqual(audit.preservation_rate_pct, 100.0)
 
+    def test_8_custody_sync_ibkr_xml_and_sqlite_isolation(self) -> None:
+        from core.custody_sync_engine import (
+            CustodySyncResult,
+            SyncedPosition,
+            apply_synced_positions_to_sqlite,
+            combine_custody_results,
+            parse_ibkr_flex_xml,
+        )
+
+        sample_xml = """
+        <FlexQueryResponse queryName="Positions" type="AF">
+          <FlexStatements count="1">
+            <FlexStatement accountId="U1234567">
+              <OpenPositions>
+                <OpenPosition symbol="NVDA" description="NVIDIA CORP" assetCategory="STK" position="50" markPrice="130.0" positionValue="6500.0" positionValueInBase="6500.0" costBasisPrice="90.0" currency="USD" fxRateToBase="1.0" />
+                <OpenPosition symbol="SPY" description="SPDR S&amp;P 500 ETF" assetCategory="ETF" position="10" markPrice="580.0" positionValue="5800.0" positionValueInBase="5800.0" costBasisPrice="450.0" currency="USD" fxRateToBase="1.0" />
+              </OpenPositions>
+              <CashReport>
+                <CashReportCurrency currency="BASE_SUMMARY" endingCash="1200.0" />
+              </CashReport>
+            </FlexStatement>
+          </FlexStatements>
+        </FlexQueryResponse>
+        """
+        ibkr_res = parse_ibkr_flex_xml(sample_xml)
+        self.assertTrue(ibkr_res.ok)
+        self.assertEqual(len(ibkr_res.positions), 2)
+        self.assertAlmostEqual(ibkr_res.total_nav_usd, 12300.0, places=2)
+        self.assertAlmostEqual(ibkr_res.stablecoin_cash_usd, 1200.0, places=2)
+
+        bn_mock = CustodySyncResult(
+            ok=True,
+            source_summary="Binance Spot (1 positions)",
+            positions=[
+                SyncedPosition(
+                    ticker="BTC-USD",
+                    name="BTC (Binance Spot)",
+                    source="Binance",
+                    quantity=0.1,
+                    market_price_usd=90000.0,
+                    market_value_usd=9000.0,
+                    avg_buy_price_usd=62000.0,
+                    actual_weight_pct=100.0,
+                    asset_class_ui="Crypto",
+                    sector_ui="Bitcoin Sovereign PoW Reserve",
+                    ltv_turbo_eligible=True,
+                    role_description="Synced from Binance Spot custody.",
+                )
+            ],
+            total_nav_usd=9000.0,
+            stablecoin_cash_usd=500.0,
+        )
+        combined = combine_custody_results([ibkr_res, bn_mock])
+        self.assertTrue(combined.ok)
+        self.assertEqual(len(combined.positions), 3)
+        self.assertAlmostEqual(sum(p.actual_weight_pct for p in combined.positions), 100.0, delta=0.1)
+
+        with tempfile.TemporaryDirectory() as tmpd:
+            cfg_path = os.path.join(tmpd, "test_sync_cfg.json")
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump({"assets": [{"ticker": "OLD1", "name": "Old Asset", "category": "Hard-Asset Stock", "sector_vertical": "OTHER", "target_weight_pct": 100.0, "avg_buy_price": 10.0, "ltv_turbo_eligible": True}]}, f)
+            pe = PortfolioEngine(config_path=cfg_path)
+            up_cnt, rm_cnt = apply_synced_positions_to_sqlite(
+                pe,
+                combined.positions,
+                sync_mode="replace_with_actual_weights",
+                normalize_to_100=True,
+            )
+            self.assertEqual(up_cnt, 3)
+            self.assertGreater(rm_cnt, 0)
+            synced_db = pe.get_all_assets_from_db()
+            self.assertEqual(len(synced_db), 3)
+            self.assertAlmostEqual(sum(a["target_weight_pct"] for a in synced_db), 100.0, delta=0.05)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -127,17 +127,18 @@ The executive command center for generating and downloading the complete graph-f
 
 ---
 
-### ⚙️ Tab 2: Portfolio Manager (SQLite Target Allocations)
+### ⚙️ Tab 2: Portfolio Manager (Read-Only Custody Sync + SQLite Target Allocations)
 
-Enables interactive target allocation management with immediate ACID persistence in `portfolio_store.db` (`portfolio_assets`) and `portfolio_config.json` mirroring.
+Enables interactive target allocation management with immediate ACID persistence in `portfolio_store.db` (`portfolio_assets`) and `portfolio_config.json` mirroring, **without manual data entry**:
 
-1. **Add or Edit an Asset:** Configure `Ticker`, `Name`, `Asset Class`, `Sector Vertical`, `Target Weight (%)`, `Average Purchase Price (USD)`, and `LTV Turbo Collateral Eligible`, then click **`💾 Save / Update Asset in SQLite`**.
-2. **Delete an Asset:** Select any holding and click **`🗑️ Remove Selected Asset`**.
-3. **100.00% Target Weight Normalization:** Monitor the current SQLite weight sum callout and click **`⚖️ Normalize Weights Automatically to 100.00%`** to proportionally rescale portfolio weights:
+1. **Auto-Sync from IBKR & Binance (Read-Only Custody Import):** Expand **`🔗 Auto-Sync from IBKR & Binance`** to connect your **Interactive Brokers** account (Flex Web Service `Token` + `Query ID`, or direct Activity Flex `.xml` upload) and/or **Binance Spot** read-only API key (`Enable Reading` only). The engine (`core/custody_sync_engine.py`) fetches open positions, estimates average buy cost basis (`costBasisPrice` / `myTrades`), auto-classifies sector verticals & LTV eligibility, previews actual weights, and syncs directly into SQLite (`Merge & Preserve Target Weights` or `Replace with Synced Custody Weights`).
+2. **Add or Edit an Asset (Manual Override):** Configure `Ticker`, `Name`, `Asset Class`, `Sector Vertical`, `Target Weight (%)`, `Average Purchase Price (USD)`, and `LTV Turbo Collateral Eligible`, then click **`💾 Save / Update Asset in SQLite`**.
+3. **Delete an Asset:** Select any holding and click **`🗑️ Remove Selected Asset`**.
+4. **100.00% Target Weight Normalization:** Monitor the current SQLite weight sum callout and click **`⚖️ Normalize Weights Automatically to 100.00%`** to proportionally rescale portfolio weights:
 
    $$w_{\text{new}, i} = \frac{w_{\text{old}, i}}{\sum_{j=1}^{N} w_{\text{old}, j}} \times 100\%$$
 
-4. **Configured Reference Table:** Lists your configured SQLite assets cleanly; all derived Look-Through, Drift, P&L, Forensic, Valuation, and Risk analytics are compiled into the **360° Master Report (.PDF)**.
+5. **Configured Reference Table:** Lists your configured SQLite assets cleanly; all derived Look-Through, Drift, P&L, Forensic, Valuation, and Risk analytics are compiled into the **360° Master Report (.PDF)**.
 
 ---
 
