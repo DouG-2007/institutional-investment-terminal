@@ -76,6 +76,7 @@ class TestTerminalInvariants(unittest.TestCase):
         pdf_exp = InstitutionalPDFExporter()
         dd_eq = DeepDiveEngine(self.rf_pct).analyze_single_ticker("NVDA", portfolio=self.portfolio)
         dd_html = pdf_exp.build_deep_dive_html_report(dd_eq)
+        bt_sample = run_portfolio_backtest(self.portfolio.positions, 100_000.0, self.rf_pct)
         master_html = pdf_exp.build_complete_html_report(
             macro=self.macro,
             portfolio=self.portfolio,
@@ -88,10 +89,13 @@ class TestTerminalInvariants(unittest.TestCase):
             stock_screener=self.screener.run_stock_screener(),
             crypto_screener=self.screener.run_crypto_screener(),
             risk_timing=self.risk_timing,
+            backtest=bt_sample,
         )
         # Altman Z-Score is intentionally excluded across reporting
         self.assertNotIn("altman", dd_html.lower())
         self.assertNotIn("altman", master_html.lower())
+        # Pure-SVG vector charts embedded safely in Master PDF
+        self.assertIn("<svg", master_html)
 
         # Tax-Drag Hurdle Rate: 0.0% at loss, exact formula at +100% gain with 15% tax = 7.50%
         loss_pos = self.portfolio.positions[0]
@@ -259,6 +263,7 @@ class TestTerminalInvariants(unittest.TestCase):
                 "simulate_shannon_inflow",
                 "simulate_ltv_stress_test",
                 "run_opportunity_screener",
+                "get_backtest_and_risk_metrics",
             },
         )
         for forbidden in ("run_command", "edit_file", "create_file", "view_file"):
@@ -281,6 +286,8 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertIsNotNone(dos)
             self.assertIn("static", msg_fil.lower())
 
+            from core.background_notifier import NotifierSettings
+            cfg_custom = NotifierSettings(vix_alert_threshold=20.0, drift_alert_threshold_pp=1.0, btc_nupl_buy_threshold=0.5, dcf_upside_alert_pct=5.0)
             notif_payload = BackgroundNotifierEngine().build_morning_briefing_payload(
                 macro=self.macro,
                 portfolio=self.portfolio,
@@ -289,8 +296,10 @@ class TestTerminalInvariants(unittest.TestCase):
                 micro_events=self.geo.get_micro_events(prefer_ai_cache=False),
                 risk_timing=self.risk_timing,
                 use_ai=True,
+                settings_override=cfg_custom,
             )
             self.assertFalse(notif_payload["ai_enhanced"])
+            self.assertGreater(notif_payload["alerts_count"], 0)
 
     def test_7_ecosystem_integrity_audit_33_criteria(self) -> None:
         audit = run_complete_ecosystem_integrity_audit(

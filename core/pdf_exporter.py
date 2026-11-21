@@ -78,16 +78,27 @@ class InstitutionalPDFExporter:
         return None
 
     # ==========================================================================
-    # GERADORES DE GRÁFICOS SVG (DESATIVADOS / REMOVIDOS A PEDIDO DO USUÁRIO)
+    # GERADORES DE GRÁFICOS VETORIAIS SVG PUROS (PRINT-SAFE A4 LANDSCAPE)
     # ==========================================================================
     def _build_svg_macro_charts(self, macro: MacroDataBundle) -> str:
-        return ""
+        from core.pdf_charts import render_yield_curve_svg
+
+        return render_yield_curve_svg(macro)
 
     def _build_svg_equity_valuation_charts(self, equities: List[EquityFullAnalysis]) -> str:
-        return ""
+        from core.pdf_charts import render_valuation_vs_spot_svg
+
+        return render_valuation_vs_spot_svg(equities)
 
     def _build_svg_crypto_onchain_charts(self, cryptos: Dict[str, CryptoFullProfile]) -> str:
-        return ""
+        from core.pdf_charts import render_crypto_cycle_svg
+
+        return render_crypto_cycle_svg(cryptos)
+
+    def _build_svg_backtest_chart(self, backtest: Optional[Dict[str, Any]]) -> str:
+        from core.pdf_charts import render_backtest_equity_svg
+
+        return render_backtest_equity_svg(backtest)
 
     # ==========================================================================
     # CONSOLIDATED MASTER REPORT (7 INTEGRATED SECTIONS IN SINGLE PDF)
@@ -107,6 +118,7 @@ class InstitutionalPDFExporter:
         risk_timing: RiskLeverageTimingBundle,
         ai_executive_summary: Optional[Dict[str, Any]] = None,
         ai_report_bundle: Optional[Dict[str, Any]] = None,
+        backtest: Optional[Dict[str, Any]] = None,
     ) -> str:
         from core.intelligence_reports_engine import IntelligenceReportsEngine
 
@@ -524,6 +536,7 @@ class InstitutionalPDFExporter:
                 </thead>
                 <tbody>{sens_html}</tbody>
             </table>
+            {self._build_svg_macro_charts(macro)}
         </div>
         """
 
@@ -906,6 +919,7 @@ class InstitutionalPDFExporter:
                     </div>
                 </div>
             </div>
+            {self._build_svg_equity_valuation_charts(equities)}
         </div>
         """
 
@@ -1032,6 +1046,7 @@ class InstitutionalPDFExporter:
                 </thead>
                 <tbody>{narr_html}</tbody>
             </table>
+            {self._build_svg_crypto_onchain_charts(cryptos)}
         </div>
         """
 
@@ -1422,6 +1437,7 @@ class InstitutionalPDFExporter:
                 </thead>
                 <tbody>{timing_assets_html}</tbody>
             </table>
+            {self._build_svg_backtest_chart(backtest)}
         </div>
         """
 
@@ -1461,6 +1477,7 @@ class InstitutionalPDFExporter:
         output_pdf_path: Optional[str] = None,
         ai_executive_summary: Optional[Dict[str, Any]] = None,
         ai_report_bundle: Optional[Dict[str, Any]] = None,
+        backtest: Optional[Dict[str, Any]] = None,
     ) -> bytes:
         html_str = self.build_complete_html_report(
             macro=macro,
@@ -1476,6 +1493,7 @@ class InstitutionalPDFExporter:
             risk_timing=risk_timing,
             ai_executive_summary=ai_executive_summary,
             ai_report_bundle=ai_report_bundle,
+            backtest=backtest,
         )
         return self._compile_html_to_pdf_bytes(html_str, "relatorio_master_multi_completo_360", output_pdf_path)
 

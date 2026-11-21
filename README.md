@@ -83,14 +83,14 @@ flowchart TB
 ```
 
 ### Core Module Breakdown:
-* **`core/market_data.py`, `core/live_quant_fetcher.py` & `core/macro_engine.py`:** Parallel live price ingestion, real-time quantitative overlays (`^VIX`, `USDBRL=X`, SEC EDGAR XBRL + `yfinance` financial statements w/ FX conversion, live ETF `top_holdings`, Binance Futures funding/OI, DeFiLlama TVL/Fees/Stablecoins, CoinGecko dominance, CoinMetrics `btc`/`eth` MVRV/Supply + 5y Z-Score altcoin proxies, live ADTV), and macroeconomic cycle tracking (Sahm Rule + Payrolls/ICSA, 10Y–2Y curve steepening, Services vs. Mfg PMI + FRED `IPMAN`, and M2 vs. DXY).
+* **`core/market_data.py`, `core/live_quant_fetcher.py` & `core/macro_engine.py`:** Parallel live price ingestion, real-time quantitative overlays (`^VIX`, `USDBRL=X`, FRED High-Yield Credit Spread `BAMLH0A0HYM2`, SEC EDGAR XBRL + `yfinance` financial statements w/ FX conversion, live ETF `top_holdings`, Binance Futures funding/OI, DeFiLlama TVL/Fees/Stablecoins, CoinGecko dominance, CoinMetrics `btc`/`eth` MVRV/Supply + 5y Z-Score altcoin proxies, live ADTV), and macroeconomic cycle tracking (Sahm Rule + Payrolls/ICSA, 10Y–2Y curve steepening, Services vs. Mfg PMI + FRED `IPMAN`, and M2 vs. DXY).
 * **`core/portfolio_engine.py` & `core/backtest_engine.py`:** Manages the ACID relational database (`portfolio_store.db`: `portfolio_assets` + `transactions_ledger` custody ledger with `sync_ledger_cost_basis_to_assets`) and JSON sync mirror (`portfolio_config.json`), supports CSV brokerage imports, computes mark-to-market/custody drift and live *Look-Through* ETF overlap (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`), and executes a 3-year historical daily backtest aligned to `SPY` trading days (`data_cache/backtest_prices_3y.parquet`) with VaR/CVaR (95%/99%), Top-12 correlation matrix, historical crash stress-tests, and Shannon Inflow vs. Passive DCA simulation.
-* **`core/equity_engine.py`:** Forensic accounting audit and 8-method Forward (NTM) valuation engine (Forward 3-scenario DCF w/ 10% MoS, Paired Reverse DCF, Owner Earnings Yield, Multiples, EVA, Sector-Strict PEGY, Greenblatt Magic Formula, and SOTP). Overlays live XBRL/`yfinance` GAAP statements onto shallow KB copies, preserves Banks (`FINANCIAL_BANK`) via P/TBV vs. ROE, Financial PEGY, and a mandatory `P/B >= 1.00x` floor, and intentionally excludes Altman Z-Score.
+* **`core/equity_engine.py`:** Forensic accounting audit and 8-method Forward (NTM) valuation engine (Forward 3-scenario DCF w/ 10% MoS, Paired Reverse DCF, Owner Earnings Yield, Multiples, EVA, Sector-Strict PEGY, Greenblatt Magic Formula, and SOTP). Overlays live XBRL/`yfinance` GAAP statements onto shallow KB copies, refreshes global banking scatter peers (`BAC`, `WFC`, `GS`, `ITUB`, `DBSDY`) alongside portfolio banks via P/TBV vs. ROE, Financial PEGY, and a mandatory `P/B >= 1.00x` floor, and intentionally excludes Altman Z-Score.
 * **`core/crypto_engine.py`:** On-chain cycle intelligence (`MVRV Z-Score`, `NUPL`, `aSOPR 1.0`, `Pi Cycle Top`, `200W SMA`), mining metrics (`Hash Ribbon`, `MMC`), derivatives (`Binance Futures` funding & OI), and protocol sustainability (`DeFiLlama` TVL & annualized fees feeding `Protocol Real Earnings` and `P/F`, `Real Yield`, 30/60/90d unlocks, theoretical post-unlock price).
 * **`core/filing_fetcher.py` & `core/filings_engine.py`:** Merges static verified dossiers (`EQUITY_FILINGS_DB`, `CRYPTO_FILINGS_DB`) with zero-download multi-document suites (`10-K/20-F` + `10-Q/6-K` + `8-K` + `Form 4`/`DEF 14A` + `yfinance` Analyst Consensus for equities; Whitepaper + GitHub live 28d commits/devs + Snapshot DAO + DeFiLlama Audits/Hacks for crypto), Google Search grounding supplement, and Gemini Pydantic Structured Outputs cached in `data_cache/custom_filings_cache.json`.
-* **`core/risk_timing_engine.py`, `core/deep_dive_engine.py` & `core/screener_engine.py`:** Consultative-only timing with configurable Fiscal Jurisdiction Tax-Drag Hurdle Rate (`0.0%` at loss), real 3y backtest `Sharpe`/`Sortino`/`Calmar`/`MaxDD`, live `^VIX` & `ADTV` liquidity, *Shannon's Demon* inflow simulator, Convex LTV / Aave V3 Health Factor stress-testing, 5-filter quantitative screening, and on-demand single-asset Deep Dive scoring (`0–100`) backed by SEC XBRL + `yfinance`.
-* **`core/gemini_client.py`, `core/ai_report_orchestrator.py` & `core/ai_analyst.py`:** Direct `google-genai` Interactions API wrapper (`store=False`, cooldown + multi-model fallback), dual-profile Master Report AI orchestrator (`Full Deep Hydration` or `Economic / Fast Batch`), and read-only `google-antigravity` agent locked to 6 deterministic custom tools with zero shell or file-write permissions.
-* **`core/pdf_exporter.py`, `core/excel_exporter.py`, `core/charts.py`, `core/background_notifier.py` & `core/integrity_guard.py`:** Headless Chromium/Edge (`--headless=new --print-to-pdf`) A4 landscape PDF compiler, styled 5-sheet `.xlsx` Excel workbook exporter (`openpyxl`), **16 interactive dark-theme Plotly builders**, Windows Task Scheduler morning alerts, and the 33-criterion ecosystem data preservation auditor (`100%` pass invariant).
+* **`core/risk_timing_engine.py`, `core/deep_dive_engine.py` & `core/screener_engine.py`:** Consultative-only timing with configurable Fiscal Jurisdiction Tax-Drag Hurdle Rate (`0.0%` at loss), real 3y backtest `Sharpe`/`Sortino`/`Calmar`/`MaxDD`, live `^VIX` & `ADTV` liquidity, *Shannon's Demon* inflow simulator, Convex LTV / Aave V3 Health Factor stress-testing, live-fed 5-filter quantitative screening (with optional watchlist extras), and on-demand single-asset Deep Dive + Side-by-Side Peer Comparator backed by SEC XBRL + `yfinance`.
+* **`core/gemini_client.py`, `core/ai_report_orchestrator.py` & `core/ai_analyst.py`:** Direct `google-genai` Interactions API wrapper (`store=False`, cooldown + multi-model fallback), dual-profile Master Report AI orchestrator (`Full Deep Hydration` or `Economic / Fast Batch`), and read-only `google-antigravity` agent locked to 7 deterministic custom tools with zero shell or file-write permissions.
+* **`core/pdf_exporter.py`, `core/pdf_charts.py`, `core/excel_exporter.py`, `core/charts.py`, `core/background_notifier.py` & `core/integrity_guard.py`:** Headless Chromium/Edge (`--headless=new --print-to-pdf`) A4 landscape PDF compiler with embedded print-safe pure-SVG vector charts (`render_yield_curve_svg`, `render_valuation_vs_spot_svg`, `render_crypto_cycle_svg`, `render_backtest_equity_svg`), styled 5-sheet `.xlsx` Excel workbook exporter (`openpyxl`), **16 interactive dark-theme Plotly builders**, configurable threshold alerts (`VIX`, drift, `NUPL`, DCF upside) on Windows Task Scheduler, and the 33-criterion ecosystem data preservation auditor (`100%` pass invariant).
 
 ---
 
@@ -155,7 +155,7 @@ Enables full interactive custodial portfolio management with immediate ACID pers
 
 Performs comprehensive forensic auditing and multi-model valuation on any portfolio holding or external watchlist candidate (`COST`, `TSM`, `ASML`, `NU`, `MKR-USD`, `PENDLE-USD`, etc.).
 
-1. **Select or Search an Asset:** Use quick-select pills or enter any equity, ETF, or crypto symbol (automatically shared as the active ticker for Tab 5 Deep Audit).
+1. **Select or Search an Asset + Side-by-Side Peer Comparator:** Use quick-select pills or enter any equity, ETF, or crypto symbol (shared with Tab 5 Deep Audit), and optionally expand **`⚖️ Side-by-Side Peer Comparator`** to benchmark any two assets side-by-side (`Score`, `Sloan`, `ROIC`, `PEGY`, `DCF MoS`, `Real Earnings`, and `Unlocks`).
 2. **Strict 5-Filter Funnel Execution (`0–100` Score):** Evaluates Sloan Accruals, CFO/EBITDA conversion, ROIC vs. WACC spread, Liquidity & Solvency (`Current Ratio`, `Interest Coverage`, `Debt/EBITDA`), and Forward Valuation (Reverse DCF & PEGY).
 3. **Interactive Deep Dive Plotly Visuals:** Renders 3 interactive equity charts (`5y Forensic Growth`, `DuPont & Operating Margins`, `Multi-Method Valuation Cockpit`) or 2 interactive crypto charts (`On-Chain Gauges`, `GitHub Dev Activity & Real Earnings`).
 4. **Multi-Method Forward Valuation Cockpit:** Contrasts 3-scenario DCF Fair Value (`10% MoS`), `g_impl` vs. `g_fund` (Reverse DCF), Sector-Strict PEGY, SOTP, and peer multiples.
@@ -176,7 +176,7 @@ Performs comprehensive forensic auditing and multi-model valuation on any portfo
 2. **Anti-Cyclical Convex Leverage & LTV Stress-Tester:** Simulates joint equity/BTC shocks against the **50.0% LTV Hard-Cap** and estimates Aave V3 liquidation Health Factors (altcoins are strictly prohibited as collateral).
 3. **Background Morning Notifier (`ON / OFF`) + Optional AI Briefing:**
    * Master switch (`OFF` by default) integrated with Windows Task Scheduler (`Antigravity_Quant_Morning_Notifier` via `schtasks.exe`) for Telegram Bot and Discord Webhook alerts.
-   * Toggle **`✨ Enable AI Executive Interpretation on Morning Briefing`** and click **`👁️ Preview Morning Briefing Payload`** to inspect deterministic signals enriched with concise Gemini synthesis before saving or dispatching.
+   * Toggle **`✨ Enable AI Executive Interpretation on Morning Briefing`**, customize conditional triggers (**`VIX >=`**, **`Drift >= pp`**, **`BTC NUPL <=`**, **`DCF Upside >= %`**), and click **`👁️ Preview Morning Briefing Payload`** to inspect deterministic signals enriched with concise Gemini synthesis before saving or dispatching.
 
 ---
 
@@ -186,15 +186,16 @@ Conversational quantitative and forensic analyst built with `google-antigravity 
 
 * **Strict Security Lockdown:**
   * Built-in shell, file system, web browser, and subagent tools are **completely disabled** (`CapabilitiesConfig(enable_subagents=False, enabled_tools=types.BuiltinTools.none())`).
-  * Policy enforcement layers `policy.deny_all()` beneath explicit allow rules exclusively for the 6 read-only Python tools below (`max_model_calls=8`, `max_tool_calls=12`).
+  * Policy enforcement layers `policy.deny_all()` beneath explicit allow rules exclusively for the **7 read-only Python tools** below (`max_model_calls=8`, `max_tool_calls=12`).
   * Zero write access to `portfolio_store.db`, `portfolio_config.json`, or repository files.
-* **6 Active Deterministic Tools:**
+* **7 Active Deterministic Tools:**
   1. `get_portfolio_snapshot` — Reads SQLite holdings, live P&L, and ETF Look-Through exposures.
   2. `audit_single_asset` — Runs the full deterministic Deep Dive + SEC/Crypto documentary dossier lookup for any ticker.
-  3. `get_macro_and_geopolitics` — Retrieves FRED macro regime, Sahm Rule, 10Y–2Y spread, and geopolitical exposure matrix.
+  3. `get_macro_and_geopolitics` — Retrieves FRED macro regime, High-Yield Credit Spread, Sahm Rule, 10Y–2Y spread, and geopolitical exposure matrix.
   4. `simulate_shannon_inflow` — Computes exact zero-tax-drag allocation across a given USD cash inflow.
   5. `simulate_ltv_stress_test` — Stress-tests portfolio debt LTV and Aave V3 Health Factor under equity/BTC shocks.
-  6. `run_opportunity_screener` — Executes the strict 5-filter Stock & Crypto screener.
+  6. `run_opportunity_screener` — Executes the live 5-filter Stock & Crypto screener (with optional custom extra tickers).
+  7. `get_backtest_and_risk_metrics` — Evaluates 3Y historical CAGR, Volatility, Sharpe, Sortino, MaxDD, Calmar, VaR/CVaR (95%/99%), top/bottom asset correlations, Shannon vs. Passive DCA alpha, and crisis stress-tests.
 * **UI Controls:** Select `Auto (Smart Fallback)` or a specific Gemini model, use one of the **5 Quick Institutional Prompts** (including dynamic **`🔬 Deep-Audit <Active Tab 3 Ticker>`**), inspect real-time **`st.status` tool-execution telemetry**, or chat freely with persistent conversation state stored under `data_cache/ai_sessions/`.
 
 ---

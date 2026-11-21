@@ -37,6 +37,10 @@ class NotifierSettings:
     notify_crypto_unlocks_and_dao: bool = True
     notify_macro_and_cycle_extremes: bool = True
     enable_ai_briefing: bool = False
+    vix_alert_threshold: float = 30.0
+    drift_alert_threshold_pp: float = 3.0
+    btc_nupl_buy_threshold: float = 0.0
+    dcf_upside_alert_pct: float = 12.0
     last_updated: str = ""
     scheduler_status: str = "DISABLED (Zero Background Processes)"
 
@@ -75,6 +79,10 @@ class BackgroundNotifierEngine:
                     notify_crypto_unlocks_and_dao=bool(data.get("notify_crypto_unlocks_and_dao", True)),
                     notify_macro_and_cycle_extremes=bool(data.get("notify_macro_and_cycle_extremes", True)),
                     enable_ai_briefing=bool(data.get("enable_ai_briefing", False)),
+                    vix_alert_threshold=float(data.get("vix_alert_threshold", 30.0)),
+                    drift_alert_threshold_pp=float(data.get("drift_alert_threshold_pp", 3.0)),
+                    btc_nupl_buy_threshold=float(data.get("btc_nupl_buy_threshold", 0.0)),
+                    dcf_upside_alert_pct=float(data.get("dcf_upside_alert_pct", 12.0)),
                     last_updated=str(data.get("last_updated", "")),
                     scheduler_status=str(
                         data.get(
@@ -192,6 +200,7 @@ class BackgroundNotifierEngine:
         micro_events: List[Any],
         risk_timing: Any,
         use_ai: Optional[bool] = None,
+        settings_override: Optional[NotifierSettings] = None,
     ) -> Dict[str, Any]:
         """
         Analisa silenciosamente todos os vetores da carteira e filtra APENAS sinais de alta
@@ -200,7 +209,7 @@ class BackgroundNotifierEngine:
         altering or recomputing any deterministic signals.
         """
         critical_alerts: List[str] = []
-        settings = self.load_settings()
+        settings = settings_override or self.load_settings()
 
         # 1. Auditoria de Eventos Corporativos, 8-K, M&A e Valuation (Gold Band / Faixa Ouro)
         if settings.notify_sec_8k_and_ma:
@@ -213,13 +222,22 @@ class BackgroundNotifierEngine:
             for e in equities:
                 vm = e.valuation_methods
                 pegy_stat = str(vm.get("primary_pegy_status", ""))
-                if vm.get("dcf_upside_pct", 0.0) >= 12.0 or any(k in pegy_stat.lower() for k in ["gold", "ouro", "optimal", "ótimo"]):
+                if vm.get("dcf_upside_pct", 0.0) >= float(settings.dcf_upside_alert_pct) or any(
+                    k in pegy_stat.lower() for k in ["gold", "ouro", "optimal", "ótimo"]
+                ):
                     critical_alerts.append(
-                        f"🏛️ [{e.ticker}] Active Opportunity Window: Spot ${e.current_price:,.2f} vs SOTP ${vm['sotp_fair_price_usd']:,.2f} (PEGY: {pegy_stat})"
+                        f"🏛️ [{e.ticker}] Active Opportunity Window: Spot ${e.current_price:,.2f} vs SOTP ${vm['sotp_fair_price_usd']:,.2f} (DCF Upside: {vm.get('dcf_upside_pct', 0.0):+.1f}% | PEGY: {pegy_stat})"
                     )
 
-        # 2. Auditoria de Criptoativos (Unlocks 30d, Governança DAO & Real Yield)
+        # 2. Auditoria de Criptoativos (Unlocks 30d, NUPL Accumulation, Governança DAO & Real Yield)
         if settings.notify_crypto_unlocks_and_dao:
+            btc_prof = cryptos.get("BTC-USD")
+            if btc_prof is not None:
+                btc_nupl = float(btc_prof.onchain_metrics.get("nupl", 0.5))
+                if btc_nupl <= float(settings.btc_nupl_buy_threshold):
+                    critical_alerts.append(
+                        f"₿ [BTC-USD TRIGGER] On-Chain Capitulation Buy Window: NUPL {btc_nupl:.2f} <= {settings.btc_nupl_buy_threshold:.2f} (Convex LTV Turbo Zone)"
+                    )
             for sym, c in cryptos.items():
                 unlock_pct = c.supply_structure.get("unlock_pct_of_circ", 0.0)
                 if unlock_pct >= 2.5:
@@ -231,10 +249,27 @@ class BackgroundNotifierEngine:
                         f"⛓️ [{sym}] Safe Supply (Unlock {unlock_pct:.2f}%/mo) | Real Earnings: USD {c.tokenomics_valuation['protocol_real_earnings_m']:+.1f}M/yr | MVRV Z: {c.onchain_metrics['mvrv_z_score']:.2f}"
                     )
 
-        # 3. Auditoria de Ciclo Macro & Alavancagem Convexa LTV
+        # 3. Auditoria de Ciclo Macro, VIX, Drift de Carteira & Alavancagem Convexa LTV
         if settings.notify_macro_and_cycle_extremes:
             sp = macro.sahm_paired
             yc = macro.yield_curve
+            mon = getattr(macro, "monetary_aggregates", {}) or {}
+            vix_now = float(mon.get("vix_current", risk_timing.vix_indicator.get("vix_current", 18.4)))
+            if vix_now >= float(settings.vix_alert_threshold):
+                critical_alerts.append(
+                    f"🔥 [VIX TRIGGER] Volatility Extreme Alert: ^VIX at {vix_now:.2f} >= {settings.vix_alert_threshold:.1f} threshold (Deep Value / Stress Regime)"
+                )
+
+            drifted = [
+                f"{p.ticker} ({p.weight_drift_pp:+.2f}pp)"
+                for p in getattr(portfolio, "positions", [])
+                if abs(float(getattr(p, "weight_drift_pp", 0.0))) >= float(settings.drift_alert_threshold_pp)
+            ]
+            if drifted:
+                critical_alerts.append(
+                    f"⚖️ [DRIFT TRIGGER >= {settings.drift_alert_threshold_pp:.1f}pp] Rebalance Candidates via Shannon Inflow: {', '.join(drifted[:5])}"
+                )
+
             ltv = risk_timing.convex_ltv_panel
             critical_alerts.append(
                 f"🌍 [Macro & LTV] Sahm's Rule: {sp['sahm_current_pct']:+.2f}% ({sp['paired_verdict']}) | Spread 10Y-2Y: {yc['spread_10y_2y_bps']:+.1f} bps | LTV Global: {ltv['ltv_global_current_pct']:.1f}% ({ltv['turbo_trigger_status']})"

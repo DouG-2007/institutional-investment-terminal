@@ -476,6 +476,7 @@ def main() -> None:
         st.markdown(
             f"**Live Macro Telemetry:** VIX `{bundle.get('vix_current', 18.4):.2f}` | "
             f"US10Y `{macro.yield_curve.get('us10y_pct', 4.42):.2f}%` | "
+            f"HY Spread `{macro.monetary_aggregates.get('hy_credit_spread_pct', 3.45):.2f}%` | "
             f"Fed `{bundle.get('fed_funds_rate_pct', 4.25):.2f}%` | "
             f"USD/BRL `{fx_usd_brl:.2f}`"
         )
@@ -679,6 +680,7 @@ def main() -> None:
                             risk_timing=risk_timing,
                             ai_executive_summary=ai_exec_summary,
                             ai_report_bundle=ai_bundle,
+                            backtest=backtest_res,
                         )
                         st.session_state["ai_pdf_cache"][ai_cache_key] = {
                             "ai_bundle": ai_bundle,
@@ -714,6 +716,7 @@ def main() -> None:
                         stock_screener=bundle["stock_screener"],
                         crypto_screener=bundle["crypto_screener"],
                         risk_timing=risk_timing,
+                        backtest=backtest_res,
                     )
                     st.session_state["det_pdf_cache"][det_cache_key] = compiled_bytes
             st.rerun()
@@ -1169,6 +1172,77 @@ def main() -> None:
             key=f"dl_dd_{dd_res.normalized_ticker}",
         )
 
+        with st.expander(f"⚖️ Side-by-Side Peer Comparator ({dd_res.normalized_ticker} vs. Peer Asset B)", expanded=False):
+            cmp_c1, cmp_c2 = st.columns([2, 1])
+            with cmp_c1:
+                cmp_default = "TSM" if dd_res.asset_class != "CRYPTO" else "AAVE-USD"
+                if dd_res.normalized_ticker == cmp_default:
+                    cmp_default = "ASML" if dd_res.asset_class != "CRYPTO" else "BTC-USD"
+                peer_tk_input = st.text_input(
+                    "Peer Ticker / Symbol to Compare Side-by-Side",
+                    value=cmp_default,
+                    key="dd_peer_cmp_input",
+                )
+            with cmp_c2:
+                st.markdown("<div style='height:1.72rem;'></div>", unsafe_allow_html=True)
+                run_cmp_btn = st.button("⚖️ Compare Assets", width="stretch", key="btn_run_peer_cmp")
+
+            if run_cmp_btn and peer_tk_input.strip():
+                with st.spinner(f"Auditing {peer_tk_input.strip().upper()} for comparison..."):
+                    peer_res = dd_eng.analyze_single_ticker(
+                        user_ticker=peer_tk_input.strip().upper(),
+                        portfolio=portfolio,
+                    )
+                st.session_state["dd_last_peer_cmp"] = (dd_res.normalized_ticker, peer_res)
+
+            cached_cmp = st.session_state.get("dd_last_peer_cmp")
+            if isinstance(cached_cmp, tuple) and len(cached_cmp) == 2 and cached_cmp[0] == dd_res.normalized_ticker:
+                peer_b: DeepDiveResultBundle = cached_cmp[1]
+
+                def _cmp_row_metrics(item: DeepDiveResultBundle) -> Dict[str, str]:
+                    if item.asset_class == "CRYPTO" and item.crypto_profile:
+                        cp_c = item.crypto_profile
+                        om_c = cp_c.onchain_metrics
+                        tv_c = cp_c.tokenomics_valuation
+                        ss_c = cp_c.supply_structure
+                        return {
+                            "Ticker": item.normalized_ticker,
+                            "Class": item.asset_class,
+                            "Spot Price (USD)": f"${cp_c.spot_price_usd:,.2f}",
+                            "5-Filter Score": f"{item.screener_score_0_100}/100",
+                            "Primary Multiple": item.sovereign_multiple_value,
+                            "Quality / On-Chain": f"MVRV Z {om_c.get('mvrv_z_score', 0.0):+.2f} | NUPL {om_c.get('nupl', 0.0):+.2f}",
+                            "Valuation / Cash Flow": f"RealEarn ${tv_c.get('protocol_real_earnings_m', 0.0):+.1f}M/yr | Unlock {ss_c.get('unlock_pct_of_circ', 0.0):.2f}%/mo",
+                            "Regime": item.regime_classification.split("—")[0].strip(),
+                        }
+                    eq_c = item.equity_analysis
+                    if eq_c is None:
+                        return {"Ticker": item.normalized_ticker, "Class": item.asset_class, "5-Filter Score": f"{item.screener_score_0_100}/100"}
+                    fh_c = eq_c.forensic_health
+                    vm_c = eq_c.valuation_methods
+                    return {
+                        "Ticker": item.normalized_ticker,
+                        "Class": eq_c.sector_vertical,
+                        "Spot Price (USD)": f"${eq_c.current_price:,.2f}",
+                        "5-Filter Score": f"{item.screener_score_0_100}/100",
+                        "Primary Multiple": item.sovereign_multiple_value,
+                        "Quality / On-Chain": f"ROIC {fh_c.get('roic_goodwill_pct', 0.0):.1f}% vs WACC {fh_c.get('wacc_pct', 0.0):.1f}% | Sloan {fh_c.get('sloan_ratio_pct', 0.0):+.1f}%",
+                        "Valuation / Cash Flow": f"DCF MoS ${vm_c.get('dcf_fair_mos10_usd', 0.0):,.2f} ({vm_c.get('dcf_upside_pct', 0.0):+.1f}%)",
+                        "Regime": item.regime_classification.split("—")[0].strip(),
+                    }
+
+                m_a = _cmp_row_metrics(dd_res)
+                m_b = _cmp_row_metrics(peer_b)
+                cmp_rows = [
+                    {
+                        "Metric": k,
+                        dd_res.normalized_ticker: m_a.get(k, "N/A"),
+                        peer_b.normalized_ticker: m_b.get(k, "N/A"),
+                    }
+                    for k in ("Class", "Spot Price (USD)", "5-Filter Score", "Primary Multiple", "Quality / On-Chain", "Valuation / Cash Flow", "Regime")
+                ]
+                render_clean_table(pd.DataFrame(cmp_rows))
+
         render_section_header(
             f"Strict 5-Filter Funnel — {dd_res.normalized_ticker} (Score {dd_res.screener_score_0_100}/100)",
             "Step-by-step rigorous evaluation without text truncation and without Altman Z-Score",
@@ -1499,6 +1573,11 @@ def main() -> None:
                     else "Configure GEMINI_API_KEY in .env to enable AI briefing interpretation."
                 ),
             )
+            with st.expander("🎯 Conditional Trigger Thresholds", expanded=False):
+                tr_vix = st.number_input("VIX Fear Trigger (>=)", min_value=15.0, max_value=80.0, value=float(getattr(notif_cfg, "vix_alert_threshold", 30.0)), step=1.0)
+                tr_drift = st.number_input("Portfolio Weight Drift Trigger (pp >=)", min_value=0.5, max_value=20.0, value=float(getattr(notif_cfg, "drift_alert_threshold_pp", 3.0)), step=0.5)
+                tr_nupl = st.number_input("BTC NUPL Accumulation Trigger (<=)", min_value=-0.5, max_value=0.6, value=float(getattr(notif_cfg, "btc_nupl_buy_threshold", 0.0)), step=0.05)
+                tr_dcf = st.number_input("Equity DCF Upside Trigger (% >=)", min_value=5.0, max_value=100.0, value=float(getattr(notif_cfg, "dcf_upside_alert_pct", 12.0)), step=1.0)
 
             if st.button("💾 Save Notifier Settings (ON/OFF)", width="stretch", type="primary"):
                 notif_cfg.enabled = enabled_now
@@ -1507,11 +1586,20 @@ def main() -> None:
                 notif_cfg.telegram_chat_id = tg_chat
                 notif_cfg.discord_webhook_url = dc_hook
                 notif_cfg.enable_ai_briefing = bool(enable_ai_briefing_now)
+                notif_cfg.vix_alert_threshold = float(tr_vix)
+                notif_cfg.drift_alert_threshold_pp = float(tr_drift)
+                notif_cfg.btc_nupl_buy_threshold = float(tr_nupl)
+                notif_cfg.dcf_upside_alert_pct = float(tr_dcf)
                 notifier_eng.save_config(notif_cfg)
                 st.success(f"Notifier state saved: {'ENABLED (ON)' if enabled_now else 'DISABLED (OFF — Silent Mode)'}!")
                 st.rerun()
 
             if st.button("👁️ Preview Morning Briefing Payload", width="stretch", key="btn_preview_briefing"):
+                notif_preview_cfg = notifier_eng.load_settings()
+                notif_preview_cfg.vix_alert_threshold = float(tr_vix)
+                notif_preview_cfg.drift_alert_threshold_pp = float(tr_drift)
+                notif_preview_cfg.btc_nupl_buy_threshold = float(tr_nupl)
+                notif_preview_cfg.dcf_upside_alert_pct = float(tr_dcf)
                 with st.spinner("Building morning briefing payload..."):
                     preview_res = notifier_eng.build_morning_briefing_payload(
                         macro=macro,
@@ -1521,6 +1609,7 @@ def main() -> None:
                         micro_events=bundle["micro_events"],
                         risk_timing=risk_timing,
                         use_ai=bool(enable_ai_briefing_now and gemini_ready),
+                        settings_override=notif_preview_cfg,
                     )
                 st.session_state["notifier_preview"] = preview_res
 
@@ -1563,8 +1652,9 @@ def main() -> None:
                     f'<div class="insight-callout" style="border-left-color:#10B981;">'
                     f'<strong>Agent Status:</strong> <code>{html.escape(agent_status_msg)}</code><br>'
                     f'• Built-in file/shell/web/subagent tools: <strong>DISABLED</strong> (<code>BuiltinTools.none()</code> + <code>policy.deny_all()</code>).<br>'
-                    f'• Active deterministic tools: <code>get_portfolio_snapshot</code>, <code>audit_single_asset</code>, '
-                    f'<code>get_macro_and_geopolitics</code>, <code>simulate_shannon_inflow</code>, <code>simulate_ltv_stress_test</code>, <code>run_opportunity_screener</code>.'
+                    f'• Active deterministic tools (7): <code>get_portfolio_snapshot</code>, <code>audit_single_asset</code>, '
+                    f'<code>get_macro_and_geopolitics</code>, <code>simulate_shannon_inflow</code>, <code>simulate_ltv_stress_test</code>, '
+                    f'<code>run_opportunity_screener</code>, <code>get_backtest_and_risk_metrics</code>.'
                     f'</div>',
                     unsafe_allow_html=True,
                 )

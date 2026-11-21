@@ -21,7 +21,10 @@ Cryptoasset Screening Filters:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from core.market_data import fetch_all_quotes_parallel
+from core.live_quant_fetcher import fetch_live_crypto_metrics, fetch_live_equity_fundamentals
 
 
 @dataclass
@@ -395,9 +398,54 @@ class ScreenerEngine:
     def __init__(self) -> None:
         pass
 
-    def run_stock_screener(self) -> List[StockScreenerRow]:
+    @staticmethod
+    def _infer_sector_vertical(sector_desc: str) -> str:
+        s = (sector_desc or "").lower()
+        if "bank" in s or "financial" in s:
+            return "FINANCIAL_BANK"
+        if "retail" in s or "consumer" in s:
+            return "RETAIL"
+        if "semi" in s or "foundry" in s or "litho" in s or "high-growth" in s:
+            return "TECH_HIGH_GROWTH"
+        return "TECH_CASH_COW"
+
+    def run_stock_screener(self, extra_tickers: Optional[List[str]] = None) -> List[StockScreenerRow]:
         out: List[StockScreenerRow] = []
-        for c in STOCK_CANDIDATES_RAW:
+        base_tks = [c["ticker"] for c in STOCK_CANDIDATES_RAW]
+        sec_map = {c["ticker"]: self._infer_sector_vertical(c["sector"]) for c in STOCK_CANDIDATES_RAW}
+
+        live_quotes: Dict[str, float] = {}
+        live_funds: Dict[str, Dict[str, Any]] = {}
+        try:
+            live_quotes = fetch_all_quotes_parallel(base_tks)
+        except Exception:
+            live_quotes = {}
+        try:
+            live_funds = fetch_live_equity_fundamentals(base_tks, sector_vertical_map=sec_map)
+        except Exception:
+            live_funds = {}
+
+        for raw in STOCK_CANDIDATES_RAW:
+            c = dict(raw)
+            tk = c["ticker"]
+            orig_px = float(c["px"]) or 1.0
+            if live_quotes.get(tk) and live_quotes[tk] > 0:
+                c["px"] = round(float(live_quotes[tk]), 2)
+
+            lf = live_funds.get(tk) or {}
+            if lf.get("sloan_pct") is not None:
+                c["sloan"] = round(float(lf["sloan_pct"]), 1)
+            if lf.get("fco_b") is not None and lf.get("ebitda_b") and float(lf["ebitda_b"]) > 0:
+                c["fco_eb"] = round(float(lf["fco_b"]) / float(lf["ebitda_b"]), 2)
+            if lf.get("current_ratio") is not None and float(lf["current_ratio"]) > 0:
+                c["cr"] = round(float(lf["current_ratio"]), 2)
+            if lf.get("interest_coverage_x") is not None and float(lf["interest_coverage_x"]) > 0:
+                c["icov"] = round(float(lf["interest_coverage_x"]), 1)
+
+            px_scale = c["px"] / orig_px
+            if 0.2 <= px_scale <= 5.0 and px_scale != 1.0:
+                c["pegy"] = round(max(0.15, min(6.0, float(c["pegy"]) * px_scale)), 2)
+
             # Evaluate the 5 Strict Framework Filters:
             f1_sloan = c["sloan"] <= 5.0
             f2_fco = c["fco_eb"] >= 0.90
@@ -414,7 +462,7 @@ class ScreenerEngine:
             if all_passed:
                 verdict = f"APPROVED 5/5 (Elite Candidate — {c['pegy_t']} {c['pegy']:.2f}x | g_impl {c['g_impl']:.1f}% <= g_fund {c['g_fund']:.1f}%)"
             elif passed_cnt == 4 and not f5_val:
-                verdict = f"QUALITY WATCHLIST 4/5 (Passed Forensic/ROIC/Solvency; Awaiting g_impl <= g_fund)"
+                verdict = "QUALITY WATCHLIST 4/5 (Passed Forensic/ROIC/Solvency; Awaiting g_impl <= g_fund)"
             else:
                 verdict = f"REJECTED ({passed_cnt}/5 Filters — Violation of Forensic/Solvency Standards)"
 
@@ -444,11 +492,116 @@ class ScreenerEngine:
                 all_5_filters_passed=all_passed,
                 framework_verdict=verdict,
             ))
+
+        if extra_tickers:
+            known = {r.ticker.upper() for r in out}
+            extras = [t.strip().upper() for t in extra_tickers if t and t.strip() and t.strip().upper() not in known]
+            if extras:
+                from core.deep_dive_engine import DeepDiveEngine
+
+                dd_eng = DeepDiveEngine()
+                for tk in extras:
+                    try:
+                        dd = dd_eng.analyze_single_ticker(tk)
+                        if dd.equity_analysis is None:
+                            continue
+                        eq = dd.equity_analysis
+                        fh = eq.forensic_health
+                        vm = eq.valuation_methods
+                        sloan_v = float(fh.get("sloan_ratio_pct", 0.0))
+                        fco_eb_v = float(fh.get("fco_to_ebitda", 1.0))
+                        roic_v = float(fh.get("roic_goodwill_pct", 0.0))
+                        wacc_v = float(fh.get("wacc_pct", 9.0))
+                        cr_v = float(fh.get("current_ratio", 1.0))
+                        icov_v = float(fh.get("interest_coverage_x", 5.0))
+                        g_impl_v = float(vm.get("reverse_dcf_g_impl_pct", 12.0))
+                        g_fund_v = float(vm.get("g_fund_consensus_pct", 12.0))
+                        pegy_v = float(vm.get("primary_pegy_value", 1.5))
+
+                        f1 = sloan_v <= 5.0
+                        f2 = fco_eb_v >= 0.90
+                        f3 = (roic_v >= 18.0) and (roic_v > wacc_v)
+                        f4 = (cr_v > 1.0) and (icov_v > 4.0)
+                        f5 = (g_impl_v <= g_fund_v) and (pegy_v <= 1.25)
+                        p_cnt = sum([f1, f2, f3, f4, f5])
+                        out.append(StockScreenerRow(
+                            ticker=tk,
+                            company_name=eq.company_name,
+                            sector=eq.sector_label,
+                            country="Global Market",
+                            price_usd=eq.current_price,
+                            sloan_ratio_pct=sloan_v,
+                            sloan_status="Optimal (< -10%)" if sloan_v < -10.0 else ("Approved (<= +5%)" if f1 else "REJECTED (> +5%)"),
+                            fco_to_ebitda=fco_eb_v,
+                            fco_ebitda_status="Optimal (> 1.0x)" if fco_eb_v > 1.0 else ("Approved (>= 0.90x)" if f2 else "REJECTED (< 0.90x)"),
+                            roic_nopat_pct=roic_v,
+                            wacc_pct=wacc_v,
+                            current_ratio=cr_v,
+                            interest_coverage_x=icov_v,
+                            reverse_dcf_g_impl_pct=g_impl_v,
+                            g_fund_pct=g_fund_v,
+                            enterprise_or_fin_pegy=pegy_v,
+                            pegy_type=str(vm.get("primary_pegy_label", "PEGY")),
+                            dcf_fair_mos10_usd=float(vm.get("dcf_fair_mos10_usd", eq.current_price)),
+                            sotp_fair_usd=float(vm.get("sotp_fair_price_usd", eq.current_price)),
+                            auditor_sox404b="SEC Filing / Live Consensus",
+                            moat_and_catalysts=dd.automated_consultative_verdict,
+                            filters_passed_count=p_cnt,
+                            all_5_filters_passed=(p_cnt == 5),
+                            framework_verdict=f"CUSTOM WATCHLIST ({p_cnt}/5 Filters — Score {dd.screener_score_0_100}/100)",
+                        ))
+                    except Exception:
+                        continue
         return out
 
     def run_crypto_screener(self) -> List[CryptoScreenerRow]:
         out: List[CryptoScreenerRow] = []
-        for c in CRYPTO_CANDIDATES_RAW:
+        yf_syms = [f"{c['symbol']}-USD" for c in CRYPTO_CANDIDATES_RAW]
+
+        live_quotes: Dict[str, float] = {}
+        live_cr: Dict[str, Dict[str, Any]] = {}
+        try:
+            live_quotes = fetch_all_quotes_parallel(yf_syms)
+        except Exception:
+            live_quotes = {}
+        try:
+            live_cr = fetch_live_crypto_metrics(yf_syms)
+        except Exception:
+            live_cr = {}
+
+        kb_issuance: Dict[str, float] = {}
+        try:
+            from core.crypto_engine import CRYPTO_FUNDAMENTAL_KB
+
+            kb_issuance = {k: float(v.get("token_issuance_annual_m", 0.0)) for k, v in CRYPTO_FUNDAMENTAL_KB.items()}
+        except Exception:
+            kb_issuance = {}
+
+        for raw in CRYPTO_CANDIDATES_RAW:
+            c = dict(raw)
+            yf_sym = f"{c['symbol']}-USD"
+            orig_px = float(c["px"]) or 1.0
+            if live_quotes.get(yf_sym) and live_quotes[yf_sym] > 0:
+                c["px"] = round(float(live_quotes[yf_sym]), 2)
+                px_scale = c["px"] / orig_px
+                if 0.05 <= px_scale <= 20.0:
+                    c["mcap_b"] = round(float(c["mcap_b"]) * px_scale, 2)
+                    c["fdv_b"] = round(float(c["fdv_b"]) * px_scale, 2)
+
+            lc = live_cr.get(yf_sym) or {}
+            if lc.get("mvrv_z") is not None:
+                c["mvrv_z"] = round(float(lc["mvrv_z"]), 2)
+            if lc.get("nupl") is not None:
+                c["nupl"] = round(float(lc["nupl"]), 2)
+            if lc.get("protocol_fees_annual_m") and float(lc["protocol_fees_annual_m"]) > 0:
+                fees_m = float(lc["protocol_fees_annual_m"])
+                iss_m = kb_issuance.get(yf_sym)
+                if iss_m is None:
+                    est_static_fees = (float(raw["mcap_b"]) * 1000.0) / max(float(raw["pf"]), 1.0)
+                    iss_m = max(0.0, est_static_fees - float(raw["real_earnings_m"]))
+                c["real_earnings_m"] = round(fees_m - iss_m, 2)
+                c["pf"] = round((float(c["mcap_b"]) * 1000.0) / fees_m, 1)
+
             f1_supply = c["circ_pct"] >= 65.0
             f2_unlock = c["unlock_pct"] <= 2.5
             f3_sec = c["sniffer"] >= 85

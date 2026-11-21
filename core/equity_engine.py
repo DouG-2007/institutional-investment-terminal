@@ -1402,6 +1402,11 @@ EQUITY_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
 GLOBAL_BANKS_SCATTER_DATA: List[Dict[str, Any]] = [
     {"Ticker": "JPM", "Bank": "JPMorgan Chase & Co. (Portfolio — Money Center Leader)", "ROE_pct": 18.2, "PTBV": 2.48, "PEGY_Fin": 1.24, "PB": 2.02, "Group": "Portfolio"},
     {"Ticker": "NU", "Bank": "Nu Holdings / Nubank (Portfolio — High-ROTE Digital Bank)", "ROE_pct": 28.5, "PTBV": 6.80, "PEGY_Fin": 0.78, "PB": 6.45, "Group": "Portfolio"},
+    {"Ticker": "BAC", "Bank": "Bank of America Corp. (Global Peer — US Money Center)", "ROE_pct": 11.4, "PTBV": 1.48, "PEGY_Fin": 1.18, "PB": 1.25, "Group": "Global Peer"},
+    {"Ticker": "WFC", "Bank": "Wells Fargo & Company (Global Peer — US Commercial Bank)", "ROE_pct": 12.6, "PTBV": 1.56, "PEGY_Fin": 1.12, "PB": 1.32, "Group": "Global Peer"},
+    {"Ticker": "GS", "Bank": "Goldman Sachs Group (Global Peer — Investment Banking)", "ROE_pct": 13.8, "PTBV": 1.75, "PEGY_Fin": 1.20, "PB": 1.62, "Group": "Global Peer"},
+    {"Ticker": "ITUB", "Bank": "Itaú Unibanco Holding (Global Peer — LatAm ROE Leader)", "ROE_pct": 21.8, "PTBV": 1.95, "PEGY_Fin": 0.85, "PB": 1.82, "Group": "Global Peer"},
+    {"Ticker": "DBSDY", "Bank": "DBS Group Holdings (Global Peer — APAC Banking Hub)", "ROE_pct": 18.0, "PTBV": 2.15, "PEGY_Fin": 0.96, "PB": 1.98, "Group": "Global Peer"},
     {"Ticker": "SECTOR-AVG", "Bank": "Global Banking Peer Average (Sector Benchmark)", "ROE_pct": 11.8, "PTBV": 1.35, "PEGY_Fin": 1.32, "PB": 1.15, "Group": "Sector Benchmark"},
 ]
 
@@ -1919,8 +1924,25 @@ class EquityEngine:
         for idx, item in enumerate(final_magic_order, 1):
             item.valuation_methods["magic_formula_rank"] = idx
 
-        # Keep GLOBAL_BANKS_SCATTER_DATA portfolio rows synchronized with live bank multiples
+        # Keep GLOBAL_BANKS_SCATTER_DATA portfolio & global peer rows synchronized with live multiples
         res_by_tk = {r.ticker: r for r in results}
+        peer_tks = [
+            str(row.get("Ticker") or "").upper()
+            for row in GLOBAL_BANKS_SCATTER_DATA
+            if row.get("Group") == "Global Peer" and str(row.get("Ticker") or "").upper() not in res_by_tk
+        ]
+        live_peer_map: Dict[str, Dict[str, Any]] = {}
+        if peer_tks:
+            try:
+                from core.live_quant_fetcher import fetch_live_equity_fundamentals
+
+                live_peer_map = fetch_live_equity_fundamentals(
+                    peer_tks,
+                    sector_vertical_map={ptk: "FINANCIAL_BANK" for ptk in peer_tks},
+                )
+            except Exception:
+                live_peer_map = {}
+
         for row in GLOBAL_BANKS_SCATTER_DATA:
             btk = str(row.get("Ticker") or "").upper()
             if btk in res_by_tk:
@@ -1929,5 +1951,14 @@ class EquityEngine:
                 row["PTBV"] = round(float(eq_b.valuation_methods["ptbv_current"]), 2)
                 row["PB"] = round(float(eq_b.valuation_methods["pb_current"]), 2)
                 row["PEGY_Fin"] = round(float(eq_b.valuation_methods["pegy_financeiro"]), 2)
+            elif btk in live_peer_map:
+                lp = live_peer_map[btk] or {}
+                roe_v = lp.get("roe_pct")
+                pb_v = lp.get("pb_curr")
+                if roe_v is not None and 4.0 <= float(roe_v) <= 60.0:
+                    row["ROE_pct"] = round(float(roe_v), 1)
+                if pb_v is not None and 0.4 <= float(pb_v) <= 15.0:
+                    row["PB"] = round(float(pb_v), 2)
+                    row["PTBV"] = round(float(pb_v) * 1.10, 2)
 
         return results

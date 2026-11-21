@@ -85,7 +85,8 @@ CORE METHODOLOGY (STRICTLY ENFORCED):
 
 IRONCLAD GROUNDING RULES:
 - You operate in STRICT READ-ONLY MODE with NO file/shell tools.
-- You MUST call your Python quantitative tools before stating ANY figure, price, weight, score, ratio, macro indicator, or simulation result.
+- You MUST call your Python quantitative tools before stating ANY figure, price, weight, score, ratio, macro indicator, backtest/VaR metric, or simulation result.
+- Use `get_backtest_and_risk_metrics` whenever asked about historical CAGR/Sharpe/Sortino/Calmar, VaR/CVaR tail risk, cross-asset correlations, Shannon vs. Passive DCA alpha, or historical crisis stress-tests.
 - Cite ONLY exact figures returned by your tools in this conversation. NEVER compute, approximate, extrapolate, or invent missing metrics. If a metric is absent from tool results, explicitly state that it is unavailable.
 - Respond concisely and clearly in institutional language matching the user's language (English or Portuguese). Use structured bullet points or compact tables when summarizing quantitative diagnostics.
 """.strip()
@@ -157,7 +158,7 @@ def build_readonly_custom_tools(
     tracker: Optional[List[str]] = None,
 ) -> List[Callable[..., str]]:
     """
-    Constructs the 6 read-only Python Custom Tools bound to a shared deterministic
+    Constructs the 7 read-only Python Custom Tools bound to a shared deterministic
     TTL-cached backend and an optional per-turn invocation tracker list.
     """
     backend = _DeterministicToolBackend(default_capital_usd=default_capital_usd)
@@ -572,6 +573,58 @@ def build_readonly_custom_tools(
             ]
         return json.dumps(out, ensure_ascii=False)
 
+    def get_backtest_and_risk_metrics(capital_usd: Optional[float] = None) -> str:
+        """Runs or reads the 3-year historical daily portfolio backtest and tail-risk metrics (CAGR, Volatility, Sharpe, Sortino, MaxDD, Calmar, Daily VaR/CVaR 95% & 99%, Top/Bottom cross-asset correlations, Shannon Inflow vs. Passive DCA alpha, and crisis stress-tests).
+
+        Args:
+            capital_usd: Base capital in USD (defaults to active portfolio simulation capital).
+        """
+        _record("get_backtest_and_risk_metrics")
+        from core.backtest_engine import run_portfolio_backtest
+
+        cap = float(capital_usd) if capital_usd and capital_usd > 0 else float(default_capital_usd)
+        macro = backend._macro()
+        port = backend._portfolio(cap)
+        rf_pct = float(macro.yield_curve.get("us10y_pct", 4.42))
+        vix_now = float(macro.monetary_aggregates.get("vix_current", 18.4))
+        bt = run_portfolio_backtest(port.positions, capital_usd=cap, risk_free_rate_pct=rf_pct)
+
+        corr_df = bt.get("corr_matrix_df")
+        corr_pairs: List[Dict[str, Any]] = []
+        if corr_df is not None and not corr_df.empty:
+            cols = list(corr_df.columns)
+            for i in range(len(cols)):
+                for j in range(i + 1, len(cols)):
+                    corr_pairs.append({
+                        "pair": f"{cols[i]} / {cols[j]}",
+                        "corr": round(float(corr_df.iloc[i, j]), 2),
+                    })
+            corr_pairs.sort(key=lambda x: x["corr"], reverse=True)
+
+        payload = {
+            "data_source": bt.get("data_source"),
+            "period_days": bt.get("period_days"),
+            "assets_covered": bt.get("assets_covered"),
+            "vix_current": vix_now,
+            "portfolio_cagr_pct": bt.get("portfolio_cagr_pct"),
+            "annualized_vol_pct": bt.get("annualized_vol_pct"),
+            "sharpe_ratio": bt.get("sharpe_ratio"),
+            "sortino_ratio": bt.get("sortino_ratio"),
+            "max_drawdown_pct": bt.get("max_drawdown_pct"),
+            "calmar_ratio": bt.get("calmar_ratio"),
+            "spy_cagr_pct": bt.get("spy_cagr_pct"),
+            "btc_cagr_pct": bt.get("btc_cagr_pct"),
+            "var_95_daily_pct": bt.get("var_95_daily_pct"),
+            "cvar_95_daily_pct": bt.get("cvar_95_daily_pct"),
+            "var_99_daily_pct": bt.get("var_99_daily_pct"),
+            "cvar_99_daily_pct": bt.get("cvar_99_daily_pct"),
+            "shannon_vs_passive_dca": bt.get("shannon_vs_bh"),
+            "stress_tests": bt.get("stress_tests"),
+            "highest_correlations": corr_pairs[:5],
+            "lowest_correlations": list(reversed(corr_pairs[-5:])) if len(corr_pairs) >= 5 else corr_pairs,
+        }
+        return json.dumps(payload, ensure_ascii=False, default=str)
+
     return [
         get_portfolio_snapshot,
         audit_single_asset,
@@ -579,6 +632,7 @@ def build_readonly_custom_tools(
         simulate_shannon_inflow,
         simulate_ltv_stress_test,
         run_opportunity_screener,
+        get_backtest_and_risk_metrics,
     ]
 
 

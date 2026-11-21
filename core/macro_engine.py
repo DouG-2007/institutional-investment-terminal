@@ -44,15 +44,15 @@ class MacroEngine:
     def __init__(self) -> None:
         self.fred_base_url = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
-    def _fetch_fred_series(self, series_id: str, limit_years: int = 5) -> pd.Series:
+    def _fetch_fred_series(self, series_id: str, limit_years: int = 5, timeout: int = 8) -> pd.Series:
         start_date = (datetime.date.today() - datetime.timedelta(days=limit_years * 365 + 30)).strftime("%Y-%m-%d")
         url = f"{self.fred_base_url}?id={series_id}&cosd={start_date}"
         try:
             if hasattr(creq, "get"):
                 try:
-                    resp = creq.get(url, timeout=8, impersonate="chrome")
+                    resp = creq.get(url, timeout=timeout, impersonate="chrome")
                 except TypeError:
-                    resp = creq.get(url, timeout=8)
+                    resp = creq.get(url, timeout=timeout)
                 if resp.status_code == 200 and len(resp.content) > 50:
                     df = pd.read_csv(StringIO(resp.text))
                     if len(df.columns) >= 2:
@@ -94,6 +94,7 @@ class MacroEngine:
         dgs10 = self._fetch_fred_series("DGS10", 4)
         dgs30 = self._fetch_fred_series("DGS30", 3)
         ipman = self._fetch_fred_series("IPMAN", 3)
+        hy_oas = self._fetch_fred_series("BAMLH0A0HYM2", 3, timeout=4)
 
         # Calibrated synthetic fallback if offline or rate-limited
         if gdp.empty:
@@ -434,10 +435,22 @@ class MacroEngine:
         except Exception:
             pass
 
+        hy_oas_val = round(float(hy_oas.iloc[-1]), 2) if not hy_oas.empty else 3.45
+        hy_oas_source = "LIVE_FRED_BAMLH0A0HYM2" if not hy_oas.empty else "BASELINE_PROXY"
+        if hy_oas_val > 5.0:
+            hy_regime = f"CREDIT STRESS ({hy_oas_val:.2f}% > 5.0% — Widening High-Yield Spreads)"
+        elif hy_oas_val >= 3.5:
+            hy_regime = f"Normal / Neutral ({hy_oas_val:.2f}% between 3.5% and 5.0%)"
+        else:
+            hy_regime = f"Tight / Risk-On ({hy_oas_val:.2f}% < 3.5% — Benign Credit Conditions)"
+
         monetary_aggregates = {
             "fed_funds_rate_pct": round(curr_ff, 2),
             "vix_current": live_vix_fx.get("vix_current", 18.4),
             "usd_brl_fx": live_vix_fx.get("usd_brl", 5.85),
+            "hy_credit_spread_pct": hy_oas_val,
+            "hy_credit_regime": hy_regime,
+            "hy_credit_source": hy_oas_source,
             "fed_balance_sheet_trillions": fed_bs_t,
             "fed_bs_3m_chg_pct": fed_bs_3m_chg,
             "fed_bs_yoy_chg_pct": fed_bs_yoy_chg,
@@ -491,5 +504,6 @@ class MacroEngine:
                 "GOLD": gold_s,
                 "DBC": dbc_s,
                 "SP500": sp_s,
+                "HY_OAS": hy_oas,
             },
         )
