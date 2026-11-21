@@ -1,6 +1,6 @@
 # 🏛️ Institutional Multi-Asset Investment & Forensic Valuation Terminal (360° Engine)
 
-[![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.11%20%E2%80%93%203.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit UI](https://img.shields.io/badge/Streamlit-1.36+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Architecture](https://img.shields.io/badge/Architecture-Deterministic%20%2B%20Read--Only%20AI-10B981?style=for-the-badge)](#-internal-architecture)
 [![Valuation Focus](https://img.shields.io/badge/Valuation-Forward%20(NTM)%20%2B%20Forensic-2563EB?style=for-the-badge)](#-practical-guide-how-to-read-and-interpret-each-metric)
@@ -54,6 +54,7 @@ flowchart TB
         QUOTES["market_data.py & macro_engine.py<br/>• Binance / CoinCap / Yahoo Finance v8<br/>• FRED (FEDFUNDS/IPMAN/CPI) & US Treasury Curve"]
         LIVEQ["live_quant_fetcher.py & backtest_engine.py<br/>• SEC XBRL, YF Statements & Multi-Currency FX<br/>• Binance Futures, DeFiLlama, CoinMetrics, 3y Backtest"]
         FETCH["filing_fetcher.py<br/>• SEC 10-K / 10-Q / 8-K / Form 4 + Analysts<br/>• Whitepaper, GitHub, Snapshot & DeFiLlama"]
+        SYNC["custody_sync_engine.py<br/>• IBKR Flex Web Service / XML<br/>• Binance Spot Read-Only API"]
         SQL[("SQLite3 + Caches<br/>• portfolio_store.db (portfolio_assets)<br/>• live_quant_cache.json & backtest_prices_3y.parquet")]
     end
 
@@ -84,7 +85,7 @@ flowchart TB
 
 ### Core Module Breakdown:
 * **`core/market_data.py`, `core/live_quant_fetcher.py` & `core/macro_engine.py`:** Parallel live price ingestion, real-time quantitative overlays (`^VIX`, `USDBRL=X`, FRED High-Yield Credit Spread `BAMLH0A0HYM2`, SEC EDGAR XBRL + `yfinance` financial statements w/ FX conversion, live ETF `top_holdings`, Binance Futures funding/OI, DeFiLlama TVL/Fees/Stablecoins, CoinGecko dominance, CoinMetrics `btc`/`eth` MVRV/Supply + 5y Z-Score altcoin proxies, live ADTV), and macroeconomic cycle tracking (Sahm Rule + Payrolls/ICSA, 10Y–2Y curve steepening, Services vs. Mfg PMI + FRED `IPMAN`, and M2 vs. DXY).
-* **`core/portfolio_engine.py` & `core/backtest_engine.py`:** Manages the ACID relational database (`portfolio_store.db`: `portfolio_assets`) and JSON mirror (`portfolio_config.json`), computes mark-to-market drift and live *Look-Through* ETF overlap (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`), and executes a 3-year historical daily backtest aligned to `SPY` trading days (`data_cache/backtest_prices_3y.parquet`) with VaR/CVaR (95%/99%), Top-12 correlation matrix, historical crash stress-tests, and Shannon Inflow vs. Passive DCA simulation.
+* **`core/portfolio_engine.py`, `core/custody_sync_engine.py` & `core/backtest_engine.py`:** Manages the ACID relational database (`portfolio_store.db`: `portfolio_assets`) and JSON mirror (`portfolio_config.json`), auto-syncs open positions and cost basis from Interactive Brokers (Flex Web Service / Activity XML) and Binance Spot (`Enable Reading` API) while preserving zeroed-out watchlist/rebuy holdings, computes mark-to-market drift and live *Look-Through* ETF overlap (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`), and executes a 3-year historical daily backtest aligned to `SPY` trading days (`data_cache/backtest_prices_3y.parquet`) with VaR/CVaR (95%/99%), Top-12 correlation matrix, historical crash stress-tests, and Shannon Inflow vs. Passive DCA simulation.
 * **`core/equity_engine.py`:** Forensic accounting audit and 8-method Forward (NTM) valuation engine (Forward 3-scenario DCF w/ 10% MoS, Paired Reverse DCF, Owner Earnings Yield, Multiples, EVA, Sector-Strict PEGY, Greenblatt Magic Formula, and SOTP). Overlays live XBRL/`yfinance` GAAP statements onto shallow KB copies, refreshes global banking scatter peers (`BAC`, `WFC`, `GS`, `ITUB`, `DBSDY`) alongside portfolio banks via P/TBV vs. ROE, Financial PEGY, and a mandatory `P/B >= 1.00x` floor, and intentionally excludes Altman Z-Score.
 * **`core/crypto_engine.py`:** On-chain cycle intelligence (`MVRV Z-Score`, `NUPL`, `aSOPR 1.0`, `Pi Cycle Top`, `200W SMA`), mining metrics (`Hash Ribbon`, `MMC`), derivatives (`Binance Futures` funding & OI), and protocol sustainability (`DeFiLlama` TVL & annualized fees feeding `Protocol Real Earnings` and `P/F`, `Real Yield`, 30/60/90d unlocks, theoretical post-unlock price).
 * **`core/filing_fetcher.py` & `core/filings_engine.py`:** Merges static verified dossiers (`EQUITY_FILINGS_DB`, `CRYPTO_FILINGS_DB`) with zero-download multi-document suites (`10-K/20-F` + `10-Q/6-K` + `8-K` + `Form 4`/`DEF 14A` + `yfinance` Analyst Consensus for equities; Whitepaper + GitHub live 28d commits/devs + Snapshot DAO + DeFiLlama Audits/Hacks for crypto), Google Search grounding supplement, and Gemini Pydantic Structured Outputs cached in `data_cache/custom_filings_cache.json`.
@@ -101,7 +102,7 @@ Upon launching `streamlit run app.py`, the interface presents **5 dedicated modu
 | Tab | Module Name | Primary Capability |
 | :--- | :--- | :--- |
 | **Tab 1** | **Master Consolidated Report (.PDF)** | On-demand 7-section A4 graph-free decision PDF, Economic/Deep AI profile, & Section overview |
-| **Tab 2** | **Portfolio Manager (SQLite CRUD)** | Interactive target-allocation upsert/delete, 100% weight normalization, & reference table |
+| **Tab 2** | **Portfolio Manager (SQLite CRUD)** | Read-only **IBKR + Binance Auto-Sync**, target-allocation upsert/delete, & 100% weight normalization |
 | **Tab 3** | **Single-Asset Deep Dive** | On-demand ticker selector, summary score cards, 2-page PDF dossier download, & **Auto-Fetch AI Extractor** |
 | **Tab 4** | **Simulators (Inflow & LTV) & Notifier** | Shannon's Demon inflow, Convex LTV stress-testing, and Telegram/Discord ON/OFF morning alerts |
 | **Tab 5** | **AI Portfolio Analyst** | Read-only Antigravity agent w/ 7 deterministic `core/` tools, **Active-Ticker Deep Audit**, & **`st.status` tool tracker** |
@@ -292,7 +293,7 @@ The terminal initializes `portfolio_store.db` with a balanced **20-asset portfol
 ## 🚀 Installation & Execution Guide
 
 ### Prerequisites
-* **Python 3.11 or 3.12** ([official download](https://www.python.org/downloads/)).
+* **Python 3.11 – 3.13** ([official download](https://www.python.org/downloads/)).
 * **Google Chrome** or **Microsoft Edge** (required for headless Chromium vector PDF rendering).
 * **Git** installed.
 
@@ -321,25 +322,40 @@ pip install -r requirements.txt
 ```
 > **Runtime Note:** `google-antigravity >= 0.1.23` requires `protobuf >= 7`. Even if `pip check` prints Streamlit's legacy upper-bound warning, keep `protobuf >= 7` installed — the Streamlit terminal (`app.py`) has been tested and runs cleanly on `protobuf 7.36.2`.
 
-### 4. Configure Optional AI Features (`.env`)
-Copy [`.env.example`](.env.example) to `.env` in the repository root and set your Gemini API key if you want to enable Tab 3 Auto-Fetch Dossier extraction, Tab 1 Executive AI Thesis synthesis, Tab 4 AI Morning Briefings, and Tab 5 AI Portfolio Analyst:
-```powershell
-Copy-Item .env.example .env
-```
-Inside `.env`:
+### 4. Configure Optional AI & Read-Only Custody Sync (`.env`)
+Copy [`.env.example`](.env.example) to `.env` in the repository root (already gitignored):
+* **Windows (PowerShell):** `Copy-Item .env.example .env`
+* **Linux / macOS:** `cp .env.example .env`
+
+Inside `.env`, configure whichever optional integrations you want:
 ```env
+# Optional Gemini AI features (Tabs 1, 3, 4, 5):
 GEMINI_API_KEY=your_api_key_here
-# Optional overrides:
 # GEMINI_MODEL=gemini-4-hydrogen
 # GEMINI_FAST_MODEL=gemini-3.5-flash-lite
 # ANTIGRAVITY_MODEL=
+
+# Optional Read-Only Broker / Exchange Auto-Sync (Tab 2 & Startup/Refresh — 0 Gemini quota):
+# IMPORTANT: Grant strictly READ-ONLY permissions (never enable trading or withdrawals).
+IBKR_FLEX_TOKEN=your_ibkr_flex_token
+IBKR_FLEX_QUERY_ID=your_activity_flex_query_id
+BINANCE_API_KEY=your_binance_readonly_key
+BINANCE_API_SECRET=your_binance_readonly_secret
 ```
-*(Skip this step if you prefer 100% offline/deterministic operation — Tabs 1–4 and vector PDF generation work cleanly with zero API keys.)*
+* **How to get read-only keys safely:**
+  * **Interactive Brokers (IBKR):** Client Portal -> *Reporting -> Flex Queries -> Activity Flex Query* (include `Open Positions` and optionally `Cash Report`), plus *Settings -> Reporting -> Flex Web Service* to generate your Flex Token & Query ID (or skip tokens completely and upload the exported `.xml` file inside Tab 2).
+  * **Binance:** *API Management -> Create API* -> check **only `Enable Reading`** (leave *Enable Spot & Margin Trading* and *Enable Withdrawals* unchecked; optionally restrict IP).
+* **Zero-Key Fallback:** Skip this step if you prefer 100% manual/offline operation — Tabs 1–4 and vector PDF compilation run cleanly with zero API keys.
 
 ### 5. Run Automated Verification Tests (Optional)
-```bash
-GEMINI_API_KEY="" python -m unittest discover -s tests -v
-```
+* **Windows (PowerShell):**
+  ```powershell
+  $env:GEMINI_API_KEY=""; python -m unittest discover -s tests -v
+  ```
+* **Linux / macOS:**
+  ```bash
+  GEMINI_API_KEY="" python -m unittest discover -s tests -v
+  ```
 *(A ready-to-enable GitHub Actions CI template is included at [`docs/github_ci_workflow.yml`](docs/github_ci_workflow.yml); copy it to `.github/workflows/ci.yml` via GitHub UI or a `workflow`-scoped token to activate automatic checks on every push/PR to `main`.)*
 
 ### 6. Launch the Web Terminal
@@ -354,7 +370,7 @@ The application opens at `http://localhost:8501`.
 
 ## 🛠️ Technology Stack
 
-* **Core Engine:** Python 3.11 / 3.12 (`typing`, `dataclasses`, `pydantic >= 2.0.0`, `pandas`, `numpy`).
+* **Core Engine:** Python 3.11 – 3.13 (`typing`, `dataclasses`, `pydantic >= 2.0.0`, `pandas`, `numpy`).
 * **Frontend UI:** [Streamlit](https://streamlit.io/) — clean, graph-free configuration & PDF-first institutional terminal (live multi-currency FX display, interactive simulators, notifier, and AI chat).
 * **AI & Agent Frameworks:**
   * [`google-genai >= 3.2.0`](https://pypi.org/project/google-genai/) — Gemini Interactions API (`store=False`), Pydantic Structured Outputs, Economic/Deep Master PDF synthesis, and Google Search grounding fallback.
