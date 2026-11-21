@@ -378,6 +378,16 @@ def main() -> None:
         st.session_state["sidebar_tax_rate_input"] = 15.0
 
     port_eng_live = PortfolioEngine()
+    from core.custody_sync_engine import auto_sync_configured_brokers, has_env_custody_credentials
+
+    if has_env_custody_credentials() and not st.session_state.get("custody_auto_synced_boot", False):
+        with st.spinner("Auto-syncing read-only custody positions (IBKR / Binance)..."):
+            auto_sync_res = auto_sync_configured_brokers(port_eng_live)
+        st.session_state["custody_auto_synced_boot"] = True
+        st.session_state["custody_auto_sync_result"] = auto_sync_res
+        if auto_sync_res and auto_sync_res.ok:
+            st.cache_data.clear()
+
     db_assets_live = port_eng_live.get_all_assets()
     db_sig = "|".join(
         f"{a['ticker']}:{a['target_weight_pct']:.2f}:{a['avg_buy_price']:.2f}:{int(a['ltv_turbo_eligible'])}"
@@ -453,6 +463,7 @@ def main() -> None:
             st.cache_data.clear()
             st.session_state["ai_pdf_cache"] = {}
             st.session_state["det_pdf_cache"] = {}
+            st.session_state["custody_auto_synced_boot"] = False
             st.session_state["refresh_token"] += 1
             if also_refresh_ai:
                 clear_ai_master_insights_cache()
@@ -496,6 +507,16 @@ def main() -> None:
             f"Last synchronization: **{macro.timestamp}** | "
             f"**{len(portfolio.positions)} Holdings** in SQLite Portfolio."
         )
+        auto_res_sb = st.session_state.get("custody_auto_sync_result")
+        if auto_res_sb is not None:
+            if getattr(auto_res_sb, "ok", False):
+                st.caption(
+                    f"🔗 Auto-Synced Custody ({auto_res_sb.source_summary}): "
+                    f"NAV USD {auto_res_sb.total_nav_usd:,.0f} | Cash USD {auto_res_sb.stablecoin_cash_usd:,.0f} "
+                    f"(zeroed assets kept)."
+                )
+            elif getattr(auto_res_sb, "error_message", ""):
+                st.caption(f"⚠️ Custody Auto-Sync Notice: {auto_res_sb.error_message}")
 
     st.markdown(
         f"""
@@ -809,7 +830,9 @@ def main() -> None:
             st.caption(
                 "Connect read-only Interactive Brokers (Flex Web Service or Activity XML) and/or Binance Spot "
                 "API keys to automatically import tickers, asset classes, sector verticals, average cost basis, "
-                "and portfolio weights into SQLite. Credentials are kept strictly in session memory / local `.env`."
+                "and portfolio weights into SQLite. When keys are saved in `.env`, the terminal auto-syncs on "
+                "startup and on `Refresh All Data` (zero Gemini API usage) while preserving zeroed-out positions "
+                "in SQLite for future re-accumulation."
             )
             sync_c1, sync_c2 = st.columns(2)
             with sync_c1:

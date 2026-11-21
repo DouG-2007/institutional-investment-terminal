@@ -371,6 +371,20 @@ class TestTerminalInvariants(unittest.TestCase):
             with open(cfg_path, "w", encoding="utf-8") as f:
                 json.dump({"assets": [{"ticker": "OLD1", "name": "Old Asset", "category": "Hard-Asset Stock", "sector_vertical": "OTHER", "target_weight_pct": 100.0, "avg_buy_price": 10.0, "ltv_turbo_eligible": True}]}, f)
             pe = PortfolioEngine(config_path=cfg_path)
+            # First test merge_preserve_targets: OLD1 (zeroed out in custody) MUST remain in SQLite
+            up_m, rm_m = apply_synced_positions_to_sqlite(
+                pe,
+                combined.positions,
+                sync_mode="merge_preserve_targets",
+                normalize_to_100=True,
+            )
+            self.assertEqual(up_m, 3)
+            self.assertEqual(rm_m, 0)
+            merged_tickers = {a["ticker"] for a in pe.get_all_assets_from_db()}
+            self.assertIn("OLD1", merged_tickers)
+            self.assertEqual(len(merged_tickers), 4)
+
+            # Next test replace_with_actual_weights: removes unheld OLD1
             up_cnt, rm_cnt = apply_synced_positions_to_sqlite(
                 pe,
                 combined.positions,
@@ -382,6 +396,11 @@ class TestTerminalInvariants(unittest.TestCase):
             synced_db = pe.get_all_assets_from_db()
             self.assertEqual(len(synced_db), 3)
             self.assertAlmostEqual(sum(a["target_weight_pct"] for a in synced_db), 100.0, delta=0.05)
+
+            # Verify zero-env auto_sync returns None without network calls
+            from core.custody_sync_engine import auto_sync_configured_brokers
+            with mock.patch.dict(os.environ, {"IBKR_FLEX_TOKEN": "", "IBKR_FLEX_QUERY_ID": "", "BINANCE_API_KEY": "", "BINANCE_API_SECRET": ""}, clear=False):
+                self.assertIsNone(auto_sync_configured_brokers(pe))
 
 
 if __name__ == "__main__":

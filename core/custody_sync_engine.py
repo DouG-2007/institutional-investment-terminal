@@ -552,3 +552,51 @@ def apply_synced_positions_to_sqlite(
         port_engine.normalize_weights_to_100()
 
     return upserted, removed
+
+
+def has_env_custody_credentials() -> bool:
+    """Returns True when at least one broker (IBKR Flex or Binance Spot) has credentials in env."""
+    has_ibkr = bool(os.getenv("IBKR_FLEX_TOKEN", "").strip() and os.getenv("IBKR_FLEX_QUERY_ID", "").strip())
+    has_binance = bool(os.getenv("BINANCE_API_KEY", "").strip() and os.getenv("BINANCE_API_SECRET", "").strip())
+    return has_ibkr or has_binance
+
+
+def auto_sync_configured_brokers(
+    port_engine: PortfolioEngine,
+    min_dust_usd: float = 10.0,
+) -> Optional[CustodySyncResult]:
+    """
+    Runs automatic read-only sync from IBKR Flex and/or Binance Spot when credentials exist in `.env`.
+    Always uses `merge_preserve_targets` so zeroed-out positions remain in SQLite as watchlist/rebuy targets.
+    Uses zero Gemini API quota (100% deterministic API + SQLite).
+    """
+    ibkr_tok = os.getenv("IBKR_FLEX_TOKEN", "").strip()
+    ibkr_qid = os.getenv("IBKR_FLEX_QUERY_ID", "").strip()
+    bn_key = os.getenv("BINANCE_API_KEY", "").strip()
+    bn_sec = os.getenv("BINANCE_API_SECRET", "").strip()
+
+    results: List[CustodySyncResult] = []
+    if ibkr_tok and ibkr_qid:
+        results.append(fetch_ibkr_flex_positions(ibkr_tok, ibkr_qid, min_dust_usd=min_dust_usd))
+    if bn_key and bn_sec:
+        results.append(
+            fetch_binance_spot_positions(
+                bn_key,
+                bn_sec,
+                min_dust_usd=min_dust_usd,
+                include_trade_cost_basis=True,
+            )
+        )
+
+    if not results:
+        return None
+
+    combined = combine_custody_results(results)
+    if combined.ok and combined.positions:
+        apply_synced_positions_to_sqlite(
+            port_engine,
+            combined.positions,
+            sync_mode="merge_preserve_targets",
+            normalize_to_100=True,
+        )
+    return combined
