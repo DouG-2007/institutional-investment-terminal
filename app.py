@@ -1,14 +1,16 @@
 """
-TERMINAL INSTITUCIONAL — CENTRAL DO RELATÓRIO MASTER 360° & MÓDULOS DE INTERVENÇÃO ATIVA
-Arquitetura Enxuta e Sem Redundâncias:
-- Toda a densidade analítica, macroeconômica, contábil forense, valuation multi-métodos Forward (NTM),
-  gráficos vetoriais, dossiês SEC 10-K/M&A/Calls/Porter, Whitepapers/Core Devs/Unlocks, DeFi State of the Union
-  e Screener está unificada em UM ÚNICO RELATÓRIO MASTER MULTI-COMPLETO (.PDF) dividido em 7 Seções.
-- A interface do aplicativo concentra-se estritamente nos módulos que exigem intervenção ativa do usuário:
-  1. Emissão e Download em 1 Clique do Relatório Master Multi-Completo 360° (.PDF) + Refresh Ao Vivo;
-  2. Gestor Dinâmico de Portfólio (CRUD SQLite: Adicionar, Editar, Remover e Normalizar Pesos em 100%);
-  3. Deep Dive Analyzer Individual (Stock & Crypto Picker sob demanda + PDF Individual);
-  4. Simuladores Interativos (Shannon Inflow & Stress-Test de LTV) e Chave Liga/Desliga (ON/OFF) do Notificador.
+INSTITUTIONAL TERMINAL — 360° MASTER REPORT HUB & ACTIVE INTERVENTION MODULES
+Lean, Non-Redundant Architecture:
+- All analytical density (macroeconomics, forensic accounting, 8-method Forward NTM valuation,
+  SEC 10-K/M&A/Calls/Porter dossiers, Crypto Whitepapers/Core Devs/Unlocks, DeFi State of the Union,
+  3Y Historical Backtest/VaR/Stress-Tests, Screener, and Risk Governance) lives inside ONE
+  360° Master Report (.PDF) structured across 7 chapters — zero charts/graphs.
+- The interactive UI focuses strictly on configuration and user intervention modules:
+  1. 1-Click 360° Master Report (.PDF) Emission + Unified Live Refresh;
+  2. Portfolio Target Weights & Watchlist Manager (SQLite CRUD);
+  3. Single-Asset Deep Dive Dossier Generator (.PDF) + Custom Filing Extractor;
+  4. Interactive Simulators (Shannon Inflow & Convex LTV) & Morning Notifier (ON/OFF);
+  5. Read-Only AI Portfolio Analyst.
 """
 
 from __future__ import annotations
@@ -18,7 +20,6 @@ import html
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 from core.macro_engine import MacroEngine, MacroDataBundle
@@ -36,30 +37,11 @@ from core.gemini_client import is_gemini_configured
 from core.ai_analyst import InstitutionalAIAnalyst
 from core.ai_report_orchestrator import AIReportOrchestrator, clear_ai_master_insights_cache
 from core.backtest_engine import run_portfolio_backtest
-from core.excel_exporter import build_institutional_excel_bytes
 from core.live_quant_fetcher import (
     GLOBAL_CURRENCY_OPTIONS,
     fetch_live_adtv_map,
     fetch_live_currency_rate,
     fetch_live_vix_and_fx,
-)
-from core.charts import (
-    build_banks_ptbv_vs_roe_scatter,
-    build_btc_asopr_chart,
-    build_btc_picycle_200w_hashribbon_mmc_chart,
-    build_crypto_github_and_earnings_chart,
-    build_crypto_mvrv_nupl_chart,
-    build_crypto_nvm_and_cdd_chart,
-    build_crypto_onchain_gauges_chart,
-    build_deep_dive_dupont_and_margins_chart,
-    build_deep_dive_forensic_5y_chart,
-    build_deep_dive_valuation_cockpit_chart,
-    build_macro_comprehensive_chart,
-    build_multi_method_valuation_chart,
-    build_portfolio_correlation_heatmap_chart,
-    build_portfolio_equity_curve_chart,
-    build_portfolio_weight_gauge_chart,
-    build_yield_curve_and_icsa_chart,
 )
 
 
@@ -249,7 +231,7 @@ def _classify_badge(val_str: str) -> str:
 
 
 def render_clean_table(df: pd.DataFrame, badge_cols: Optional[List[str]] = None) -> None:
-    """Renderiza tabela HTML limpa com no máximo 6-7 colunas e sem jamais espremer texto em badges."""
+    """Renders clean HTML table with max 6-7 columns and legible status badges."""
     badge_cols = badge_cols or []
     headers_html = "".join(f"<th>{html.escape(str(c))}</th>" for c in df.columns)
     rows_html = []
@@ -756,135 +738,47 @@ def main() -> None:
 
         render_section_header(
             "Internal Architecture of the 360° Master Report (.PDF)",
-            "Single high-density PDF file structured across 7 chapters without losing any metric, methodology, or vector graph",
+            "Single high-density PDF file structured across 7 chapters containing all macro, forensic, valuation, on-chain, screener, backtest, VaR/CVaR, and risk decision matrices",
         )
 
         df_sections = pd.DataFrame([
             {
                 "PDF Section": "Section 1",
                 "Chapter Title in Master Report": "Global Macroeconomics, Cycles, Tech Disruptions & Geopolitics",
-                "Analytical Content & Included Charts": "Lagging Indicators (GDP, CPI, Fed Funds, Debt/GDP, U3), Sahm's Rule paired with Payroll & ICSA, SOS Indicator, Services vs Mfg PMI, 10Y-2Y Yield Curve, M2 vs DXY, Geopolitical Impact Matrix (10-K), Industry Tech Disruptions & Macro Sensitivity Matrix by Hard-Asset.",
+                "Analytical Content & Decision Matrices": "Lagging Indicators (GDP, CPI, Fed Funds, Debt/GDP, U3), Sahm's Rule paired with Payroll & ICSA, SOS Indicator, Services vs Mfg PMI, 10Y-2Y Yield Curve, M2 vs DXY, Geopolitical Impact Matrix (10-K), Industry Tech Disruptions & Macro Sensitivity Matrix by Hard-Asset.",
             },
             {
                 "PDF Section": "Section 2",
                 "Chapter Title in Master Report": "Portfolio Analytics, Faithful Look-Through, Forensics & Forward Valuation",
-                "Analytical Content & Included Charts": "Portfolio Positions, Strict Look-Through of owned equities + ETF Residual Basket, Forensic Accounting without Altman Z (Part A & Part B 5-column split), 12-KPI CAGR Matrix (Part A & B), All 8 Forward (NTM) Valuation Methods (NTM DCF, Reverse DCF, Owner Earnings, Forward Multiples, EVA, Forward PEGY, Magic Formula & SOTP), Portfolio Banks (JPM & NU).",
+                "Analytical Content & Decision Matrices": "Portfolio Positions, Strict Look-Through of owned equities + ETF Residual Basket, Forensic Accounting without Altman Z (Part A & Part B 5-column split), 12-KPI CAGR Matrix (Part A & B), All 8 Forward (NTM) Valuation Methods (NTM DCF, Reverse DCF, Owner Earnings, Forward Multiples, EVA, Forward PEGY, Magic Formula & SOTP), Portfolio Banks (JPM & NU).",
             },
             {
                 "PDF Section": "Section 3",
                 "Chapter Title in Master Report": "Crypto On-Chain Analytics & DeFi State of the Union",
-                "Analytical Content & Included Charts": "On-Chain Cycle (MVRV Z, NUPL, aSOPR, Pi Cycle, 200W SMA), Mining Health (Hash Ribbon & MMC), Exchange Flows (Inflow, CDD, Stablecoins, HODL Waves), Tokenomics (NVM, NVT GC, P/F, TVL, Protocol Real Earnings, Real Yield), Cycle Rotation Compass (BTC -> ETH -> DeFi) & Tech Narrative Shifts (On-Chain Fundamental Synthesis).",
+                "Analytical Content & Decision Matrices": "On-Chain Cycle (MVRV Z, NUPL, aSOPR, Pi Cycle, 200W SMA), Mining Health (Hash Ribbon & MMC), Exchange Flows (Inflow, CDD, Stablecoins, HODL Waves), Tokenomics (NVM, NVT GC, P/F, TVL, Protocol Real Earnings, Real Yield), Cycle Rotation Compass (BTC -> ETH -> DeFi) & Tech Narrative Shifts (On-Chain Fundamental Synthesis).",
             },
             {
                 "PDF Section": "Section 4",
                 "Chapter Title in Master Report": "In-Depth Corporate Forensic Dossier (SEC 10-K/10-Q/20-F, Porter, Calls Q&A & M&As)",
-                "Analytical Content & Included Charts": "Big Four Audit & SOX 404(b), MD&A Breakdown (Volume, Price, FX, Backlog, CAPEX), Item 1A Risks, Forensic Footnotes (Litigation, SBC, ASC 606, Debt), Moats (4 Pillars), Porter's 5 Forces, Common Size vs Peers, Signal vs Noise Filter in Earnings Calls (CEO/CFO statements and Q&A clashes), Full M&A Dossier, Dilution, Goodwill & Antitrust + Form 8-K/Form 4 Insider Trading.",
+                "Analytical Content & Decision Matrices": "Big Four Audit & SOX 404(b), MD&A Breakdown (Volume, Price, FX, Backlog, CAPEX), Item 1A Risks, Forensic Footnotes (Litigation, SBC, ASC 606, Debt), Moats (4 Pillars), Porter's 5 Forces, Common Size vs Peers, Signal vs Noise Filter in Earnings Calls (CEO/CFO statements and Q&A clashes), Full M&A Dossier, Dilution, Goodwill & Antitrust + Form 8-K/Form 4 Insider Trading.",
             },
             {
                 "PDF Section": "Section 5",
                 "Chapter Title in Master Report": "Crypto Protocols Technical Dossier (Whitepapers, Core Devs & Unlocks 30/60/90d)",
-                "Analytical Content & Included Charts": "Technical Synthesis of White Papers, Consensus Architecture and Value Accrual, GitHub Engineering (4w Commits & Active Devs), DeepDAO Governance, Token Sniffer & Audit Reports, Insider Core Dev/Founder Signals, Network Upgrades (EIPs/PIPs) & Forensic Unlock Schedule (30/60/90 days) with Theoretical Post-Dilution Price.",
+                "Analytical Content & Decision Matrices": "Technical Synthesis of White Papers, Consensus Architecture and Value Accrual, GitHub Engineering (4w Commits & Active Devs), DeepDAO Governance, Token Sniffer & Audit Reports, Insider Core Dev/Founder Signals, Network Upgrades (EIPs/PIPs) & Forensic Unlock Schedule (30/60/90 days) with Theoretical Post-Dilution Price.",
             },
             {
                 "PDF Section": "Section 6",
                 "Chapter Title in Master Report": "Executive Opportunity Radar — Quantitative & Forensic Screener",
-                "Analytical Content & Included Charts": "Global Stocks Funnel (5 Strict Filters: Sloan, CFO/EBITDA, ROIC vs WACC, Solvency CR & Interest Coverage, Reverse DCF & Forward PEGY) and Crypto Funnel (Supply >= 65%, Unlocks <= 2.5%/mo, Sniffer >= 85, Active Devs >= 40 & Real Earnings > 0, MVRV Z <= 2.0).",
+                "Analytical Content & Decision Matrices": "Global Stocks Funnel (5 Strict Filters: Sloan, CFO/EBITDA, ROIC vs WACC, Solvency CR & Interest Coverage, Reverse DCF & Forward PEGY) and Crypto Funnel (Supply >= 65%, Unlocks <= 2.5%/mo, Sniffer >= 85, Active Devs >= 40 & Real Earnings > 0, MVRV Z <= 2.0).",
             },
             {
                 "PDF Section": "Section 7",
-                "Chapter Title in Master Report": "Risk Governance, Convex LTV Leverage, ADTV Liquidity & Advisory Timing",
-                "Analytical Content & Included Charts": "Sharpe, Sortino, Calmar Ratio, VIX, ADTV Liquidity (<1%), Convex LTV Panel (IBKR Box Spreads + Aave V3 Stress-Test), The 7 Advisory Timing Rules by Asset Class, Advisory Positioning of Portfolio Holdings, Shannon Inflow Rebalancing Qualification & Tax-Drag Hurdle Rate.",
+                "Chapter Title in Master Report": "Risk Governance, Convex LTV, 3Y Backtest, Tail-Risk VaR/CVaR & Advisory Timing",
+                "Analytical Content & Decision Matrices": "Sharpe, Sortino, Calmar Ratio, VIX, ADTV Liquidity (<1%), 3-Year Historical Backtest (vs SPY/BTC-USD, Daily 95%/99% VaR & CVaR, Shannon vs Passive DCA, Crisis Stress-Tests), Convex LTV Panel (IBKR Box Spreads + Aave V3 Stress-Test), The 7 Advisory Timing Rules & Tax-Drag Hurdle Rate.",
             },
         ])
         render_clean_table(df_sections)
-
-        render_section_header(
-            "Interactive Visual Intelligence Dashboard (Live Charts & Real Backtest)",
-            "All 16 Plotly analytical charts wired directly to live macro, equity, banking, on-chain, correlation, VaR/CVaR, and 3-year historical portfolio engines",
-        )
-        with st.expander("📖 Plain-English Metric Glossary (P/TBV, PEGY, Sloan, MVRV, NUPL, aSOPR, VaR/CVaR, Sortino, Calmar)", expanded=False):
-            glossary_df = pd.DataFrame([
-                {"Metric": "P/TBV vs. ROE (Banks)", "Plain-English Meaning": "Market price divided by Tangible Book Value (equity minus Goodwill/intangibles). Compares bank price multiple against Return on Equity (ROE); banks below P/B 1.0x destroy capital."},
-                {"Metric": "Enterprise / Financial PEGY", "Plain-English Meaning": "Valuation multiple divided by (Expected Growth + Dividend & Buyback Yield). Gold Band <= 1.20x (Non-Banks) or <= 1.00x (Banks)."},
-                {"Metric": "Sloan Accruals Ratio", "Plain-English Meaning": "(Net Income - Operating Cash Flow - Investing Cash Flow) / Total Assets. Negative (< 0% or < -10%) means real cash exceeds accounting profit."},
-                {"Metric": "ROIC vs. WACC Spread", "Plain-English Meaning": "Return on Invested Capital (incl. Goodwill) minus cost of capital (WACC). Positive spread = moat generating real Economic Value Added (EVA)."},
-                {"Metric": "MVRV Z-Score & NUPL", "Plain-English Meaning": "Measures how far Market Cap is above on-chain Realized Cost Basis (< 0 = capitulation/deep value; > 0.75 NUPL or > 3-7 MVRV = euphoria risk)."},
-                {"Metric": "aSOPR (1.0 Benchmark)", "Plain-English Meaning": "Ratio of spent coins' realized price vs. purchase price. Staying >= 1.0 signals bull-market profit taking; dropping < 1.0 flags capitulation."},
-                {"Metric": "VaR / CVaR (95% & 99%)", "Plain-English Meaning": "Daily Value-at-Risk (maximum normal daily loss threshold) and Conditional VaR / Expected Shortfall (average loss inside the worst 5% or 1% crash days)."},
-                {"Metric": "Sortino & Calmar Ratio", "Plain-English Meaning": "Sortino penalizes only downside volatility (higher > Sharpe means upside skew). Calmar = 3Y CAGR divided by Maximum Drawdown."},
-            ])
-            render_clean_table(glossary_df)
-
-        viz_tabs = st.tabs([
-            "🌍 Macro & Yield Curve",
-            "🏛️ Equities Valuation & Banks",
-            "₿ Crypto On-Chain Cycle",
-            "📈 Real Historical Backtest, VaR & Correlation",
-        ])
-        with viz_tabs[0]:
-            st.plotly_chart(build_macro_comprehensive_chart(macro), width="stretch")
-            st.plotly_chart(build_yield_curve_and_icsa_chart(macro), width="stretch")
-        with viz_tabs[1]:
-            st.caption("Fair Value vs. Spot compares NTM DCF (with 10% Margin of Safety) to live prices; P/TBV vs. ROE tests whether bank multiples are justified by Return on Equity.")
-            st.plotly_chart(build_multi_method_valuation_chart(equities), width="stretch")
-            st.plotly_chart(build_banks_ptbv_vs_roe_scatter(equities), width="stretch")
-        with viz_tabs[2]:
-            st.caption("On-chain cycle gauges: aSOPR 1.0 acts as bull support; MVRV Z-Score < 0.5 / NUPL < 0 signal accumulation; 200W SMA & Mining Cost (MMC) anchor cycle floors.")
-            btc_or_first = cryptos.get("BTC-USD") or (next(iter(cryptos.values())) if cryptos else None)
-            if btc_or_first is not None:
-                cr_c1, cr_c2 = st.columns(2)
-                with cr_c1:
-                    st.plotly_chart(build_btc_asopr_chart(btc_or_first), width="stretch")
-                    st.plotly_chart(build_crypto_mvrv_nupl_chart(btc_or_first), width="stretch")
-                with cr_c2:
-                    st.plotly_chart(build_btc_picycle_200w_hashribbon_mmc_chart(btc_or_first), width="stretch")
-                    st.plotly_chart(build_crypto_nvm_and_cdd_chart(btc_or_first), width="stretch")
-            else:
-                st.info("No portfolio cryptoassets active for on-chain cycle charting.")
-        with viz_tabs[3]:
-            st.caption("3-Year historical daily simulation aligned to SPY trading days: evaluates risk-adjusted returns (Sharpe/Sortino/Calmar), tail losses (VaR/CVaR), cross-asset correlation, and historical crash stress-tests.")
-            b_k1, b_k2, b_k3, b_k4, b_k5 = st.columns(5)
-            with b_k1:
-                render_kpi_card("Portfolio 3Y CAGR", f"{backtest_res.get('portfolio_cagr_pct', 0.0):+.2f}%", f"Vol: {backtest_res.get('annualized_vol_pct', 0.0):.1f}% p.a.", tone="emerald")
-            with b_k2:
-                render_kpi_card("Sharpe Ratio", f"{backtest_res.get('sharpe_ratio', 0.0):.2f}", f"vs Rf {bundle.get('fed_funds_rate_pct', 4.25):.2f}%", tone="blue")
-            with b_k3:
-                render_kpi_card("Sortino Ratio", f"{backtest_res.get('sortino_ratio', 0.0):.2f}", "Downside Deviation Adjusted", tone="purple")
-            with b_k4:
-                render_kpi_card("Max Drawdown", f"-{backtest_res.get('max_drawdown_pct', 0.0):.2f}%", f"Calmar: {backtest_res.get('calmar_ratio', 0.0):.2f}x", tone="amber")
-            with b_k5:
-                render_kpi_card("Benchmarks (CAGR)", f"SPY {backtest_res.get('spy_cagr_pct', 0.0):+.1f}%", f"BTC {backtest_res.get('btc_cagr_pct', 0.0):+.1f}% | {backtest_res.get('period_days', 0)}d", tone="blue")
-
-            st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
-            sh_res = backtest_res.get("shannon_vs_bh") or {}
-            r_k1, r_k2, r_k3, r_k4 = st.columns(4)
-            with r_k1:
-                render_kpi_card("Daily VaR (95%)", f"-{backtest_res.get('var_95_daily_pct', 0.0):.2f}%", f"CVaR 95%: -{backtest_res.get('cvar_95_daily_pct', 0.0):.2f}%", tone="amber")
-            with r_k2:
-                render_kpi_card("Daily VaR (99%)", f"-{backtest_res.get('var_99_daily_pct', 0.0):.2f}%", f"CVaR 99%: -{backtest_res.get('cvar_99_daily_pct', 0.0):.2f}%", tone="rose")
-            with r_k3:
-                render_kpi_card("Shannon Inflow DCA", f"{ccy_prefix}{float(sh_res.get('shannon_final_usd', capital_usd)) * ccy_mult:,.0f}", f"Passive DCA: {ccy_prefix}{float(sh_res.get('passive_final_usd', capital_usd)) * ccy_mult:,.0f}", tone="emerald")
-            with r_k4:
-                alpha_usd = float(sh_res.get("shannon_alpha_usd", 0.0))
-                alpha_pct = float(sh_res.get("shannon_alpha_pct", 0.0))
-                render_kpi_card("Shannon Rebalance Alpha", f"{alpha_pct:+.2f}%", f"{ccy_prefix}{alpha_usd * ccy_mult:+,.0f} ({int(sh_res.get('months_simulated', 0))} mo @ $2k/mo)", tone="blue")
-
-            st.plotly_chart(build_portfolio_equity_curve_chart(backtest_res), width="stretch")
-            st.plotly_chart(build_portfolio_correlation_heatmap_chart(backtest_res), width="stretch")
-
-            st_rows = backtest_res.get("stress_tests") or []
-            if st_rows:
-                st.markdown("##### 🛡️ Historical Regime & Realized Tail Stress-Tests")
-                st_disp = [
-                    {
-                        "Scenario": r["Scenario"],
-                        "Shock Assumptions": r["Shock Assumptions"],
-                        "Estimated Portfolio Impact (%)": f"{float(r['Estimated Portfolio Impact (%)']):+.2f}%",
-                        f"Estimated Capital Impact ({display_ccy.split()[0]})": f"{ccy_prefix}{float(r['Estimated Capital Impact (USD)']) * ccy_mult:+,.0f}",
-                    }
-                    for r in st_rows
-                ]
-                render_clean_table(pd.DataFrame(st_disp))
 
     # ==========================================================================
     # TAB 2: DYNAMIC PORTFOLIO MANAGER (SQLITE CRUD)
@@ -982,40 +876,21 @@ def main() -> None:
                 st.rerun()
 
         render_section_header(
-            f"Active Portfolio Holdings Ledger ({len(portfolio.positions)} Assets in SQLite — {display_ccy})",
-            "Concise 7-column table for monitoring Weights, Cost Basis, Spot Quotes, P&L, and LTV Collateral",
+            f"Configured Target Portfolio Assets ({len(portfolio.positions)} Holdings in SQLite — {display_ccy})",
+            "Reference target configuration only; full Look-Through, P&L, Drift, Forensic Accounting, Valuation, and Risk analytics are compiled in the 360° Master Report (.PDF)",
         )
-        df_ledger = pd.DataFrame([
+        df_cfg_list = pd.DataFrame([
             {
                 "Ticker": p.ticker,
                 "Asset": p.name,
                 "Category": p.category,
-                "Target vs. Current Weight": f"{p.target_weight_pct:.2f}% (Current {p.current_weight_pct:.2f}% | Drift {p.weight_drift_pp:+.2f}pp)",
-                f"Avg Buy -> Spot ({display_ccy.split()[0]})": f"{ccy_prefix}{p.avg_buy_price_usd * ccy_mult:,.2f} -> {ccy_prefix}{p.current_price_usd * ccy_mult:,.2f} ({ccy_prefix}{p.allocated_usd * ccy_mult:,.0f})",
-                "Unrealized P&L": f"{p.pnl_pct:+.1f}% ({ccy_prefix}{p.pnl_usd * ccy_mult:+,.0f})",
+                "Target Weight (%)": f"{p.target_weight_pct:.2f}%",
+                f"Avg Ref Price ({display_ccy.split()[0]})": f"{ccy_prefix}{p.avg_buy_price_usd * ccy_mult:,.2f}",
                 "LTV Collateral": "YES" if p.ltv_turbo_eligible else "NO",
             }
             for p in portfolio.positions
         ])
-        render_clean_table(df_ledger, badge_cols=["LTV Collateral"])
-
-        st.plotly_chart(build_portfolio_weight_gauge_chart(total_w), width="stretch")
-
-        excel_bytes = build_institutional_excel_bytes(
-            portfolio=portfolio,
-            equities=equities,
-            cryptos=cryptos,
-            risk_timing=risk_timing,
-            backtest=backtest_res,
-        )
-        st.download_button(
-            label="📊 Export Auditable Multi-Sheet Institutional Workbook (.XLSX)",
-            data=excel_bytes,
-            file_name="Institutional_Portfolio_Workbook.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            width="stretch",
-            key="btn_export_xlsx",
-        )
+        render_clean_table(df_cfg_list, badge_cols=["LTV Collateral"])
 
 
     # ==========================================================================
@@ -1103,190 +978,17 @@ def main() -> None:
             type="primary",
             key=f"dl_dd_{dd_res.normalized_ticker}",
         )
-
-        with st.expander(f"⚖️ Side-by-Side Peer Comparator ({dd_res.normalized_ticker} vs. Peer Asset B)", expanded=False):
-            cmp_c1, cmp_c2 = st.columns([2, 1])
-            with cmp_c1:
-                cmp_default = "TSM" if dd_res.asset_class != "CRYPTO" else "AAVE-USD"
-                if dd_res.normalized_ticker == cmp_default:
-                    cmp_default = "ASML" if dd_res.asset_class != "CRYPTO" else "BTC-USD"
-                peer_tk_input = st.text_input(
-                    "Peer Ticker / Symbol to Compare Side-by-Side",
-                    value=cmp_default,
-                    key="dd_peer_cmp_input",
-                )
-            with cmp_c2:
-                st.markdown("<div style='height:1.72rem;'></div>", unsafe_allow_html=True)
-                run_cmp_btn = st.button("⚖️ Compare Assets", width="stretch", key="btn_run_peer_cmp")
-
-            if run_cmp_btn and peer_tk_input.strip():
-                with st.spinner(f"Auditing {peer_tk_input.strip().upper()} for comparison..."):
-                    peer_res = dd_eng.analyze_single_ticker(
-                        user_ticker=peer_tk_input.strip().upper(),
-                        portfolio=portfolio,
-                    )
-                st.session_state["dd_last_peer_cmp"] = (dd_res.normalized_ticker, peer_res)
-
-            cached_cmp = st.session_state.get("dd_last_peer_cmp")
-            if isinstance(cached_cmp, tuple) and len(cached_cmp) == 2 and cached_cmp[0] == dd_res.normalized_ticker:
-                peer_b: DeepDiveResultBundle = cached_cmp[1]
-
-                def _cmp_row_metrics(item: DeepDiveResultBundle) -> Dict[str, str]:
-                    if item.asset_class == "CRYPTO" and item.crypto_profile:
-                        cp_c = item.crypto_profile
-                        om_c = cp_c.onchain_metrics
-                        tv_c = cp_c.tokenomics_valuation
-                        ss_c = cp_c.supply_structure
-                        return {
-                            "Ticker": item.normalized_ticker,
-                            "Class": item.asset_class,
-                            "Spot Price (USD)": f"${cp_c.spot_price_usd:,.2f}",
-                            "5-Filter Score": f"{item.screener_score_0_100}/100",
-                            "Primary Multiple": item.sovereign_multiple_value,
-                            "Quality / On-Chain": f"MVRV Z {om_c.get('mvrv_z_score', 0.0):+.2f} | NUPL {om_c.get('nupl', 0.0):+.2f}",
-                            "Valuation / Cash Flow": f"RealEarn ${tv_c.get('protocol_real_earnings_m', 0.0):+.1f}M/yr | Unlock {ss_c.get('unlock_pct_of_circ', 0.0):.2f}%/mo",
-                            "Regime": item.regime_classification.split("—")[0].strip(),
-                        }
-                    eq_c = item.equity_analysis
-                    if eq_c is None:
-                        return {"Ticker": item.normalized_ticker, "Class": item.asset_class, "5-Filter Score": f"{item.screener_score_0_100}/100"}
-                    fh_c = eq_c.forensic_health
-                    vm_c = eq_c.valuation_methods
-                    return {
-                        "Ticker": item.normalized_ticker,
-                        "Class": eq_c.sector_vertical,
-                        "Spot Price (USD)": f"${eq_c.current_price:,.2f}",
-                        "5-Filter Score": f"{item.screener_score_0_100}/100",
-                        "Primary Multiple": item.sovereign_multiple_value,
-                        "Quality / On-Chain": f"ROIC {fh_c.get('roic_goodwill_pct', 0.0):.1f}% vs WACC {fh_c.get('wacc_pct', 0.0):.1f}% | Sloan {fh_c.get('sloan_ratio_pct', 0.0):+.1f}%",
-                        "Valuation / Cash Flow": f"DCF MoS ${vm_c.get('dcf_fair_mos10_usd', 0.0):,.2f} ({vm_c.get('dcf_upside_pct', 0.0):+.1f}%)",
-                        "Regime": item.regime_classification.split("—")[0].strip(),
-                    }
-
-                m_a = _cmp_row_metrics(dd_res)
-                m_b = _cmp_row_metrics(peer_b)
-                cmp_rows = [
-                    {
-                        "Metric": k,
-                        dd_res.normalized_ticker: m_a.get(k, "N/A"),
-                        peer_b.normalized_ticker: m_b.get(k, "N/A"),
-                    }
-                    for k in ("Class", "Spot Price (USD)", "5-Filter Score", "Primary Multiple", "Quality / On-Chain", "Valuation / Cash Flow", "Regime")
-                ]
-                render_clean_table(pd.DataFrame(cmp_rows))
-
-        render_section_header(
-            f"Strict 5-Filter Funnel — {dd_res.normalized_ticker} (Score {dd_res.screener_score_0_100}/100)",
-            "Step-by-step rigorous evaluation without text truncation and without Altman Z-Score",
+        st.caption(
+            f"All decision-making tables for `{dd_res.normalized_ticker}` (5-filter funnel, 5-year forensics, 12-KPI CAGRs, "
+            "8-method valuation, SEC 10-K/M&A/Calls or Whitepaper/GitHub/Unlocks dossiers, geopolitics & timing governance) "
+            "are compiled cleanly inside the downloadable PDF dossier above."
         )
-        df_funnel = pd.DataFrame([
-            {
-                "Step": f"Filter {s.step_number}",
-                "Evaluated Metric": s.filter_name,
-                "Calculated Value": s.calculated_value,
-                "Strict Framework Rule": s.strict_criterion,
-                "Status": "APPROVED" if s.passed else "REJECTED",
-                "Diagnostic": f"{s.score_points}/{s.max_points} pts — {s.diagnostic_note}",
-            }
-            for s in dd_res.screener_filters_breakdown
-        ])
-        render_clean_table(df_funnel, badge_cols=["Status"])
-
-        if dd_res.asset_class != "CRYPTO" and dd_res.equity_analysis:
-            eq_i = dd_res.equity_analysis
-            fh_i = eq_i.forensic_health
-            vm_i = eq_i.valuation_methods
-            render_section_header(
-                f"Forward (NTM) Multi-Method Valuation & Forensic Health Summary — {dd_res.normalized_ticker}",
-                "Spacious 5-column table for immediate executive reading",
-            )
-            df_dd_val = pd.DataFrame([
-                {
-                    "Spot Price & WACC": f"${eq_i.current_price:,.2f} (WACC {vm_i['wacc_capm_pct']:.2f}%)",
-                    "Forward DCF (10% MoS)": f"${vm_i['dcf_fair_mos10_usd']:,.2f} ({vm_i['dcf_upside_pct']:+.1f}%)",
-                    "Reverse DCF (g_impl vs g_fund)": f"g_impl {vm_i['reverse_dcf_g_impl_pct']:.1f}% vs g_fund {vm_i['g_fund_projected_pct']:.1f}%",
-                    "Forward PEGY (NTM)": f"{vm_i['primary_pegy_label']} ({vm_i['primary_pegy_status']})",
-                    "SOTP & ROIC vs WACC": f"SOTP ${vm_i['sotp_fair_price_usd']:,.2f} ({vm_i['sotp_upside_pct']:+.1f}%) | ROIC {fh_i['roic_goodwill_pct']:.1f}%",
-                }
-            ])
-            render_clean_table(df_dd_val)
-
-            ed_i = dd_res.equity_dossier
-            qs_i = eq_i.qualitative_strategy
-            sm_i = dd_res.corporate_signal_ma
-            if ed_i or sm_i:
-                render_section_header(
-                    f"SEC Filings, Competitive Moat & M&A Dossier — {dd_res.normalized_ticker}",
-                    "Full parity with 360° Master Report (10-K/10-Q/8-K, Footnotes, Porter's 5 Forces, Earnings Call Q&A & M&A)",
-                )
-                ma_deals_disp = (
-                    (getattr(ed_i, "ma_and_strategic_deals", "") if ed_i else "")
-                    or (sm_i.ma_and_strategic_deals if sm_i else "N/A")
-                )
-                ma_pay_disp = (
-                    (getattr(ed_i, "ma_payment_and_goodwill", "") if ed_i else "")
-                    or (f"{sm_i.payment_structure_and_dilution} | {sm_i.goodwill_and_impairment_risk}" if sm_i else "N/A")
-                )
-                rows_eq_doc = []
-                if ed_i:
-                    rows_eq_doc.extend([
-                        {"Pillar": "SEC Filings & SOX 404(b)", "Details": f"{ed_i.filing_form_annual} | {ed_i.filing_form_quarterly} | {ed_i.auditor_firm} — {ed_i.auditor_opinion}"},
-                        {"Pillar": "MD&A & Segment Margins", "Details": f"{ed_i.mda_growth_decomposition} | {ed_i.mda_segment_profitability} | CapEx: {ed_i.mda_capex_plan}"},
-                        {"Pillar": "Forensic Footnotes (Lit / SBC / Debt)", "Details": f"SBC: {ed_i.footnote_sbc_impact} | Debt: {ed_i.footnote_debt_maturity_schedule} | ASC 606: {ed_i.footnote_revenue_recognition}"},
-                    ])
-                rows_eq_doc.extend([
-                    {"Pillar": "Competitive Moat & Porter's 5 Forces", "Details": f"{qs_i['moat_classification']} | {qs_i['porter_5_forces']}"},
-                    {"Pillar": "M&A, Strategic Deals & Goodwill", "Details": f"{ma_deals_disp} — Payment & Goodwill: {ma_pay_disp}"},
-                    {"Pillar": "Earnings Call Guidance & Analyst Q&A", "Details": f"{sm_i.guidance_delta_summary if sm_i else 'N/A'} | Q&A: {sm_i.qa_analyst_clashes if sm_i else 'N/A'}" + (f" | Target: ${ed_i.analyst_target_mean_usd:,.2f} ({ed_i.analyst_recommendations_dist})" if ed_i else "")},
-                ])
-                render_clean_table(pd.DataFrame(rows_eq_doc))
-
-            render_section_header(
-                f"Interactive 5-Year Forensic, DuPont & Valuation Cockpit Charts — {dd_res.normalized_ticker}",
-                "Live interactive Plotly visualization of historical quality, capital efficiency, and multi-method fair values",
-            )
-            st.plotly_chart(build_deep_dive_forensic_5y_chart(dd_res), width="stretch")
-            dc1, dc2 = st.columns(2)
-            with dc1:
-                st.plotly_chart(build_deep_dive_dupont_and_margins_chart(dd_res), width="stretch")
-            with dc2:
-                st.plotly_chart(
-                    build_deep_dive_valuation_cockpit_chart(dd_res, macro.yield_curve.get("us10y_pct", 4.42)),
-                    width="stretch",
-                )
-
-        elif dd_res.asset_class == "CRYPTO" and dd_res.crypto_profile:
-            cp_i = dd_res.crypto_profile
-            cd_i = dd_res.crypto_dossier
-            dv_i = dd_res.crypto_internal_dev
-            tv_i = cp_i.tokenomics_valuation
-            ss_i = cp_i.supply_structure
-            om_i = cp_i.onchain_metrics
-            render_section_header(
-                f"On-Chain Cycle, Protocol Economics, Security & Governance — {dd_res.normalized_ticker}",
-                "Full parity with 360° Master Report (Whitepaper, GitHub, Snapshot/DeepDAO, Audits, Hacks & 30/60/90d Unlocks)",
-            )
-            df_cr_full = pd.DataFrame([
-                {"Pillar": "On-Chain Timing & Valuation", "Details": f"MVRV Z: {om_i['mvrv_z_score']:.2f} | NUPL: {om_i['nupl']:.2f} | aSOPR: {om_i['asopr']:.3f} | 200W SMA: {om_i['price_to_200w_sma_x']:.2f}x | NVT GC: {tv_i['nvt_golden_cross']:+.2f} | NVM: {tv_i['nvm_ratio']:.2f}"},
-                {"Pillar": "Real Economy & Token Unlocks", "Details": f"Real Earnings: USD {tv_i['protocol_real_earnings_m']:+,.1f}M/yr | Real Yield: {tv_i['real_yield_pct']:+.2f}% | 30d Unlocks: {ss_i['unlock_pct_of_circ']:.2f}% Circ (Post-Dilution Px: ${ss_i['theoretical_post_unlock_price_usd']:,.2f})"},
-                {"Pillar": "Whitepaper & Value Accrual", "Details": f"{cd_i.wp_title_author if cd_i else 'N/A'} — {cd_i.wp_value_accrual_mechanism if cd_i else ''}"},
-                {"Pillar": "GitHub & Security Audits", "Details": f"Repos: {cd_i.github_core_repos if cd_i else 'N/A'} ({cd_i.github_commits_4w if cd_i else 0} commits/4w, {cd_i.github_active_devs_monthly if cd_i else 0} Devs) | Sniffer: {cd_i.token_sniffer_score if cd_i else 0}/100 | Audits: {cd_i.audit_firms if cd_i else 'N/A'} | Exploits: {cd_i.exploit_history if cd_i else 'N/A'}"},
-                {"Pillar": "DAO Governance & Upgrades / Unlocks", "Details": f"{cd_i.deepdao_status if cd_i else ''} | Proposals: {cd_i.recent_governance_proposals if cd_i else ''} | Upgrades: {dv_i.upcoming_protocol_upgrades if dv_i else ''}"},
-            ])
-            render_clean_table(df_cr_full)
-
-            render_section_header(
-                f"Interactive On-Chain Gauges, GitHub Activity & Real Economics — {dd_res.normalized_ticker}",
-                "Live cycle gauges combined with real GitHub commit velocity and protocol Real Earnings breakdown",
-            )
-            st.plotly_chart(build_crypto_onchain_gauges_chart(dd_res), width="stretch")
-            st.plotly_chart(build_crypto_github_and_earnings_chart(dd_res), width="stretch")
 
         with st.expander("📄 Dynamic Filing Dossier Extractor (Ad-Hoc Assets / Custom PDFs)", expanded=False):
             st.caption(
                 "💡 Note: All active holdings in your SQLite portfolio are already auto-hydrated in **Tab 1** "
-                "and share `data_cache/custom_filings_cache.json`. Use this tool below to inspect non-portfolio candidates "
-                "or upload custom local PDFs/earnings transcripts."
+                "and share `data_cache/custom_filings_cache.json`. Use this tool below to enrich non-portfolio candidates "
+                "or upload custom local PDFs/earnings transcripts for PDF compilation."
             )
             if not gemini_ready:
                 st.info(
@@ -1328,16 +1030,12 @@ def main() -> None:
                             persist=True,
                         )
                 if auto_dossier is not None:
-                    st.success(auto_msg)
+                    st.success(f"{auto_msg} — Saved to cache and ready inside your PDF reports.")
                     if auto_meta.get("sources_fetched"):
                         st.caption("Sources Aggregated: " + " | ".join(auto_meta["sources_fetched"]))
                     if auto_meta.get("source_url"):
                         st.caption(f"Primary URL: {auto_meta['source_url']}")
                     st.cache_data.clear()
-                    from dataclasses import asdict
-                    d_map = asdict(auto_dossier)
-                    df_ex = pd.DataFrame([{"Dossier Field": k, "Extracted Value": str(v)} for k, v in d_map.items()])
-                    render_clean_table(df_ex)
                 else:
                     st.warning(auto_msg)
 
@@ -1385,12 +1083,8 @@ def main() -> None:
                         )
 
                 if dossier_out is not None:
-                    st.success(status_msg)
+                    st.success(f"{status_msg} — Saved to cache and ready inside your PDF reports.")
                     st.cache_data.clear()
-                    from dataclasses import asdict
-                    d_map = asdict(dossier_out)
-                    df_ex = pd.DataFrame([{"Dossier Field": k, "Extracted Value": str(v)} for k, v in d_map.items()])
-                    render_clean_table(df_ex)
                 else:
                     st.warning(status_msg)
 

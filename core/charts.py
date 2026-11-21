@@ -365,9 +365,9 @@ def build_multi_method_valuation_chart(equities: List[EquityFullAnalysis]) -> go
 
     fig = go.Figure()
     fig.add_trace(go.Bar(name="Current Spot Price (USD)", x=tickers, y=curr_px, marker_color="#3B82F6"))
-    fig.add_trace(go.Bar(name="Valor Justo DCF (c/ 10% MoS)", x=tickers, y=dcf_mos10, marker_color="#10B981"))
-    fig.add_trace(go.Bar(name="Valor Justo SOTP (Peer Multiples)", x=tickers, y=sotp_px, marker_color="#A855F7"))
-    fig.add_trace(go.Bar(name="Teto Faixa Ouro PEGY (1.2x / 1.0x)", x=tickers, y=pegy_gold_px, marker_color="#F59E0B"))
+    fig.add_trace(go.Bar(name="DCF Fair Value (w/ 10% MoS)", x=tickers, y=dcf_mos10, marker_color="#10B981"))
+    fig.add_trace(go.Bar(name="SOTP Fair Value (Peer Multiples)", x=tickers, y=sotp_px, marker_color="#A855F7"))
+    fig.add_trace(go.Bar(name="PEGY Gold Band Cap (1.2x / 1.0x)", x=tickers, y=pegy_gold_px, marker_color="#F59E0B"))
 
     fig.update_layout(barmode="group")
     fig.update_yaxes(title_text="Price per Share (USD)")
@@ -441,7 +441,7 @@ def build_yield_curve_and_icsa_chart(macro: MacroDataBundle) -> go.Figure:
         rows=1, cols=2,
         horizontal_spacing=0.08,
         subplot_titles=(
-            f"Curva de Juros Atual dos EUA — {macro.yield_curve['curve_classification']}",
+            f"Current US Treasury Yield Curve — {macro.yield_curve['curve_classification']}",
             "ICSA (Initial Jobless Claims — Paired with Sahm Rule)",
         ),
     )
@@ -464,7 +464,7 @@ def build_yield_curve_and_icsa_chart(macro: MacroDataBundle) -> go.Figure:
         go.Scatter(
             x=icsa.index,
             y=icsa.values,
-            name="ICSA Semanal",
+            name="Weekly ICSA Claims",
             line=dict(color="#A855F7", width=2.0),
         ),
         row=1, col=2,
@@ -503,7 +503,7 @@ def build_portfolio_weight_gauge_chart(target_weight_sum_pct: float) -> go.Figur
                 suffix=" pp vs 100%",
             ),
             title=dict(
-                text="<b>Validador de Soma dos Pesos Alvo (%)</b><br><span style='font-size:11px;color:#94A3B8'>Meta Estrita: 100.00%</span>",
+                text="<b>Target Weight Sum Validator (%)</b><br><span style='font-size:11px;color:#94A3B8'>Strict Target: 100.00%</span>",
                 font=dict(size=13, color="#E2E8F0"),
             ),
             gauge=dict(
@@ -706,11 +706,11 @@ def build_deep_dive_dupont_and_margins_chart(dd: DeepDiveResultBundle) -> go.Fig
         row=1, col=1, secondary_y=False,
     )
     fig.add_trace(
-        go.Scatter(x=years, y=dt, mode="lines+markers", name="Giro do Ativo (x)", line=dict(color="#F59E0B", width=2.0, dash="dot")),
+        go.Scatter(x=years, y=dt, mode="lines+markers", name="Asset Turnover (x)", line=dict(color="#F59E0B", width=2.0, dash="dot")),
         row=1, col=1, secondary_y=True,
     )
     fig.add_trace(
-        go.Scatter(x=years, y=dl, mode="lines+markers", name="Alavancagem A/PL (x)", line=dict(color="#EF4444", width=2.0, dash="dash")),
+        go.Scatter(x=years, y=dl, mode="lines+markers", name="Financial Leverage A/E (x)", line=dict(color="#EF4444", width=2.0, dash="dash")),
         row=1, col=1, secondary_y=True,
     )
     fig.update_yaxes(range=[0, max(max(dm + roe), 20.0) * 1.25], row=1, col=1, secondary_y=False)
@@ -722,7 +722,7 @@ def build_deep_dive_dupont_and_margins_chart(dd: DeepDiveResultBundle) -> go.Fig
             x=years,
             y=gm,
             mode="lines+markers+text",
-            name="Margem Bruta (%)",
+            name="Gross Margin (%)",
             text=[f"{v:.1f}%" for v in gm],
             textposition="top center",
             line=dict(color="#10B981", width=2.5),

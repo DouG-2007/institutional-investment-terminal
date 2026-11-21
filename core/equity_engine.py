@@ -791,7 +791,7 @@ EQUITY_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
         ],
         "roic_op_margin_pct": 4.3,
         "roic_cap_turnover_x": 3.81,
-        "roic_pillar": "Giro de Capital Brutal (3.81x) + Ciclo de Caixa Negativo Financiado por Fornecedores",
+        "roic_pillar": "High Capital Turnover (3.81x) + Negative Cash Conversion Cycle Financed by Suppliers",
         "rd_to_sales_pct": 0.0,
         "ltv_cac": 11.0,
         "gm_5y_series": [24.8, 25.1, 24.1, 24.4, 24.7],

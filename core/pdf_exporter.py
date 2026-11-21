@@ -50,11 +50,11 @@ def _badge(text: str, tone: str = "blue") -> str:
 
 def _auto_badge(text: str) -> str:
     low = str(text).lower()
-    if any(k in low for k in ["ótimo", "ouro", "aprovado", "positivo", "boa", "segura", "clean", "unqualified", "sim", "sweet spot", "baixo", "100/100", "blindada", "assimetria positiva"]):
+    if any(k in low for k in ["ótimo", "ouro", "aprovado", "positivo", "boa", "segura", "clean", "unqualified", "sim", "sweet spot", "baixo", "100/100", "blindada", "assimetria positiva", "optimal", "approved", "positive", "safe", "gold", "low risk", "eligible", "qualified", "passing"]):
         return _badge(text, "green")
-    if any(k in low for k in ["reprovado", "ruim", "alerta", "alto risco", "crise", "recessão", "negativo", "squeeze", "alta ("]):
+    if any(k in low for k in ["reprovado", "ruim", "alerta", "alto risco", "crise", "recessão", "negativo", "squeeze", "alta (", "rejected", "failed", "alert", "high risk", "crisis", "recession", "negative", "veto", "bubble"]):
         return _badge(text, "red")
-    if any(k in low for k in ["neutro", "ok", "moderado", "misto", "monitorar", "média", "exigência"]):
+    if any(k in low for k in ["neutro", "ok", "moderado", "misto", "monitorar", "média", "exigência", "neutral", "moderate", "mixed", "monitor", "average", "hold", "fair", "caution"]):
         return _badge(text, "amber")
     return _badge(text, "blue")
 
@@ -78,27 +78,74 @@ class InstitutionalPDFExporter:
         return None
 
     # ==========================================================================
-    # GERADORES DE GRÁFICOS VETORIAIS SVG PUROS (PRINT-SAFE A4 LANDSCAPE)
+    # BACKTEST, TAIL-RISK (VAR / CVAR) & CRISIS STRESS-TEST TABLES (SECTION 7)
     # ==========================================================================
-    def _build_svg_macro_charts(self, macro: MacroDataBundle) -> str:
-        from core.pdf_charts import render_yield_curve_svg
+    def _build_backtest_tables_html(
+        self,
+        backtest: Optional[Dict[str, Any]],
+        capital_usd: float,
+    ) -> str:
+        if not isinstance(backtest, dict) or not backtest:
+            return ""
 
-        return render_yield_curve_svg(macro)
+        cagr = float(backtest.get("portfolio_cagr_pct", 0.0))
+        vol = float(backtest.get("annualized_vol_pct", 0.0))
+        period_days = int(backtest.get("period_days", 0))
+        sharpe = float(backtest.get("sharpe_ratio", 0.0))
+        sortino = float(backtest.get("sortino_ratio", 0.0))
+        calmar = float(backtest.get("calmar_ratio", 0.0))
+        max_dd = float(backtest.get("max_drawdown_pct", 0.0))
+        spy_cagr = float(backtest.get("spy_cagr_pct", 0.0))
+        btc_cagr = float(backtest.get("btc_cagr_pct", 0.0))
+        var95 = float(backtest.get("var_95_daily_pct", 0.0))
+        cvar95 = float(backtest.get("cvar_95_daily_pct", 0.0))
+        var99 = float(backtest.get("var_99_daily_pct", 0.0))
+        cvar99 = float(backtest.get("cvar_99_daily_pct", 0.0))
 
-    def _build_svg_equity_valuation_charts(self, equities: List[EquityFullAnalysis]) -> str:
-        from core.pdf_charts import render_valuation_vs_spot_svg
+        sh = backtest.get("shannon_vs_bh") or {}
+        sh_final = float(sh.get("shannon_final_usd", capital_usd))
+        bh_final = float(sh.get("passive_final_usd", capital_usd))
+        alpha_pct = float(sh.get("shannon_alpha_pct", 0.0))
+        alpha_usd = float(sh.get("shannon_alpha_usd", 0.0))
+        months_sim = int(sh.get("months_simulated", 0))
 
-        return render_valuation_vs_spot_svg(equities)
+        stress_rows = backtest.get("stress_tests") or []
+        stress_html = "".join(
+            f"<tr>"
+            f"<td><strong>{_esc(s.get('Scenario', ''))}</strong></td>"
+            f"<td>{_esc(s.get('Shock Assumptions', ''))}</td>"
+            f"<td class='mono' style='color:#991B1B;'><strong>{float(s.get('Estimated Portfolio Impact (%)', 0.0)):+.2f}%</strong></td>"
+            f"<td class='mono'>USD {float(s.get('Estimated Capital Impact (USD)', 0.0)):+,.0f}</td>"
+            f"</tr>"
+            for s in stress_rows
+        )
+        if not stress_html:
+            stress_html = "<tr><td colspan='4'>Insufficient live price history to compute crisis stress-tests.</td></tr>"
 
-    def _build_svg_crypto_onchain_charts(self, cryptos: Dict[str, CryptoFullProfile]) -> str:
-        from core.pdf_charts import render_crypto_cycle_svg
-
-        return render_crypto_cycle_svg(cryptos)
-
-    def _build_svg_backtest_chart(self, backtest: Optional[Dict[str, Any]]) -> str:
-        from core.pdf_charts import render_backtest_equity_svg
-
-        return render_backtest_equity_svg(backtest)
+        return f"""
+        <div class="grid-2" style="break-inside:avoid; margin-top:6px;">
+            <div>
+                <div class="sub-banner">7.3A. 3-Year Historical Backtest, Tail-Risk (Daily VaR &amp; CVaR) &amp; Shannon DCA Alpha</div>
+                <table class="inst-table">
+                    <thead><tr><th style="width:36%;">Quantitative Risk / Return Dimension</th><th style="width:64%;">Calculated 3Y Realized Telemetry</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>3Y Portfolio CAGR &amp; Ann. Volatility</strong></td><td class="mono"><strong>{cagr:+.2f}% p.a.</strong> | Volatility: {vol:.1f}% p.a. ({period_days} trading days)</td></tr>
+                        <tr><td><strong>Risk-Adjusted Ratios &amp; Max Drawdown</strong></td><td class="mono">Sharpe: <strong>{sharpe:.2f}</strong> | Sortino: <strong>{sortino:.2f}</strong> | Calmar: <strong>{calmar:.2f}x</strong> | Max DD: <strong>-{max_dd:.2f}%</strong></td></tr>
+                        <tr><td><strong>Benchmark 3Y CAGRs (SPY &amp; BTC-USD)</strong></td><td class="mono">S&amp;P 500 (SPY): <strong>{spy_cagr:+.2f}% p.a.</strong> | Bitcoin (BTC-USD): <strong>{btc_cagr:+.2f}% p.a.</strong></td></tr>
+                        <tr><td><strong>Daily Tail-Risk (Historical VaR &amp; CVaR)</strong></td><td class="mono">95% VaR: -{var95:.2f}% (CVaR: -{cvar95:.2f}%) | 99% VaR: -{var99:.2f}% (CVaR: -{cvar99:.2f}%)</td></tr>
+                        <tr><td><strong>Shannon Inflow DCA vs. Passive Buy &amp; Hold ({months_sim}m)</strong></td><td class="mono">Shannon Final: <strong>USD {sh_final:,.0f}</strong> vs Passive: USD {bh_final:,.0f} (<strong>Alpha: {alpha_pct:+.2f}% / USD {alpha_usd:+,.0f}</strong>)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <div class="sub-banner">7.3B. Historical Crisis Regime &amp; Realized Tail Stress-Tests</div>
+                <table class="inst-table">
+                    <thead><tr><th>Crisis / Tail Scenario</th><th>Shock Assumptions</th><th>Portfolio Impact</th><th>Capital Impact (USD)</th></tr></thead>
+                    <tbody>{stress_html}</tbody>
+                </table>
+            </div>
+        </div>
+        """
 
     # ==========================================================================
     # CONSOLIDATED MASTER REPORT (7 INTEGRATED SECTIONS IN SINGLE PDF)
@@ -536,7 +583,6 @@ class InstitutionalPDFExporter:
                 </thead>
                 <tbody>{sens_html}</tbody>
             </table>
-            {self._build_svg_macro_charts(macro)}
         </div>
         """
 
@@ -919,13 +965,12 @@ class InstitutionalPDFExporter:
                     </div>
                 </div>
             </div>
-            {self._build_svg_equity_valuation_charts(equities)}
         </div>
         """
 
         # ======================================================================
         # SECTION 3: ON-CHAIN CRYPTO INTELLIGENCE (CYCLES, MINING, TOKENOMICS & PROTOCOL EARNINGS)
-        #          & DEFI STATE OF THE UNION (NARRATIVAS DUNE/DEFILLAMA & CICLO)
+        #          & DEFI STATE OF THE UNION (DUNE/DEFILLAMA NARRATIVES & CYCLE)
         # ======================================================================
         cr_part_a_rows = ""
         cr_part_b_rows = ""
@@ -949,7 +994,7 @@ class InstitutionalPDFExporter:
             cr_part_b_rows += (
                 f"<tr>"
                 f"<td class='mono'><strong>{_esc(sym)}</strong></td>"
-                f"<td class='mono'>NVT Nominal: <strong>{tv.get('nvt_nominal', 0.0):.1f}x</strong> {_auto_badge(tv.get('nvt_nominal_status', ''))}<br><span style='font-size:6.7pt;color:#475569;'><strong>Ref NVT:</strong> &lt; 30x (Subavaliado/Compra) | 30x a 75x (Justo) | &gt; 75x (Sobreavaliado/Bolha)</span><br>NVT Golden Cross: <strong>{tv['nvt_golden_cross']:+.2f}</strong> (Ref: &lt; -1.6 / &gt; +2.0) | NVM: <strong>{tv['nvm_ratio']:.2f}</strong><br>P/F: <strong>{tv['pf_ratio']:.1f}x</strong> | TVL: ${tv['tvl_b']:.2f}B | Vol 24h: ${tv['tx_vol_24h_b']:.2f}B</td>"
+                f"<td class='mono'>NVT Nominal: <strong>{tv.get('nvt_nominal', 0.0):.1f}x</strong> {_auto_badge(tv.get('nvt_nominal_status', ''))}<br><span style='font-size:6.7pt;color:#475569;'><strong>NVT Ref:</strong> &lt; 30x (Undervalued / Buy) | 30x to 75x (Fair) | &gt; 75x (Overvalued / Bubble)</span><br>NVT Golden Cross: <strong>{tv['nvt_golden_cross']:+.2f}</strong> (Ref: &lt; -1.6 / &gt; +2.0) | NVM: <strong>{tv['nvm_ratio']:.2f}</strong><br>P/F: <strong>{tv['pf_ratio']:.1f}x</strong> | TVL: ${tv['tvl_b']:.2f}B | Vol 24h: ${tv['tx_vol_24h_b']:.2f}B</td>"
                 f"<td class='mono'><strong>Real Earnings: USD {tv['protocol_real_earnings_m']:+.1f}M / year</strong><br>(Fees ${tv['protocol_fees_annual_m']:.1f}M - Issuance ${tv['token_issuance_annual_m']:.1f}M)<br><strong>Real Yield: {tv['real_yield_pct']:+.2f}%</strong> (APR {tv['apr_staking_pct']:.1f}% - Infl {tv['token_inflation_pct']:.1f}%)</td>"
                 f"<td class='mono'>Circulating: <strong>{c.circulating_pct:.1f}%</strong><br>Unlock 30d: <strong>{ss['unlock_pct_of_circ']:.2f}% Circ</strong> ({ss['monthly_unlock_tokens_m']:.2f}M tokens)<br><strong>Theoretical Post-Unlock Px: ${ss['theoretical_post_unlock_price_usd']:,.2f}</strong></td>"
                 f"<td class='mono'>SSR: {ss['ssr_stablecoin_supply_ratio']:.1f} | BTC.D: {ss['btc_dominance_pct']:.1f}%<br>OI/MCap: <strong>{ds['oi_to_mcap_pct']:.2f}%</strong> (OI ${ds['open_interest_b']:.2f}B)<br>Funding 8h: <strong>{ds['funding_rate_8h_pct']:+.4f}%</strong> | F&amp;G: {ds['fear_and_greed_index']}/100</td>"
@@ -1046,7 +1091,6 @@ class InstitutionalPDFExporter:
                 </thead>
                 <tbody>{narr_html}</tbody>
             </table>
-            {self._build_svg_crypto_onchain_charts(cryptos)}
         </div>
         """
 
@@ -1437,7 +1481,7 @@ class InstitutionalPDFExporter:
                 </thead>
                 <tbody>{timing_assets_html}</tbody>
             </table>
-            {self._build_svg_backtest_chart(backtest)}
+            {self._build_backtest_tables_html(backtest, portfolio.capital_usd)}
         </div>
         """
 
@@ -1897,7 +1941,7 @@ class InstitutionalPDFExporter:
                     <tbody>
                         <tr>
                             <td><strong>Annual:</strong> {_esc(ed.filing_form_annual)}<br><strong>Quarterly:</strong> {_esc(ed.filing_form_quarterly)}<br><strong>Firm:</strong> {_esc(ed.auditor_firm)}<br>{_auto_badge(ed.auditor_opinion)}<br>{_esc(ed.sox_404b_controls)}</td>
-                            <td><strong>Growth:</strong> {_esc(ed.mda_growth_decomposition)}<br><strong>Quant:</strong> Vol {mda_q.get('Volume Orgânico (%)', 0):+.1f}% | Px {mda_q.get('Pricing Power / Mix (%)', 0):+.1f}% | FX {mda_q.get('Impacto Cambial FX (%)', 0):+.1f}%<br><strong>Segments:</strong> {_esc(ed.mda_segment_profitability)}<br><strong>Backlog/RPO:</strong> {_esc(ed.mda_backlog_rpo)}<br><strong>CapEx:</strong> {_esc(ed.mda_capex_plan)}</td>
+                            <td><strong>Growth:</strong> {_esc(ed.mda_growth_decomposition)}<br><strong>Quant:</strong> Vol {mda_q.get('Organic Volume (%)', mda_q.get('Volume Orgânico (%)', 0)):+.1f}% | Px {mda_q.get('Pricing Power / Mix (%)', 0):+.1f}% | FX {mda_q.get('FX Currency Impact (%)', mda_q.get('Impacto Cambial FX (%)', 0)):+.1f}%<br><strong>Segments:</strong> {_esc(ed.mda_segment_profitability)}<br><strong>Backlog/RPO:</strong> {_esc(ed.mda_backlog_rpo)}<br><strong>CapEx:</strong> {_esc(ed.mda_capex_plan)}</td>
                             <td><strong>Litigation:</strong> {_esc(ed.footnote_contingencies_litigation)}<br><strong>SBC Dilution:</strong> {_esc(ed.footnote_sbc_impact)}<br><strong>ASC 606:</strong> {_esc(ed.footnote_revenue_recognition)}<br><strong>Debt Ladder:</strong> {_esc(ed.footnote_debt_maturity_schedule)}</td>
                             <td class="mono"><strong>Target Mean: ${ed.analyst_target_mean_usd:,.2f}</strong><br>{_esc(ed.analyst_recommendations_dist)}<br>{_esc(ed.analyst_eps_revisions_30d_90d)}<br><strong>Insiders:</strong> {_esc(ins.get('ceo_skin_in_the_game', ''))} (5y Sh Chg: {ins.get('net_share_count_change_5y_pct', 0):+.2f}%)</td>
                         </tr>

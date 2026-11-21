@@ -278,7 +278,7 @@ class PortfolioEngine:
                         avg_px,
                         1 if ltv_ok else 0,
                         float(a.get("fair_price", DEFAULT_SPOT_PRICES.get(tk, 100.0))),
-                        a.get("role_description", "Ativo integrante da carteira monitorada pelo Framework."),
+                        a.get("role_description", "Portfolio holding monitored under the Value Investing Framework."),
                         a.get("accumulate_rule", "Advisory Reference: Accumulate within Framework discount bands."),
                         a.get("sell_rule", "Advisory Reference: Evaluate pruning under extreme overvaluation."),
                         a.get("yield_mechanism", "Compounded value growth and cash distribution."),

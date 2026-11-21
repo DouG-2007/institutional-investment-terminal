@@ -216,60 +216,60 @@ def run_complete_ecosystem_integrity_audit(
     yc = macro.yield_curve or {}
     mon = macro.monetary_aggregates or {}
 
-    add_chk("1. Macro & Ciclos", "Sahm's Rule + Payroll + ICSA Pareados", "App M0 & PDF 1", "sahm_current_pct" in sp and "icsa_current" in sp, f"Sahm {sp.get('sahm_current_pct')}% | ICSA {sp.get('icsa_current')}")
-    add_chk("1. Macro & Ciclos", "SOS Indicator (Scavette-O'Trakoun-Sahm)", "App M0 & PDF 1", "sos_current" in sos, f"SOS {sos.get('sos_current')}")
-    add_chk("1. Macro & Ciclos", "PMI Services vs. Manufacturing & Sweet Spot", "App M0 & PDF 1", "pmi_services_current" in pmi, f"Serv {pmi.get('pmi_services_current')} vs Mfg {pmi.get('pmi_manufacturing_current')}")
-    add_chk("1. Macro & Ciclos", "Curva de Juros (Spread 10Y-2Y, Pontas & Vértices)", "App M0 & PDF 1", "spread_10y_2y_bps" in yc and "vertices" in yc, f"Spread {yc.get('spread_10y_2y_bps')} bps")
-    add_chk("1. Macro & Ciclos", "Liquidez Global: M2 vs. DXY, Fed WALCL, Ouro & S&P 500", "App M0 & PDF 1", "m2_trillions" in mon and "dxy_current" in mon, f"M2 ${mon.get('m2_trillions')}T | DXY {mon.get('dxy_current')}")
-    add_chk("1. Macro & Ciclos", "Indicadores Lagging (GDP, CPI, Fed Funds, Dívida/PIB)", "App M0 & PDF 1", len(macro.basic_metrics) >= 5, f"{len(macro.basic_metrics)} séries FRED ativas")
+    add_chk("1. Macro & Cycles", "Sahm's Rule + Paired Payroll + ICSA", "App M0 & PDF 1", "sahm_current_pct" in sp and "icsa_current" in sp, f"Sahm {sp.get('sahm_current_pct')}% | ICSA {sp.get('icsa_current')}")
+    add_chk("1. Macro & Cycles", "SOS Indicator (Scavette-O'Trakoun-Sahm)", "App M0 & PDF 1", "sos_current" in sos, f"SOS {sos.get('sos_current')}")
+    add_chk("1. Macro & Cycles", "PMI Services vs. Manufacturing & Sweet Spot", "App M0 & PDF 1", "pmi_services_current" in pmi, f"Serv {pmi.get('pmi_services_current')} vs Mfg {pmi.get('pmi_manufacturing_current')}")
+    add_chk("1. Macro & Cycles", "Yield Curve (10Y-2Y Spread, Dynamics & Tenors)", "App M0 & PDF 1", "spread_10y_2y_bps" in yc and "vertices" in yc, f"Spread {yc.get('spread_10y_2y_bps')} bps")
+    add_chk("1. Macro & Cycles", "Global Liquidity: M2 vs. DXY, Fed WALCL, Gold & S&P 500", "App M0 & PDF 1", "m2_trillions" in mon and "dxy_current" in mon, f"M2 ${mon.get('m2_trillions')}T | DXY {mon.get('dxy_current')}")
+    add_chk("1. Macro & Cycles", "Lagging Indicators (GDP, CPI, Fed Funds, Debt/GDP)", "App M0 & PDF 1", len(macro.basic_metrics) >= 5, f"{len(macro.basic_metrics)} active FRED series")
 
-    # 2. PORTFÓLIO, CRUD & LOOK-THROUGH ETFs (M1, M2 & Master PDF)
-    add_chk("2. Portfólio & Look-Through", "Posições Diretas, Pesos Alvo vs Atual & Drift", "App M1/M2 & Master PDF", len(portfolio.positions) > 0, f"{len(portfolio.positions)} posições ativas")
-    add_chk("2. Portfólio & Look-Through", "Validador Soma 100% & Persistência SQLite", "App M2 & Sidebar", portfolio.target_weight_sum_pct > 0, f"Soma = {portfolio.target_weight_sum_pct:.2f}%")
-    add_chk("2. Portfólio & Look-Through", "Preço Médio, Preço Spot Ao Vivo & P&L (% e USD)", "App M1/M2 & Master PDF", hasattr(portfolio, "total_portfolio_pnl_pct"), f"P&L {portfolio.total_portfolio_pnl_pct:+.2f}%")
-    add_chk("2. Portfólio & Look-Through", "Decomposição Look-Through de ETFs (SPY, QQQ, SMH, ITA, QLD 2x)", "App M1 & Master PDF", len(portfolio.lookthrough_holdings) > 0, f"{len(portfolio.lookthrough_holdings)} ativos decompostos")
-    add_chk("2. Portfólio & Look-Through", "Exposição Bruta Efetiva (c/ QLD 2x) & Breakdown Setorial", "App M1 & Master PDF", portfolio.effective_gross_exposure_pct >= 100.0, f"Exposição {portfolio.effective_gross_exposure_pct:.1f}%")
+    # 2. PORTFOLIO, CRUD & ETF LOOK-THROUGH (Tab 2 & Master PDF)
+    add_chk("2. Portfolio & Look-Through", "Direct Holdings, Target vs. Current Weights & Drift", "Master PDF & Tab 2", len(portfolio.positions) > 0, f"{len(portfolio.positions)} active holdings")
+    add_chk("2. Portfolio & Look-Through", "100% Weight Validator & SQLite Persistence", "Tab 2 & Master PDF", portfolio.target_weight_sum_pct > 0, f"Sum = {portfolio.target_weight_sum_pct:.2f}%")
+    add_chk("2. Portfolio & Look-Through", "Avg Cost, Live Spot Price & P&L (% and USD)", "Master PDF", hasattr(portfolio, "total_portfolio_pnl_pct"), f"P&L {portfolio.total_portfolio_pnl_pct:+.2f}%")
+    add_chk("2. Portfolio & Look-Through", "ETF Look-Through Decomposition (SPY, QQQ, SMH, ITA, QLD 2x)", "Master PDF", len(portfolio.lookthrough_holdings) > 0, f"{len(portfolio.lookthrough_holdings)} decomposed holdings")
+    add_chk("2. Portfolio & Look-Through", "Effective Gross Exposure (w/ QLD 2x) & Sector Breakdown", "Master PDF", portfolio.effective_gross_exposure_pct >= 100.0, f"Exposure {portfolio.effective_gross_exposure_pct:.1f}%")
 
-    # 3. SAÚDE FORENSE, DUPONT & MATRIZ CAGR 12 KPIs (M1, M4 & PDF 3)
+    # 3. FORENSIC HEALTH, DUPONT & 12-KPI CAGR MATRIX (Master PDF & Deep Dive PDF)
     e0 = equities[0] if equities else None
     fh0 = e0.forensic_health if e0 else {}
     cagr0 = e0.cagr_matrix_12_kpis if e0 else {}
-    add_chk("3. Contabilidade Forense & CAGR", "Sloan Ratio (Accruals) & Conversão FCO/EBITDA", "App M1/M4 & PDF 3", "sloan_ratio_pct" in fh0 and "fco_to_ebitda" in fh0, f"Sloan {fh0.get('sloan_ratio_pct')}% | FCO/EB {fh0.get('fco_to_ebitda')}x")
-    add_chk("3. Contabilidade Forense & CAGR", "NWC Giro Líquido pareado com Desvio-Padrão do FCO", "App M1/M4 & PDF 3", "nwc_b" in fh0 and "fco_cv" in fh0, f"NWC ${fh0.get('nwc_b')}B (CV {fh0.get('fco_cv')})")
-    add_chk("3. Contabilidade Forense & CAGR", "ROIC (via NOPAT c/ Goodwill) vs. WACC & Spread", "App M1/M4 & PDF 3", "roic_goodwill_pct" in fh0 and "wacc_pct" in fh0, f"ROIC {fh0.get('roic_goodwill_pct')}% vs WACC {fh0.get('wacc_pct')}%")
-    add_chk("3. Contabilidade Forense & CAGR", "Identidade DuPont 3 Pilares (Margem × Giro × Alavancagem)", "App M1/M4 & PDF 3", "roe_dupont_pct" in fh0, f"ROE DuPont {fh0.get('roe_dupont_pct')}%")
-    add_chk("3. Contabilidade Forense & CAGR", "Solvência (Sem Altman Z): Liquidez Corrente, Caixa Pós-OpEx, Int. Coverage & Debt/EBITDA", "App M1/M4 & PDF 3", "current_ratio" in fh0 and "interest_coverage_x" in fh0 and "debt_to_ebitda" in fh0, f"CR {fh0.get('current_ratio')}x | IC {fh0.get('interest_coverage_x')}x | D/EB {fh0.get('debt_to_ebitda')}x")
-    add_chk("3. Contabilidade Forense & CAGR", "SSS (Same Store Sales) & Matriz CAGR 12 KPIs (3y, 5y, 10y)", "App M1/M4 & PDF 3", len(cagr0) == 12, f"{len(cagr0)} KPIs auditados em 3 horizontes")
+    add_chk("3. Forensic Accounting & CAGR", "Sloan Ratio (Accruals) & CFO/EBITDA Conversion", "Master PDF & Deep Dive PDF", "sloan_ratio_pct" in fh0 and "fco_to_ebitda" in fh0, f"Sloan {fh0.get('sloan_ratio_pct')}% | CFO/EB {fh0.get('fco_to_ebitda')}x")
+    add_chk("3. Forensic Accounting & CAGR", "Net Working Capital (NWC) paired with Historical CFO CV", "Master PDF & Deep Dive PDF", "nwc_b" in fh0 and "fco_cv" in fh0, f"NWC ${fh0.get('nwc_b')}B (CV {fh0.get('fco_cv')})")
+    add_chk("3. Forensic Accounting & CAGR", "ROIC (via NOPAT w/ Goodwill) vs. WACC & Spread", "Master PDF & Deep Dive PDF", "roic_goodwill_pct" in fh0 and "wacc_pct" in fh0, f"ROIC {fh0.get('roic_goodwill_pct')}% vs WACC {fh0.get('wacc_pct')}%")
+    add_chk("3. Forensic Accounting & CAGR", "DuPont 3-Pillar Identity (Margin x Turnover x Leverage)", "Master PDF & Deep Dive PDF", "roe_dupont_pct" in fh0, f"ROE DuPont {fh0.get('roe_dupont_pct')}%")
+    add_chk("3. Forensic Accounting & CAGR", "Solvency (No Altman Z): Current Ratio, Post-OpEx Cash, Int. Coverage & Debt/EBITDA", "Master PDF & Deep Dive PDF", "current_ratio" in fh0 and "interest_coverage_x" in fh0 and "debt_to_ebitda" in fh0, f"CR {fh0.get('current_ratio')}x | IC {fh0.get('interest_coverage_x')}x | D/EB {fh0.get('debt_to_ebitda')}x")
+    add_chk("3. Forensic Accounting & CAGR", "SSS (Same Store Sales) & 12-KPI CAGR Matrix (3y, 5y, 10y)", "Master PDF & Deep Dive PDF", len(cagr0) == 12, f"{len(cagr0)} KPIs audited across 3 horizons")
 
-    # 4. VALUATION MULTI-MÉTODOS (8 MÉTODOS), BANCOS & ESTRATÉGIA QUALITATIVA (M1, M4 & PDF 3)
+    # 4. MULTI-METHOD VALUATION (8 METHODS), BANKS & QUALITATIVE STRATEGY
     vm0 = e0.valuation_methods if e0 else {}
     qs0 = e0.qualitative_strategy if e0 else {}
-    add_chk("4. Valuation (8 Métodos) & Qualitativo", "Método 1: DCF Tradicional (Conservador, Base, Otimista + 10% MoS)", "App M1/M4 & PDF 3", "dcf_fair_mos10_usd" in vm0, f"DCF MoS10 ${vm0.get('dcf_fair_mos10_usd')}")
-    add_chk("4. Valuation (8 Métodos) & Qualitativo", "Método 2: Reverse DCF (g_impl vs. g_fund & CAGR FCF)", "App M1/M4 & PDF 3", "reverse_dcf_g_impl_pct" in vm0, f"g_impl {vm0.get('reverse_dcf_g_impl_pct')}% vs g_fund {vm0.get('g_fund_projected_pct')}%")
-    add_chk("4. Valuation (8 Métodos) & Qualitativo", "Método 3: Owner Earnings Yield (Munger) vs. US 10Y", "App M1/M4 & PDF 3", "owner_earnings_yield_pct" in vm0, f"OE Yield {vm0.get('owner_earnings_yield_pct')}%")
-    add_chk("4. Valuation (8 Métodos) & Qualitativo", "Método 4: Múltiplos P/E (Spot/Setor/5y/DCF), EV/EBITDA, P/B, P/TBV", "App M1/M4 & PDF 3", "pe_current" in vm0 and "ptbv_current" in vm0, f"P/E {vm0.get('pe_current')}x | P/TBV {vm0.get('ptbv_current')}x")
-    add_chk("4. Valuation (8 Métodos) & Qualitativo", "Métodos 5, 6, 7 & 8: EVA, PEGY (Fin & Enterprise), Greenblatt & SOTP", "App M1/M4 & PDF 3", "sotp_fair_price_usd" in vm0 and "enterprise_pegy_ev_ebit" in vm0, f"SOTP ${vm0.get('sotp_fair_price_usd')} | PEGY {vm0.get('enterprise_pegy_ev_ebit')}x")
-    add_chk("4. Valuation (8 Métodos) & Qualitativo", "Bancos Globais Scatter (P/TBV vs. ROE & Filtro P/B >= 1.0x)", "App M1 & PDF 3", True, "Scatter Plot & Auditoria Bancária Ativos")
-    add_chk("4. Valuation (8 Métodos) & Qualitativo", "Moats (4 Pilares), 5 Forças de Porter, Common Size & Lente Setorial", "App M1/M4 & PDF 3", "porter_5_forces" in qs0 and "moat_classification" in qs0, "Porter + Moats + Common Size verificados")
+    add_chk("4. Valuation (8 Methods) & Strategy", "Method 1: Forward DCF (Conservative, Base, Optimistic + 10% MoS)", "Master PDF & Deep Dive PDF", "dcf_fair_mos10_usd" in vm0, f"DCF MoS10 ${vm0.get('dcf_fair_mos10_usd')}")
+    add_chk("4. Valuation (8 Methods) & Strategy", "Method 2: Reverse DCF (g_impl vs. g_fund & FCF CAGR)", "Master PDF & Deep Dive PDF", "reverse_dcf_g_impl_pct" in vm0, f"g_impl {vm0.get('reverse_dcf_g_impl_pct')}% vs g_fund {vm0.get('g_fund_projected_pct')}%")
+    add_chk("4. Valuation (8 Methods) & Strategy", "Method 3: Owner Earnings Yield (Munger) vs. US 10Y", "Master PDF & Deep Dive PDF", "owner_earnings_yield_pct" in vm0, f"OE Yield {vm0.get('owner_earnings_yield_pct')}%")
+    add_chk("4. Valuation (8 Methods) & Strategy", "Method 4: Multiples P/E (Spot/Sector/5y/DCF), EV/EBITDA, P/B, P/TBV", "Master PDF & Deep Dive PDF", "pe_current" in vm0 and "ptbv_current" in vm0, f"P/E {vm0.get('pe_current')}x | P/TBV {vm0.get('ptbv_current')}x")
+    add_chk("4. Valuation (8 Methods) & Strategy", "Methods 5, 6, 7 & 8: EVA, PEGY (Fin & Enterprise), Greenblatt & SOTP", "Master PDF & Deep Dive PDF", "sotp_fair_price_usd" in vm0 and "enterprise_pegy_ev_ebit" in vm0, f"SOTP ${vm0.get('sotp_fair_price_usd')} | PEGY {vm0.get('enterprise_pegy_ev_ebit')}x")
+    add_chk("4. Valuation (8 Methods) & Strategy", "Global Banking Peer Matrix (P/TBV vs. ROE & P/B >= 1.0x Rule)", "Master PDF", True, "Global Banking Peers Active")
+    add_chk("4. Valuation (8 Methods) & Strategy", "Moats (4 Pillars), Porter's 5 Forces, Common Size & Sector Lens", "Master PDF & Deep Dive PDF", "porter_5_forces" in qs0 and "moat_classification" in qs0, "Porter + Moats + Common Size verified")
 
-    # 5. CRIPTOATIVOS: ON-CHAIN, MINERAÇÃO, TOKENOMICS & DERIVATIVOS (M1, M4, PDF 2 & PDF 4)
+    # 5. CRYPTOASSETS: ON-CHAIN, MINING, TOKENOMICS & DERIVATIVES
     c0 = next(iter(cryptos.values())) if cryptos else None
     om0 = c0.onchain_metrics if c0 else {}
     mm0 = c0.mining_metrics if c0 else {}
     tv0 = c0.tokenomics_valuation if c0 else {}
     ss0 = c0.supply_structure if c0 else {}
     ds0 = c0.derivatives_sentiment if c0 else {}
-    add_chk("5. Cripto On-Chain & Tokenomics", "MVRV Z-Score, NUPL, aSOPR (Linha 1.0), Pi Cycle Top & 200W SMA", "App M1/M4 & PDF 2/4", "mvrv_z_score" in om0 and "asopr" in om0, f"MVRV Z {om0.get('mvrv_z_score')} | aSOPR {om0.get('asopr')}")
-    add_chk("5. Cripto On-Chain & Tokenomics", "Mineração & Fluxos: Hash Ribbon, MMC, Exchange Inflow, CDD, HODL Waves & Stablecoins", "App M1/M4 & PDF 2/4", "mmc_minimum_mining_cost_usd" in mm0, f"MMC ${mm0.get('mmc_minimum_mining_cost_usd')}")
-    add_chk("5. Cripto On-Chain & Tokenomics", "Economia Real: NVM Ratio, NVT GC, P/S, P/F, Protocol Real Earnings & Real Yield", "App M1/M4 & PDF 2/4", "protocol_real_earnings_m" in tv0 and "real_yield_pct" in tv0, f"Real Earn ${tv0.get('protocol_real_earnings_m')}M")
-    add_chk("5. Cripto On-Chain & Tokenomics", "Supply & Derivativos: Unlocks 30d, Preço Pós-Diluição, OI/MCap, Funding & Liq Heatmap", "App M1/M4 & PDF 2/4", "theoretical_post_unlock_price_usd" in ss0 and "oi_to_mcap_pct" in ds0, f"OI/MCap {ds0.get('oi_to_mcap_pct')}%")
+    add_chk("5. Crypto On-Chain & Tokenomics", "MVRV Z-Score, NUPL, aSOPR (1.0 Line), Pi Cycle Top & 200W SMA", "Master PDF & Deep Dive PDF", "mvrv_z_score" in om0 and "asopr" in om0, f"MVRV Z {om0.get('mvrv_z_score')} | aSOPR {om0.get('asopr')}")
+    add_chk("5. Crypto On-Chain & Tokenomics", "Mining & Flows: Hash Ribbon, MMC, Exchange Inflow, CDD, HODL Waves & Stablecoins", "Master PDF & Deep Dive PDF", "mmc_minimum_mining_cost_usd" in mm0, f"MMC ${mm0.get('mmc_minimum_mining_cost_usd')}")
+    add_chk("5. Crypto On-Chain & Tokenomics", "Real Economics: NVM Ratio, NVT GC, P/S, P/F, Protocol Real Earnings & Real Yield", "Master PDF & Deep Dive PDF", "protocol_real_earnings_m" in tv0 and "real_yield_pct" in tv0, f"Real Earn ${tv0.get('protocol_real_earnings_m')}M")
+    add_chk("5. Crypto On-Chain & Tokenomics", "Supply & Derivatives: 30d Unlocks, Post-Dilution Price, OI/MCap, Funding & Liq Heatmap", "Master PDF & Deep Dive PDF", "theoretical_post_unlock_price_usd" in ss0 and "oi_to_mcap_pct" in ds0, f"OI/MCap {ds0.get('oi_to_mcap_pct')}%")
 
-    # 6. INTELIGÊNCIA DOCUMENTAL, M&As, DEFI, GEOPOLÍTICA, SCREENER & RISCO/LTV (M3, M4, M5 & PDFs 1 a 5)
-    add_chk("6. Dossiês PDF, Screener & LTV", "Dossiê 10-K/10-Q/8-K, SOX 404b, MD&A, Item 1A, Footnotes, Calls Q&A & M&As", "PDF 3 & App M4", len(eq_filings) > 0, f"{len(eq_filings)} dossiês corporativos completos")
-    add_chk("6. Dossiês PDF, Screener & LTV", "Dossiê White Papers, GitHub Commits/Devs, Governança DeepDAO & Token Sniffer", "PDF 4 & App M4", len(cr_filings) > 0, f"{len(cr_filings)} dossiês técnicos cripto completos")
-    add_chk("6. Dossiês PDF, Screener & LTV", "Matriz Geopolítica Global (% Receita 10-K Exposta) & Eventos Micro Internos", "PDF 1, PDF 3/4 & App M4", len(geo_matrix) > 0 and len(micro_events) > 0, f"{len(geo_matrix)} vetores geo + {len(micro_events)} eventos micro")
-    add_chk("6. Dossiês PDF, Screener & LTV", "Screener Quantitativo e Forense (Funil 5 Filtros Ações & Cripto)", "PDF 5 & App M4/M5", len(stock_screener) > 0 and len(crypto_screener) > 0, f"{len(stock_screener)} ações + {len(crypto_screener)} criptos no funil")
-    add_chk("6. Dossiês PDF, Screener & LTV", "Risco, LTV Convexo (IBKR Box + Aave V3 Stress-Test), ADTV < 1%, 7 Regras & Tax-Drag", "App M3 & Master PDF", "ltv_global_current_pct" in risk_timing.convex_ltv_panel, f"LTV Global {risk_timing.convex_ltv_panel.get('ltv_global_current_pct')}%")
+    # 6. DOCUMENTARY INTELLIGENCE, M&A, DEFI, GEOPOLITICS, SCREENER & RISK/LTV
+    add_chk("6. PDF Dossiers, Screener & LTV", "SEC 10-K/10-Q/8-K Dossier, SOX 404b, MD&A, Item 1A, Footnotes, Calls Q&A & M&A", "Master PDF & Deep Dive PDF", len(eq_filings) > 0, f"{len(eq_filings)} complete corporate dossiers")
+    add_chk("6. PDF Dossiers, Screener & LTV", "Whitepapers, GitHub Commits/Devs, DeepDAO Governance & Token Sniffer", "Master PDF & Deep Dive PDF", len(cr_filings) > 0, f"{len(cr_filings)} complete crypto technical dossiers")
+    add_chk("6. PDF Dossiers, Screener & LTV", "Global Geopolitical Matrix (% 10-K Revenue Exposed) & Corporate/Protocol Micro Events", "Master PDF & Deep Dive PDF", len(geo_matrix) > 0 and len(micro_events) > 0, f"{len(geo_matrix)} geo vectors + {len(micro_events)} micro events")
+    add_chk("6. PDF Dossiers, Screener & LTV", "Quantitative & Forensic Screener (5-Filter Equity & Crypto Funnels)", "Master PDF & Deep Dive PDF", len(stock_screener) > 0 and len(crypto_screener) > 0, f"{len(stock_screener)} equities + {len(crypto_screener)} cryptos screened")
+    add_chk("6. PDF Dossiers, Screener & LTV", "Risk, Convex LTV (IBKR Box + Aave V3 Stress-Test), ADTV < 1%, 7 Rules & Tax-Drag", "Master PDF & Tab 4", "ltv_global_current_pct" in risk_timing.convex_ltv_panel, f"Global LTV {risk_timing.convex_ltv_panel.get('ltv_global_current_pct')}%")
 
     total_c = len(checks)
     passed_c = sum(1 for c in checks if c.verified)
@@ -282,10 +282,10 @@ def run_complete_ecosystem_integrity_audit(
     for d_name, items in domains.items():
         p_cnt = sum(1 for x in items if x.verified)
         dom_summary.append({
-            "Domínio Arquitetural": d_name,
-            "Blocos de Critérios Verificados": f"{p_cnt}/{len(items)} blocos (100% dos indicadores originais + novos)",
-            "Localização no Ecossistema": items[0].location_in_ecosystem,
-            "Status de Preservação": "100% PRESERVADO ✓" if p_cnt == len(items) else "VERIFICAR",
+            "Architectural Domain": d_name,
+            "Verified Criteria Blocks": f"{p_cnt}/{len(items)} blocks (100% of core & live criteria)",
+            "Ecosystem Location": items[0].location_in_ecosystem,
+            "Preservation Status": "100% PRESERVED ✓" if p_cnt == len(items) else "CHECK",
         })
 
     return EcosystemIntegrityAudit(

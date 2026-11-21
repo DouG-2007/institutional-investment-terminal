@@ -92,11 +92,13 @@ class TestTerminalInvariants(unittest.TestCase):
             risk_timing=self.risk_timing,
             backtest=bt_sample,
         )
-        # Altman Z-Score is intentionally excluded across reporting
+        # Altman Z-Score and embedded graphs are intentionally excluded across reporting
         self.assertNotIn("altman", dd_html.lower())
         self.assertNotIn("altman", master_html.lower())
-        # Pure-SVG vector charts embedded safely in Master PDF
-        self.assertIn("<svg", master_html)
+        self.assertNotIn("<svg", master_html)
+        # 3Y Backtest, VaR/CVaR, Shannon DCA vs Passive, and Stress-Test tables are in Section 7
+        self.assertIn("7.3A.", master_html)
+        self.assertIn("7.3B.", master_html)
 
         # Tax-Drag Hurdle Rate: 0.0% at loss, exact formula at +100% gain with 15% tax = 7.50%
         loss_pos = self.portfolio.positions[0]
