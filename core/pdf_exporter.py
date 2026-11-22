@@ -166,6 +166,7 @@ class InstitutionalPDFExporter:
         ai_executive_summary: Optional[Dict[str, Any]] = None,
         ai_report_bundle: Optional[Dict[str, Any]] = None,
         backtest: Optional[Dict[str, Any]] = None,
+        focus_ticker: Optional[str] = None,
     ) -> str:
         from core.intelligence_reports_engine import IntelligenceReportsEngine
 
@@ -182,6 +183,39 @@ class InstitutionalPDFExporter:
         llama_stats = intel.fetch_live_defillama_macro_stats()
         cycle_rows = (ai_b.get("defi_cycle_rows") if ai_b else None) or intel.build_defi_cycle_indicators(cryptos)
         narratives = (ai_b.get("defi_narratives") if ai_b else None) or intel.get_defi_narratives()
+
+        focus_tk = (focus_ticker or "").strip().upper()
+        positions_view = portfolio.positions
+        lt_holdings_view = portfolio.lookthrough_holdings
+        timing_rows_view = risk_timing.consultative_asset_timing_table
+        if focus_tk:
+            positions_view = [p for p in portfolio.positions if p.ticker.upper() == focus_tk] or portfolio.positions
+            equities = [e for e in equities if e.ticker.upper() == focus_tk]
+            cryptos = {k: v for k, v in cryptos.items() if k.upper() == focus_tk}
+            eq_filings = [f for f in eq_filings if f.ticker.upper() == focus_tk]
+            cr_filings = [f for f in cr_filings if f.symbol.upper() == focus_tk]
+            stock_screener = [s for s in stock_screener if s.ticker.upper() == focus_tk]
+            crypto_screener = [c for c in crypto_screener if c.symbol.upper() == focus_tk]
+            sens_rows = [s for s in sens_rows if s.ticker.upper() == focus_tk]
+            micro_events = [m for m in micro_events if m.asset_ticker.upper() == focus_tk]
+            timing_rows_view = [r for r in risk_timing.consultative_asset_timing_table if r.asset_ticker.upper() == focus_tk] or risk_timing.consultative_asset_timing_table
+            lt_match = [
+                h for h in portfolio.lookthrough_holdings
+                if h.ticker.upper() == focus_tk or focus_tk in (h.overlap_sources or "").upper()
+            ]
+            lt_holdings_view = lt_match or portfolio.lookthrough_holdings[:6]
+            geo_match = [
+                g for g in geo_matrix
+                if focus_tk in (g.affected_portfolio_assets or "").upper() or "ALL" in (g.affected_portfolio_assets or "").upper()
+            ]
+            if geo_match:
+                geo_matrix = geo_match
+            disr_match = [
+                d for d in disruptions
+                if focus_tk in (d.winners_in_portfolio or "").upper() or focus_tk in (d.vulnerable_or_hedged_assets or "").upper()
+            ]
+            if disr_match:
+                disruptions = disr_match
 
         sp = macro.sahm_paired
         sos = macro.sos_indicator
@@ -250,6 +284,10 @@ class InstitutionalPDFExporter:
             margin: 8px 0 6px 0;
             text-transform: uppercase;
             letter-spacing: 0.3px;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
         }
         .sub-banner {
             background: #1E293B;
@@ -260,12 +298,18 @@ class InstitutionalPDFExporter:
             border-left: 3px solid #10B981;
             border-radius: 3px;
             margin: 6px 0 4px 0;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
         }
         .kpi-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 8px;
             margin-bottom: 8px;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
         }
         .kpi-box {
             background: #F8FAFC;
@@ -273,6 +317,8 @@ class InstitutionalPDFExporter:
             border-left: 4px solid #1E3A8A;
             border-radius: 5px;
             padding: 6px 10px;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
         }
         .kpi-box .lbl {
             font-size: 6.8pt;
@@ -299,6 +345,14 @@ class InstitutionalPDFExporter:
             margin-bottom: 7px;
             font-size: 7.6pt;
             color: #1E3A8A;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tfoot {
+            display: table-footer-group;
         }
         table.inst-table {
             width: 100%;
@@ -306,6 +360,12 @@ class InstitutionalPDFExporter:
             margin-bottom: 8px;
             font-size: 7.4pt;
             table-layout: auto;
+            page-break-inside: auto;
+            break-inside: auto;
+        }
+        table.inst-table tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
         }
         table.inst-table th {
             background: #1E293B;
@@ -317,6 +377,8 @@ class InstitutionalPDFExporter:
             font-size: 7.3pt;
             word-break: normal;
             overflow-wrap: break-word;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
         }
         table.inst-table td {
             padding: 4.5px 7px;
@@ -326,6 +388,8 @@ class InstitutionalPDFExporter:
             word-break: normal;
             overflow-wrap: break-word;
             hyphens: none;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
         }
         table.inst-table tr:nth-child(even) td {
             background: #F8FAFC;
@@ -334,6 +398,10 @@ class InstitutionalPDFExporter:
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
+            align-items: start;
+        }
+        .grid-2 > div {
+            min-width: 0;
         }
         .mono {
             font-family: 'Consolas', 'Courier New', monospace;
@@ -444,24 +512,47 @@ class InstitutionalPDFExporter:
 
         ai_header_block = f"{ai_prov_html}{ai_exec_html}"
 
+        focus_pos = positions_view[0] if (focus_tk and positions_view) else None
+        hdr_title = (
+            f"SINGLE-ASSET MASTER 360° DECISION REPORT — {_esc(focus_tk)}"
+            if focus_tk
+            else "360° MASTER INSTITUTIONAL REPORT — ANALYTICAL, FORENSIC, MACRO &amp; DEFI INTELLIGENCE"
+        )
+        hdr_sub = (
+            f"Portfolio Position Decision Mode &bull; Target {focus_pos.target_weight_pct:.2f}% vs Current {focus_pos.current_weight_pct:.2f}% ({focus_pos.weight_drift_pp:+.2f}pp) &bull; P&amp;L {focus_pos.pnl_pct:+.1f}% | Same 360° Master Engine Scoped to {_esc(focus_tk)}"
+            if focus_pos is not None
+            else "Consolidated Master Document (All 7 Complete Sections) &bull; Forward (NTM) Analytics, Forensic Accounting, SEC 10-K/M&amp;A/Porter Dossiers, Whitepapers/Unlocks, Nominal NVT, DeFi &amp; Screener"
+        )
+        kpi1_lbl = f"Position Focus ({_esc(focus_tk)})" if focus_pos is not None else f"Portfolio Allocation ({len(portfolio.positions)} Holdings)"
+        kpi1_val = (
+            f"Target {focus_pos.target_weight_pct:.2f}% | P&amp;L {focus_pos.pnl_pct:+.1f}%"
+            if focus_pos is not None
+            else f"{portfolio.total_crypto_pct:.0f}% Crypto / {portfolio.total_hard_assets_pct:.0f}% Hard-Assets"
+        )
+        kpi1_sub = (
+            f"Allocated: ${focus_pos.allocated_usd:,.0f} | LTV Collateral: {'YES' if focus_pos.ltv_turbo_eligible else 'NO'}"
+            if focus_pos is not None
+            else f"Effective Gross Exposure (w/ QLD 2x): {portfolio.effective_gross_exposure_pct:.1f}%"
+        )
+
         sec1_html = f"""
         <div class="page-section">
-            <div class="report-header">
+            <div class="report-header" style="break-inside:avoid; page-break-inside:avoid;">
                 <div>
-                    <div class="report-title">360° MASTER INSTITUTIONAL REPORT — ANALYTICAL, FORENSIC, MACRO &amp; DEFI INTELLIGENCE</div>
-                    <div class="report-subtitle">Consolidated Master Document (All 7 Complete Sections) &bull; Forward (NTM) Analytics, Forensic Accounting, SEC 10-K/M&amp;A/Porter Dossiers, Whitepapers/Unlocks, Nominal NVT, DeFi &amp; Screener</div>
+                    <div class="report-title">{hdr_title}</div>
+                    <div class="report-subtitle">{hdr_sub}</div>
                 </div>
                 <div style="text-align:right;">
-                    <div style="font-size:9.5pt; font-weight:800; color:#FDE047;">BASE CAPITAL: USD {portfolio.capital_usd:,.0f}</div>
+                    <div style="font-size:9.5pt;font-weight:800; color:#FDE047;">BASE CAPITAL: USD {portfolio.capital_usd:,.0f}</div>
                     <div style="font-size:7.3pt; color:#E2E8F0;">Generated: {_esc(macro.timestamp)}</div>
                 </div>
             </div>
 
             <div class="kpi-row">
                 <div class="kpi-box">
-                    <div class="lbl">Portfolio Allocation ({len(portfolio.positions)} Holdings)</div>
-                    <div class="val">{portfolio.total_crypto_pct:.0f}% Crypto / {portfolio.total_hard_assets_pct:.0f}% Hard-Assets</div>
-                    <div class="sub">Effective Gross Exposure (w/ QLD 2x): {portfolio.effective_gross_exposure_pct:.1f}%</div>
+                    <div class="lbl">{kpi1_lbl}</div>
+                    <div class="val">{kpi1_val}</div>
+                    <div class="sub">{kpi1_sub}</div>
                 </div>
                 <div class="kpi-box">
                     <div class="lbl">Sahm Rule + Paired Payroll &amp; ICSA</div>
@@ -600,7 +691,7 @@ class InstitutionalPDFExporter:
             f"<td>{_badge('Yes (LTV Collateral)', 'green') if p.ltv_turbo_eligible else _badge('No (Volatile)', 'slate')}</td>"
             f"<td><strong>Role:</strong> {_esc(p.role_description)}<br><strong>Yield:</strong> {_esc(p.yield_mechanism)}</td>"
             f"</tr>"
-            for p in portfolio.positions
+            for p in positions_view
         )
 
         lt_rows_html = "".join(
@@ -613,7 +704,7 @@ class InstitutionalPDFExporter:
             f"<td class='mono' style='background:#EFF6FF; font-weight:800;'>{h.total_effective_lookthrough_pct:.2f}% (${h.effective_exposure_usd:,.0f})</td>"
             f"<td>{_esc(h.overlap_sources)}</td>"
             f"</tr>"
-            for h in portfolio.lookthrough_holdings
+            for h in lt_holdings_view
         )
 
         sec_lt_rows_html = "".join(
@@ -860,7 +951,8 @@ class InstitutionalPDFExporter:
                 </div>
             </div>
         </div>
-
+        """
+        sec2_eq_block = f"""
         <div class="page-section">
             <div class="sub-banner">2.3A. Financial Health &amp; Forensic Accounting — Part A: Earnings Quality (Sloan Ratio), CFO/EBITDA Conversion, NWC &amp; ROIC vs. WACC</div>
             <table class="inst-table">
@@ -961,12 +1053,13 @@ class InstitutionalPDFExporter:
                         <tbody>{banks_rows_html}</tbody>
                     </table>
                     <div class="insight-box">
-                        <strong>Confirmed Forward (NTM) Methodology:</strong> Both <strong>DCF / Reverse DCF</strong> (starting from NTM Forward FCF and projecting via consensus Forward $g_{{\text{{fund}}}}$) and <strong>Financial PEGY &amp; Enterprise PEGY</strong> multiples (<code>NTM P/E</code>, <code>NTM EV/EBIT</code>, <code>NTM EV/FCF</code> divided by <code>NTM EPS/EBIT CAGR + DY + Buyback Yield</code>) strictly utilize <strong>Forward (Next Twelve Months)</strong> data.
+                        <strong>Confirmed Forward (NTM) Methodology:</strong> Both <strong>DCF / Reverse DCF</strong> (starting from NTM Forward FCF and projecting via consensus Forward <i>g</i><sub>fund</sub>) and <strong>Financial PEGY &amp; Enterprise PEGY</strong> multiples (<code>NTM P/E</code>, <code>NTM EV/EBIT</code>, <code>NTM EV/FCF</code> divided by <code>NTM EPS/EBIT CAGR + DY + Buyback Yield</code>) strictly utilize <strong>Forward (Next Twelve Months)</strong> data.
                     </div>
                 </div>
             </div>
         </div>
-        """
+        """ if ((not focus_tk) or equities) else ""
+        sec2_html = sec2_html + sec2_eq_block
 
         # ======================================================================
         # SECTION 3: ON-CHAIN CRYPTO INTELLIGENCE (CYCLES, MINING, TOKENOMICS & PROTOCOL EARNINGS)
@@ -1410,7 +1503,7 @@ class InstitutionalPDFExporter:
             f"<td>{_auto_badge(r.consultative_status_vs_reference)}</td>"
             f"<td class='mono'><strong>-{r.tax_drag_hurdle_rate_pct:.2f}%</strong> (Gain +{r.estimated_unrealized_gain_pct:.0f}% | Tax {r.capital_gains_tax_rate_pct:.0f}%)<br>{_badge('Shannon Inflow Qualified', 'green') if r.shannon_inflow_eligible else _badge('Hold', 'amber')}</td>"
             f"</tr>"
-            for r in risk_timing.consultative_asset_timing_table
+            for r in timing_rows_view
         )
 
         sec7_html = f"""
@@ -1467,7 +1560,7 @@ class InstitutionalPDFExporter:
                 <tbody>{rules_doc_html}</tbody>
             </table>
 
-            <div class="sub-banner">7.2B. Consultative Positioning of {len(portfolio.positions)} Holdings, Shannon Inflow Simulator &amp; Fiscal Impact (Tax-Drag Hurdle Rate)</div>
+            <div class="sub-banner">7.2B. Consultative Positioning of {len(positions_view)} Holding(s), Shannon Inflow Simulator &amp; Fiscal Impact (Tax-Drag Hurdle Rate)</div>
             <table class="inst-table">
                 <thead>
                     <tr>
@@ -1485,21 +1578,25 @@ class InstitutionalPDFExporter:
         </div>
         """
 
+        body_sections = [sec1_html, sec2_html]
+        if (not focus_tk) or cryptos:
+            body_sections.append(sec3_html)
+        if (not focus_tk) or equities:
+            body_sections.append(sec4_html)
+        if (not focus_tk) or cryptos:
+            body_sections.append(sec5_html)
+        body_sections.extend([sec6_html, sec7_html])
+        joined_body = "\n".join(body_sections)
+
         full_html = f"""<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="utf-8">
-            <title>360° Master Institutional Report — Portfolio Analytics, Forensic, Macro &amp; DeFi</title>
+            <title>360° Master Institutional Report — {'Single-Asset ' + _esc(focus_tk) if focus_tk else 'Portfolio Analytics, Forensic, Macro &amp; DeFi'}</title>
             <style>{css}</style>
         </head>
         <body>
-            {sec1_html}
-            {sec2_html}
-            {sec3_html}
-            {sec4_html}
-            {sec5_html}
-            {sec6_html}
-            {sec7_html}
+            {joined_body}
         </body>
         </html>
         """
@@ -1522,6 +1619,7 @@ class InstitutionalPDFExporter:
         ai_executive_summary: Optional[Dict[str, Any]] = None,
         ai_report_bundle: Optional[Dict[str, Any]] = None,
         backtest: Optional[Dict[str, Any]] = None,
+        focus_ticker: Optional[str] = None,
     ) -> bytes:
         html_str = self.build_complete_html_report(
             macro=macro,
@@ -1538,8 +1636,10 @@ class InstitutionalPDFExporter:
             ai_executive_summary=ai_executive_summary,
             ai_report_bundle=ai_report_bundle,
             backtest=backtest,
+            focus_ticker=focus_ticker,
         )
-        return self._compile_html_to_pdf_bytes(html_str, "relatorio_master_multi_completo_360", output_pdf_path)
+        stem = f"relatorio_master_360_{focus_ticker.strip().upper()}" if focus_ticker else "relatorio_master_multi_completo_360"
+        return self._compile_html_to_pdf_bytes(html_str, stem, output_pdf_path)
 
     # ==========================================================================
     # MÓDULO DE DOSSIÊ INDIVIDUAL DE ATIVO EM PDF (DEEP DIVE 360° SEM ALTMAN Z)
@@ -1551,21 +1651,25 @@ class InstitutionalPDFExporter:
         body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; font-size: 7.8pt; line-height: 1.35; color: #0F172A; background: #FFFFFF; margin: 0; padding: 0; }
         .page-section { page-break-after: always; }
         .page-section:last-child { page-break-after: auto; }
-        .report-header { background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%); color: #FFFFFF; padding: 12px 16px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #F59E0B; }
+        .report-header { background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%); color: #FFFFFF; padding: 12px 16px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #F59E0B; break-inside: avoid !important; page-break-inside: avoid !important; }
         .report-title { font-size: 13pt; font-weight: 800; margin: 0; }
         .report-subtitle { font-size: 8pt; color: #CBD5E1; margin-top: 2px; }
-        .section-banner { background: #0F172A; color: #FDE047; padding: 6px 12px; font-size: 9pt; font-weight: 800; border-left: 4px solid #3B82F6; border-radius: 4px; margin: 8px 0 6px 0; text-transform: uppercase; }
-        .sub-banner { background: #1E293B; color: #F8FAFC; padding: 4px 10px; font-size: 8.2pt; font-weight: 700; border-left: 3px solid #10B981; border-radius: 3px; margin: 6px 0 4px 0; }
-        .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
-        .kpi-box { background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #1E3A8A; border-radius: 5px; padding: 6px 10px; }
+        .section-banner { background: #0F172A; color: #FDE047; padding: 6px 12px; font-size: 9pt; font-weight: 800; border-left: 4px solid #3B82F6; border-radius: 4px; margin: 8px 0 6px 0; text-transform: uppercase; break-after: avoid !important; page-break-after: avoid !important; break-inside: avoid !important; page-break-inside: avoid !important; }
+        .sub-banner { background: #1E293B; color: #F8FAFC; padding: 4px 10px; font-size: 8.2pt; font-weight: 700; border-left: 3px solid #10B981; border-radius: 3px; margin: 6px 0 4px 0; break-after: avoid !important; page-break-after: avoid !important; break-inside: avoid !important; page-break-inside: avoid !important; }
+        .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; break-inside: avoid !important; page-break-inside: avoid !important; }
+        .kpi-box { background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #1E3A8A; border-radius: 5px; padding: 6px 10px; break-inside: avoid !important; page-break-inside: avoid !important; }
         .kpi-box .lbl { font-size: 6.8pt; font-weight: 700; text-transform: uppercase; color: #475569; }
         .kpi-box .val { font-size: 10.5pt; font-weight: 800; color: #0F172A; margin: 2px 0; }
         .kpi-box .sub { font-size: 6.8pt; color: #64748B; }
-        .insight-box { background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #2563EB; border-radius: 5px; padding: 7px 11px; margin-bottom: 8px; font-size: 7.8pt; color: #1E3A8A; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        table.inst-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 7.4pt; }
-        table.inst-table th { background: #1E293B; color: #FFFFFF; font-weight: 700; text-align: left; padding: 5px 7px; border: 1px solid #334155; }
-        table.inst-table td { padding: 4.5px 7px; border: 1px solid #CBD5E1; vertical-align: top; color: #0F172A; word-break: normal; overflow-wrap: break-word; }
+        .insight-box { background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #2563EB; border-radius: 5px; padding: 7px 11px; margin-bottom: 8px; font-size: 7.8pt; color: #1E3A8A; break-inside: avoid !important; page-break-inside: avoid !important; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+        .grid-2 > div { min-width: 0; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        table.inst-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 7.4pt; page-break-inside: auto; break-inside: auto; }
+        table.inst-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+        table.inst-table th { background: #1E293B; color: #FFFFFF; font-weight: 700; text-align: left; padding: 5px 7px; border: 1px solid #334155; break-inside: avoid !important; page-break-inside: avoid !important; }
+        table.inst-table td { padding: 4.5px 7px; border: 1px solid #CBD5E1; vertical-align: top; color: #0F172A; word-break: normal; overflow-wrap: break-word; hyphens: none; break-inside: avoid !important; page-break-inside: avoid !important; }
         table.inst-table tr:nth-child(even) td { background: #F8FAFC; }
         .mono { font-family: 'Consolas', 'Courier New', monospace; font-weight: 600; }
         """

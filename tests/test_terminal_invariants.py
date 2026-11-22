@@ -99,6 +99,28 @@ class TestTerminalInvariants(unittest.TestCase):
         # 3Y Backtest, VaR/CVaR, Shannon DCA vs Passive, and Stress-Test tables are in Section 7
         self.assertIn("7.3A.", master_html)
         self.assertIn("7.3B.", master_html)
+        self.assertIn("table-header-group", master_html)
+        self.assertIn("break-inside: avoid !important", master_html)
+
+        # Single-Asset Master 360° (Portfolio Decision Mode) scoped to one equity holding
+        single_master_html = pdf_exp.build_complete_html_report(
+            macro=self.macro,
+            portfolio=self.portfolio,
+            equities=self.equities,
+            cryptos=self.cryptos,
+            eq_filings=self.filings.get_equity_dossiers(),
+            cr_filings=self.filings.get_crypto_dossiers(),
+            geo_matrix=self.geo.get_geopolitical_matrix(prefer_ai_cache=False),
+            micro_events=self.geo.get_micro_events(prefer_ai_cache=False),
+            stock_screener=self.screener.run_stock_screener(),
+            crypto_screener=self.screener.run_crypto_screener(),
+            risk_timing=self.risk_timing,
+            backtest=bt_sample,
+            focus_ticker="NVDA",
+        )
+        self.assertIn("SINGLE-ASSET MASTER 360° DECISION REPORT", single_master_html)
+        self.assertIn("NVDA", single_master_html)
+        self.assertNotIn("SECTION 3: CRYPTO ANALYTICAL INTELLIGENCE", single_master_html)
 
         # Tax-Drag Hurdle Rate: 0.0% at loss, exact formula at +100% gain with 15% tax = 7.50%
         loss_pos = self.portfolio.positions[0]

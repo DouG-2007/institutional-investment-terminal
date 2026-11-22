@@ -584,10 +584,33 @@ def main() -> None:
             )
             is_economic_mode = ai_profile.startswith("Economic")
 
+        master_scope = st.radio(
+            "Report Scope (Portfolio Decision Mode)",
+            [
+                "🏛️ Full Portfolio Master 360° (All Holdings)",
+                "🎯 Single Portfolio Asset Master 360° (Position Decision Mode)",
+            ],
+            index=0,
+            horizontal=True,
+            key="master_report_scope_radio",
+            help="Full Portfolio compiles all holdings; Single Portfolio Asset scopes the exact same 7-section Master 360° report to one existing holding for hold/buy/trim decisions (for new external candidates, use Tab 3 Screener).",
+        )
+        focus_ticker: Optional[str] = None
+        if master_scope.startswith("🎯") and portfolio.positions:
+            focus_ticker = st.selectbox(
+                "Select Portfolio Holding for Single-Asset Master 360°",
+                options=[p.ticker for p in portfolio.positions],
+                index=0,
+                key="master_focus_ticker_select",
+            )
+
         ai_bundle: Optional[Dict[str, Any]] = None
         ai_exec_summary: Optional[Dict[str, Any]] = None
-        ai_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}|{int(is_economic_mode)}"
-        det_cache_key = f"{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}"
+        scope_tag = focus_ticker or "ALL"
+        ai_cache_key = f"{scope_tag}|{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}|{int(is_economic_mode)}"
+        det_cache_key = f"{scope_tag}|{db_sig}|{st.session_state['refresh_token']}|{capital_usd:.0f}|{tax_rate_pct:.1f}"
+        pdf_file_name = f"Master_360_{focus_ticker}.pdf" if focus_ticker else "Master_Institutional_Report_360.pdf"
+        scope_btn_label = f"360° SINGLE-ASSET MASTER ({focus_ticker})" if focus_ticker else "360° MASTER REPORT (.PDF — ALL 7 SECTIONS)"
 
         if include_ai_master and gemini_ready and not force_refresh_all_ai:
             cached_entry = st.session_state["ai_pdf_cache"].get(ai_cache_key)
@@ -603,9 +626,9 @@ def main() -> None:
         compile_clicked = False
         if active_master_pdf_bytes is not None:
             st.download_button(
-                label="📥 DOWNLOAD 360° MASTER REPORT (.PDF — ALL 7 SECTIONS)",
+                label=f"📥 DOWNLOAD {scope_btn_label}",
                 data=active_master_pdf_bytes,
-                file_name="Master_Institutional_Report_360.pdf",
+                file_name=pdf_file_name,
                 mime="application/pdf",
                 width="stretch",
                 type="primary",
@@ -613,7 +636,7 @@ def main() -> None:
             )
         else:
             compile_clicked = st.button(
-                "⚡ Generate & Compile 360° Master Report (.PDF — ALL 7 SECTIONS)",
+                f"⚡ Generate & Compile {scope_btn_label}",
                 width="stretch",
                 type="primary",
                 key="btn_main_compile_pdf",
@@ -623,9 +646,9 @@ def main() -> None:
         with sidebar_dl_placeholder.container():
             if active_master_pdf_bytes is not None:
                 st.download_button(
-                    label="📥 DOWNLOAD 360° MASTER REPORT (.PDF)",
+                    label=f"📥 DOWNLOAD {focus_ticker + ' ' if focus_ticker else ''}MASTER (.PDF)",
                     data=active_master_pdf_bytes,
-                    file_name="Master_Institutional_Report_360.pdf",
+                    file_name=pdf_file_name,
                     mime="application/pdf",
                     width="stretch",
                     type="primary",
@@ -646,6 +669,18 @@ def main() -> None:
         if should_compile_now:
             st.session_state.pop("force_refresh_all_ai", None)
             compiled_bytes: Optional[bytes] = None
+            report_backtest = backtest_res
+            if focus_ticker:
+                focus_pos = next((p for p in portfolio.positions if p.ticker == focus_ticker), None)
+                if focus_pos is not None:
+                    from core.backtest_engine import run_portfolio_backtest
+
+                    report_backtest = run_portfolio_backtest(
+                        [focus_pos],
+                        capital_usd,
+                        float(macro.yield_curve.get("us10y_pct", 4.42)),
+                    )
+
             if include_ai_master and gemini_ready:
                 with st.status("Running Full-Portfolio AI Intelligence & Compiling 360° Master PDF...", expanded=True) as status_box:
                     prog_bar = st.progress(0.0)
@@ -684,7 +719,8 @@ def main() -> None:
                             risk_timing=risk_timing,
                             ai_executive_summary=ai_exec_summary,
                             ai_report_bundle=ai_bundle,
-                            backtest=backtest_res,
+                            backtest=report_backtest,
+                            focus_ticker=focus_ticker,
                         )
                         st.session_state["ai_pdf_cache"][ai_cache_key] = {
                             "ai_bundle": ai_bundle,
@@ -720,7 +756,8 @@ def main() -> None:
                         stock_screener=bundle["stock_screener"],
                         crypto_screener=bundle["crypto_screener"],
                         risk_timing=risk_timing,
-                        backtest=backtest_res,
+                        backtest=report_backtest,
+                        focus_ticker=focus_ticker,
                     )
                     st.session_state["det_pdf_cache"][det_cache_key] = compiled_bytes
             st.rerun()
@@ -1065,8 +1102,8 @@ def main() -> None:
     # ==========================================================================
     with tabs[2]:
         render_section_header(
-            "Single-Asset Deep Dive Analyzer (Stock, ETF & Crypto Picker)",
-            "Search any market asset or portfolio holding to generate an instant institutional audit + 1-Click Individual PDF Dossier",
+            "Single-Asset Deep Dive Screener (New Candidate Due Diligence)",
+            "Evaluate any NEW or external Stock, ETF, or Crypto to decide whether to initiate a position (for assets already in your portfolio, use Tab 1's Single-Asset Master 360° Decision Mode).",
         )
 
         col_s1, col_s2, col_s3 = st.columns([2, 2, 1])

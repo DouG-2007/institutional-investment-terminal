@@ -101,9 +101,9 @@ Upon launching `streamlit run app.py`, the interface presents **5 dedicated modu
 
 | Tab | Module Name | Primary Capability |
 | :--- | :--- | :--- |
-| **Tab 1** | **Master Consolidated Report (.PDF)** | On-demand 7-section A4 graph-free decision PDF, Economic/Deep AI profile, & Section overview |
+| **Tab 1** | **Master Consolidated Report (.PDF)** | Full Portfolio OR **Single-Asset Master 360°** (Portfolio Decision Mode), AI profile, & Section overview |
 | **Tab 2** | **Portfolio Manager (SQLite CRUD)** | Read-only **IBKR + Binance Auto-Sync**, target-allocation upsert/delete, & 100% weight normalization |
-| **Tab 3** | **Single-Asset Deep Dive** | On-demand ticker selector, summary score cards, 2-page PDF dossier download, & **Auto-Fetch AI Extractor** |
+| **Tab 3** | **Single-Asset Deep Dive (Screener)** | New-candidate 5-filter due diligence, 2-page PDF dossier download, & **Auto-Fetch AI Extractor** |
 | **Tab 4** | **Simulators (Inflow & LTV) & Notifier** | Shannon's Demon inflow, Convex LTV stress-testing, and Telegram/Discord ON/OFF morning alerts |
 | **Tab 5** | **AI Portfolio Analyst** | Read-only Antigravity agent w/ 7 deterministic `core/` tools, **Active-Ticker Deep Audit**, & **`st.status` tool tracker** |
 

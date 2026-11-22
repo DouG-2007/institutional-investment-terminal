@@ -7,9 +7,9 @@ This file defines the architectural invariants, module responsibilities, persist
 ## 1. High-Level Architecture & Strict Deterministic/AI Separation
 
 - **Front-End:** Streamlit (`app.py`) — 5-tab institutional workspace:
-  1. `📄 1. Master Consolidated Report (.PDF)` — Portfolio allocation summary, 7-section master A4 vector PDF export, and **AI-Powered Master Report** toggle (ON by default when `GEMINI_API_KEY` is present) automatically orchestrating full-portfolio SEC/Crypto filing hydration plus ALL qualitative insights/matrices/events across Sections 1, 3, 4 & 5.
+  1. `📄 1. Master Consolidated Report (.PDF)` — Portfolio allocation summary, Full Portfolio OR Single-Asset Master 360° (Portfolio Decision Mode) A4 vector PDF export, and **AI-Powered Master Report** toggle (ON by default when `GEMINI_API_KEY` is present) automatically orchestrating full-portfolio SEC/Crypto filing hydration plus ALL qualitative insights/matrices/events across Sections 1, 3, 4 & 5.
   2. `⚙️ 2. Portfolio Manager (SQLite CRUD)` — Read-only custody sync (IBKR Flex Web Service / XML + Binance Spot API), asset upsert/delete, target weight 100% normalization, and configured target holdings table.
-  3. `🔎 3. Single-Asset Deep Dive (Stock & Crypto Picker)` — On-demand 5-filter forensic/valuation audit, individual 2-page PDF export, and ad-hoc Gemini Structured Filing Dossier Extractor (shares `data_cache/custom_filings_cache.json` with Tab 1).
+  3. `🔎 3. Single-Asset Deep Dive (Stock & Crypto Picker)` — New-candidate Opportunity Screener (5-filter forensic/valuation audit), individual 2-page PDF dossier, and ad-hoc Gemini Structured Filing Dossier Extractor (shares `data_cache/custom_filings_cache.json` with Tab 1).
   4. `🎛️ 4. Simulators (Inflow & LTV) & Notifier (ON/OFF)` — Shannon's Demon cash inflow simulator, Convex LTV / Aave V3 Health Factor stress-tester, and passive morning notifier (Telegram / Discord) with optional AI executive briefing toggle.
   5. `🤖 5. AI Portfolio Analyst` — Conversational AI analyst powered by Google Antigravity SDK in **strictly read-only mode**.
 
