@@ -436,6 +436,8 @@ def _fetch_single_equity_live(
     cfi_s = _extract_yf_row_values(cf, ("Investing Cash Flow", "Cash Flow From Continuing Investing Activities"))
     fcf_s = _extract_yf_row_values(cf, ("Free Cash Flow",))
     capex_s = _extract_yf_row_values(cf, ("Capital Expenditure",))
+    da_s = _extract_yf_row_values(cf, ("Depreciation And Amortization", "Depreciation Amortization Depletion", "Depreciation"))
+    wc_chg_s = _extract_yf_row_values(cf, ("Change In Working Capital",))
 
     assets_s = _extract_yf_row_values(bs, ("Total Assets",))
     cash_s = _extract_yf_row_values(bs, ("Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents"))
@@ -468,6 +470,28 @@ def _fetch_single_equity_live(
             out["net_income_b"] = ni_b
         if assets_b is not None:
             out["total_assets_b"] = assets_b
+
+        da_b: Optional[float] = None
+        if da_s and da_s[0] > 0:
+            da_b = round((abs(da_s[0]) * fx_to_usd) / 1e9, 2)
+        elif ebitda_b is not None and ebit_b is not None and ebitda_b >= ebit_b:
+            da_b = round(ebitda_b - ebit_b, 2)
+        if da_b is not None and da_b > 0:
+            out["da_b"] = da_b
+
+        if capex_s and capex_s[0] != 0:
+            capex_abs_b = abs((capex_s[0] * fx_to_usd) / 1e9)
+            maint_capex_b = round(
+                min(capex_abs_b, (da_b * 0.90) if (da_b and da_b > 0) else (capex_abs_b * 0.65)),
+                2,
+            )
+            if maint_capex_b > 0:
+                out["maint_capex_b"] = maint_capex_b
+
+        if wc_chg_s:
+            wc_b = round((wc_chg_s[0] * fx_to_usd) / 1e9, 2)
+            if abs(wc_b) <= 50.0:
+                out["delta_nwc_b"] = wc_b
 
         cash_usd_b = round((cash_s[0] * fx_to_usd) / 1e9, 2) if (cash_s and cash_s[0] >= 0) else None
         if cash_usd_b is not None:

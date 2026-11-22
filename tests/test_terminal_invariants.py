@@ -125,6 +125,14 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertIn("Financial PEGY", b.valuation_methods["primary_pegy_label"])
             self.assertGreater(b.valuation_methods["pb_current"], 0.0)
 
+        # Valuation invariants across all equities: monotonic DCF scenarios & positive fair values
+        for eq in self.equities:
+            vm = eq.valuation_methods
+            self.assertLessEqual(vm["dcf_conservador_usd"], vm["dcf_base_usd"])
+            self.assertLessEqual(vm["dcf_base_usd"], vm["dcf_otimista_usd"])
+            self.assertGreater(vm["pegy_gold_fair_price_usd"], 0.0)
+            self.assertGreater(vm["sotp_fair_price_usd"], 0.0)
+
     def test_2_sqlite_crud_transactions_ledger_and_csv_import(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cfg_path = os.path.join(tmp, "portfolio_config.json")

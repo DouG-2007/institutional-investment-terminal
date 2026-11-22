@@ -1469,7 +1469,7 @@ class EquityEngine:
                     "div_yield_pct", "beta", "fco_b", "fci_b", "fcf_b", "ebitda_b", "ebit_b",
                     "net_income_b", "total_assets_b", "cash_b", "nwc_b", "current_ratio",
                     "interest_coverage_x", "debt_to_ebitda", "debt_to_assets_pct", "debt_to_equity_pct",
-                    "sloan_pct", "roic_op_margin_pct",
+                    "sloan_pct", "roic_op_margin_pct", "da_b", "maint_capex_b", "delta_nwc_b",
                 )
             )
             for lk in overlay_keys:
@@ -1518,7 +1518,7 @@ class EquityEngine:
             elif fco_ebitda >= 0.70:
                 fco_ebitda_status = f"Healthy ({fco_ebitda:.2f}x between 0.70x and 1.0x)"
             else:
-                fco_ebitda_status = f"Cuidado ({fco_ebitda:.2f}x < 0.70x)"
+                fco_ebitda_status = f"Caution ({fco_ebitda:.2f}x < 0.70x)"
 
             # NWC crossed with historical CFO standard deviation / CV
             fco_hist = kb["fco_5y_history_b"]
@@ -1528,9 +1528,9 @@ class EquityEngine:
             if kb["sector_vertical"] == "FINANCIAL_BANK":
                 nwc_context = "N/A Banking (Regulated by Basel III LCR > 100%)"
             elif nwc_b > 0:
-                nwc_context = f"Positivo (USD {nwc_b:+.1f}B > 0) + FCO Consistente (DP: USD {fco_std_b:.1f}B | CV: {fco_cv:.2f})"
+                nwc_context = f"Positive (USD {nwc_b:+.1f}B > 0) + Consistent CFO (SD: USD {fco_std_b:.1f}B | CV: {fco_cv:.2f})"
             else:
-                nwc_context = f"NWC Negativo Eficiente (USD {nwc_b:+.1f}B financiado por fornecedores, validado por FCO ultra-consistente CV={fco_cv:.2f})"
+                nwc_context = f"Efficient Negative NWC (USD {nwc_b:+.1f}B supplier-financed, validated by ultra-consistent CFO CV={fco_cv:.2f})"
 
             # CAPM Damodaran WACC para cruzar com ROIC
             beta = kb["beta"]
@@ -1600,14 +1600,14 @@ class EquityEngine:
             wacc_dec = max(0.068, wacc_pct / 100.0)
             g_term = 0.030
             g_base = min(0.22, kb["consensus_g_fund_pct"] / 100.0)
-            g_cons = max(0.05, g_base * 0.78)
+            g_cons = min(g_base, max(0.015, g_base * 0.78))
             g_opt = min(0.26, g_base * 1.18)
 
             shares_b = mcap_b / px if px > 0 else 10.0
-            # DCF ancorado em dados Forward: Ano 1 parte do FCF Forward NTM = FCF_0 * (1 + g_NTM)
-            # projetando os anos subsequentes pelo consenso Forward (consensus_g_fund_pct)
-            fcf_ntm_b = round(kb["fcf_b"] * (1.0 + g_base), 2)
             fcf_per_share = kb["fcf_b"] / shares_b if shares_b > 0 else (px * 0.04)
+            # Net Cash / (Net Debt) per share bridge for non-banks: EV -> Equity Value
+            raw_net_cash_ps = ((mcap_b - ev_b) / shares_b) if (not is_bank and shares_b > 0) else 0.0
+            net_cash_per_share = max(-px * 0.25, min(px * 0.25, raw_net_cash_ps))
 
             def _calc_dcf_scenario(g_5y: float, w_adj: float, gt: float) -> float:
                 pv = 0.0
@@ -1622,7 +1622,7 @@ class EquityEngine:
                     pv += cf / ((1.0 + w_adj) ** yr)
                 tv = (cf * (1.0 + gt)) / max(0.025, (w_adj - gt))
                 pv_tv = tv / ((1.0 + w_adj) ** 10)
-                return round(max(1.0, pv + pv_tv), 2)
+                return round(max(1.0, pv + pv_tv + net_cash_per_share), 2)
 
             dcf_conservador = _calc_dcf_scenario(g_cons, wacc_dec + 0.005, g_term - 0.005)
             dcf_base = _calc_dcf_scenario(g_base, wacc_dec, g_term)
@@ -1732,16 +1732,30 @@ class EquityEngine:
                 primary_pegy_label = f"Enterprise PEGY (EV/FCF NTM): {ent_pegy_fcf:.2f}x"
                 primary_pegy_status = "Gold Band (0 to 1.2x — Cash Cow)" if ent_pegy_fcf <= 1.2 else ("Neutral (1.2 to 1.6x)" if ent_pegy_fcf <= 1.6 else "Stretched (> 1.6x)")
 
-            # Implied Fair Price at Gold Band PEGY (1.20x for non-financials, 1.00x for banks)
-            target_pegy_gold = 1.00 if kb["sector_vertical"] == "FINANCIAL_BANK" else 1.20
-            pegy_gold_fair_price = round(px * (target_pegy_gold / max(0.3, primary_pegy_val)), 2)
+            # Implied Fair Price at Gold Band PEGY (1.20x for non-financials via EV->Equity bridge, 1.00x for banks via P/E)
+            target_pegy_gold = 1.00 if is_bank else 1.20
+            if is_bank or mcap_b <= 0 or ev_b <= 0:
+                pegy_gold_fair_price = round(px * (target_pegy_gold / max(0.3, primary_pegy_val)), 2)
+            else:
+                target_ev_b = ev_b * (target_pegy_gold / max(0.3, primary_pegy_val))
+                net_debt_b = ev_b - mcap_b
+                target_mcap_b = max(mcap_b * 0.20, target_ev_b - net_debt_b)
+                pegy_gold_fair_price = round(px * (target_mcap_b / mcap_b), 2)
 
             # 7) Greenblatt's Magic Formula (ROIC + Earnings Yield EBIT/EV)
             earnings_yield_ebit_ev_pct = round((kb["ebit_b"] / ev_b) * 100.0, 2) if ev_b > 0 else 5.0
             magic_combined_score = round(roic_pct * 0.55 + earnings_yield_ebit_ev_pct * 2.5, 1)
             altman_caution_flag = "Pristine Solvency (Interest Coverage & Liquidity)" if kb["interest_coverage_x"] >= 3.0 else "CAUTION: Check Structural Debt Risk"
 
-            # 8) SOTP (Sum of the Parts) com Peer Analysis
+            # 8) SOTP (Sum of the Parts) with bounded fundamental scaling when live EBIT/NI shifts
+            if not is_bank and kb_raw.get("ebit_b", 0) > 0 and kb.get("ebit_b", 0) > 0:
+                sotp_fund_scale = max(0.70, min(1.60, float(kb["ebit_b"]) / float(kb_raw["ebit_b"])))
+            elif is_bank and kb_raw.get("net_income_b", 0) > 0 and kb.get("net_income_b", 0) > 0:
+                sotp_fund_scale = max(0.70, min(1.60, float(kb["net_income_b"]) / float(kb_raw["net_income_b"])))
+            else:
+                sotp_fund_scale = 1.0
+            for seg in kb["sotp_segments"]:
+                seg["segment_val_per_share"] = round(float(seg["segment_val_per_share"]) * sotp_fund_scale, 2)
             sotp_fair_price = round(sum(seg["segment_val_per_share"] for seg in kb["sotp_segments"]), 2)
             sotp_upside_pct = round(((sotp_fair_price / px) - 1.0) * 100.0, 1)
 
@@ -1768,7 +1782,7 @@ class EquityEngine:
                 "reverse_dcf_spread_pp": g_spread_pp,
                 "reverse_dcf_ratio_impl_to_fund": g_ratio,
                 "reverse_dcf_verdict": (
-                    f"ASSIMETRIA POSITIVA (g_impl {g_impl_pct:.1f}% <= g_fund {g_fund_pct:.1f}%)"
+                    f"POSITIVE ASYMMETRY (g_impl {g_impl_pct:.1f}% <= g_fund {g_fund_pct:.1f}%)"
                     if g_impl_pct <= g_fund_pct
                     else f"ELEVATED HURDLE (g_impl {g_impl_pct:.1f}% > g_fund {g_fund_pct:.1f}%)"
                 ),
@@ -1780,12 +1794,12 @@ class EquityEngine:
                 "oe_vs_rf_spread_pp": oe_vs_rf_spread,
                 "oe_gt_rf": oe_gt_rf,
                 "oe_verdict": (
-                    f"ACIMA DA RISK-FREE ({owner_earnings_yield_pct:.2f}% > US10Y {self.rf_pct:.2f}%)"
+                    f"ABOVE RISK-FREE ({owner_earnings_yield_pct:.2f}% > US10Y {self.rf_pct:.2f}%)"
                     if oe_gt_rf
                     else f"BELOW RISK-FREE ({owner_earnings_yield_pct:.2f}% < US10Y {self.rf_pct:.2f}% — Return anchored in Growth)"
                 ),
                 "oe_vs_rf_verdict": (
-                    f"ACIMA DA RISK-FREE ({owner_earnings_yield_pct:.2f}% > US10Y {self.rf_pct:.2f}%)"
+                    f"ABOVE RISK-FREE ({owner_earnings_yield_pct:.2f}% > US10Y {self.rf_pct:.2f}%)"
                     if oe_gt_rf
                     else f"BELOW RISK-FREE ({owner_earnings_yield_pct:.2f}% < US10Y {self.rf_pct:.2f}% — Return anchored in Growth)"
                 ),
