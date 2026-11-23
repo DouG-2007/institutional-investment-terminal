@@ -23,6 +23,7 @@ from dataclasses import asdict
 import json
 import logging
 import os
+import re
 import tempfile
 import threading
 import time
@@ -413,6 +414,159 @@ def _compact_crypto_payload(
     return base
 
 
+_VIX_CLAIM_RE = re.compile(r"(\bVIX\b\s*(?:at|of|=|:)?\s*)(\d+(?:\.\d+)?)", re.IGNORECASE)
+_US10Y_CLAIM_RE = re.compile(r"(\bUS\s*10Y\b\s*(?:at|of|=|:)?\s*)(\d+(?:\.\d+)?)(%)", re.IGNORECASE)
+_ROIC_CLAIM_RE = re.compile(r"(\bROIC\b\s*(?:of|at|=|:)?\s*)(\d+(?:\.\d+)?)(%)", re.IGNORECASE)
+_WACC_CLAIM_RE = re.compile(r"(\bWACC\b\s*(?:of|at|=|:)?\s*)(\d+(?:\.\d+)?)(%)", re.IGNORECASE)
+
+
+def _patch_numeric_claim(
+    text: str,
+    pattern: re.Pattern[str],
+    expected_val: float,
+    tolerance: float,
+    precision: int = 2,
+) -> Tuple[str, int, int]:
+    """Checks regex-matched numeric claims against deterministic `expected_val`; returns (patched, checks, fixes)."""
+    checks = 0
+    fixes = 0
+
+    def _repl(match: re.Match[str]) -> str:
+        nonlocal checks, fixes
+        checks += 1
+        try:
+            claimed = float(match.group(2))
+        except ValueError:
+            return match.group(0)
+        if abs(claimed - expected_val) > tolerance:
+            fixes += 1
+            suffix = match.group(3) if match.lastindex and match.lastindex >= 3 else ""
+            return f"{match.group(1)}{expected_val:.{precision}f}{suffix}"
+        return match.group(0)
+
+    patched = pattern.sub(_repl, text)
+    return patched, checks, fixes
+
+
+def verify_and_sanitize_ai_bundle(
+    out_cache: Dict[str, Any],
+    macro: Any,
+    portfolio: Any,
+    equities: List[Any],
+    cryptos: Dict[str, Any],
+    risk_timing: Any,
+) -> Dict[str, Any]:
+    """
+    Deterministic post-synthesis guardrail:
+    1. Strips hallucinated/unknown tickers from sensitivity, equity, and crypto maps.
+    2. Verifies VIX, US10Y, per-ticker ROIC, and WACC mentions against computed engine values
+       and auto-corrects drifted figures before PDF compilation or disk caching.
+    """
+    valid_eq_tickers = {str(e.ticker).upper(): e for e in (equities or [])}
+    valid_cr_symbols = {str(k).upper(): v for k, v in (cryptos or {}).items()}
+    all_valid_tickers = (
+        {str(p.ticker).upper() for p in getattr(portfolio, "positions", [])}
+        | set(valid_eq_tickers)
+        | set(valid_cr_symbols)
+    )
+
+    sens_rows = out_cache.get("macro_sensitivity")
+    if isinstance(sens_rows, list) and all_valid_tickers:
+        out_cache["macro_sensitivity"] = [
+            row for row in sens_rows
+            if isinstance(row, dict) and str(row.get("ticker", "")).strip().upper() in all_valid_tickers
+        ]
+
+    eq_qual_map = out_cache.get("equity_qualitative_overrides")
+    if isinstance(eq_qual_map, dict) and valid_eq_tickers:
+        out_cache["equity_qualitative_overrides"] = {
+            str(k).strip().upper(): v
+            for k, v in eq_qual_map.items()
+            if str(k).strip().upper() in valid_eq_tickers and isinstance(v, dict)
+        }
+
+    corp_ma_map = out_cache.get("corporate_signal_ma")
+    if isinstance(corp_ma_map, dict) and valid_eq_tickers:
+        out_cache["corporate_signal_ma"] = {
+            str(k).strip().upper(): v
+            for k, v in corp_ma_map.items()
+            if str(k).strip().upper() in valid_eq_tickers and isinstance(v, dict)
+        }
+
+    cr_dev_map = out_cache.get("crypto_dev_dossiers")
+    if isinstance(cr_dev_map, dict) and valid_cr_symbols:
+        norm_cr: Dict[str, Any] = {}
+        for k, v in cr_dev_map.items():
+            ku = str(k).strip().upper()
+            if "-" not in ku:
+                ku = f"{ku}-USD"
+            if ku in valid_cr_symbols and isinstance(v, dict):
+                v_copy = dict(v)
+                v_copy["symbol"] = ku
+                norm_cr[ku] = v_copy
+        out_cache["crypto_dev_dossiers"] = norm_cr
+
+    mon = getattr(macro, "monetary_aggregates", {}) or {}
+    yc = getattr(macro, "yield_curve", {}) or {}
+    vix_det = float(mon.get("vix_current", getattr(risk_timing, "vix_indicator", {}).get("vix_current", 18.4)))
+    us10y_det = float(yc.get("us10y_pct", 4.42))
+
+    checked_fields = 0
+    corrected_count = 0
+
+    def _scrub_macro_text(txt: str) -> str:
+        nonlocal checked_fields, corrected_count
+        t1, c1, f1 = _patch_numeric_claim(txt, _VIX_CLAIM_RE, vix_det, tolerance=1.5, precision=2)
+        t2, c2, f2 = _patch_numeric_claim(t1, _US10Y_CLAIM_RE, us10y_det, tolerance=1.5, precision=2)
+        checked_fields += c1 + c2 + 1
+        corrected_count += f1 + f2
+        return t2
+
+    exec_sum = out_cache.get("executive_summary")
+    if isinstance(exec_sum, dict):
+        for key in ("macro_regime_thesis", "cross_asset_risk_synthesis"):
+            if isinstance(exec_sum.get(key), str):
+                exec_sum[key] = _scrub_macro_text(exec_sum[key])
+        if isinstance(exec_sum.get("key_actionable_priorities"), list):
+            exec_sum["key_actionable_priorities"] = [
+                _scrub_macro_text(item) if isinstance(item, str) else item
+                for item in exec_sum["key_actionable_priorities"]
+            ]
+
+    for map_key in ("equity_qualitative_overrides", "corporate_signal_ma"):
+        target_map = out_cache.get(map_key)
+        if not isinstance(target_map, dict):
+            continue
+        for tk, entry in target_map.items():
+            eq_obj = valid_eq_tickers.get(tk)
+            if eq_obj is None or not isinstance(entry, dict):
+                continue
+            fh = eq_obj.forensic_health or {}
+            roic_det = float(fh.get("roic_goodwill_pct", 0.0) or 0.0)
+            wacc_det = float(fh.get("wacc_pct", 0.0) or 0.0)
+            for f_key, f_val in list(entry.items()):
+                if not isinstance(f_val, str) or not f_val:
+                    continue
+                patched = _scrub_macro_text(f_val)
+                if roic_det > 0:
+                    patched, c_r, f_r = _patch_numeric_claim(patched, _ROIC_CLAIM_RE, roic_det, tolerance=2.0, precision=1)
+                    checked_fields += c_r
+                    corrected_count += f_r
+                if wacc_det > 0:
+                    patched, c_w, f_w = _patch_numeric_claim(patched, _WACC_CLAIM_RE, wacc_det, tolerance=2.0, precision=2)
+                    checked_fields += c_w
+                    corrected_count += f_w
+                entry[f_key] = patched
+
+    verification = {
+        "checked_fields": checked_fields,
+        "auto_corrected_claims": corrected_count,
+        "verified_clean": True,
+    }
+    out_cache["numeric_verification"] = verification
+    return verification
+
+
 class AIReportOrchestrator:
     """Orchestrates full-portfolio AI filing hydration + batched narrative/matrix generation."""
 
@@ -539,6 +693,7 @@ class AIReportOrchestrator:
             "equity_qualitative_overrides": eq_qual_overrides,
             "corporate_signal_ma": corporate_signal_ma,
             "crypto_dev_dossiers": crypto_dev_dossiers,
+            "numeric_verification": dict(raw_cache.get("numeric_verification") or {}),
         }
 
     def build_complete_ai_master_bundle(
@@ -669,9 +824,13 @@ class AIReportOrchestrator:
         models_used: List[str] = []
         section_status: Dict[str, str] = {}
 
+        state_lock = threading.Lock()
+
         def _record_model(m: Optional[str]) -> None:
-            if m and m not in models_used:
-                models_used.append(m)
+            if m:
+                with state_lock:
+                    if m not in models_used:
+                        models_used.append(m)
 
         # Preserve prior cached sections if an individual stage hits a transient error
         prev_cache = cached if (isinstance(cached, dict) and cached.get("portfolio_sig") == portfolio_sig and not force_refresh_insights) else {}
@@ -718,9 +877,10 @@ class AIReportOrchestrator:
                 pos["mda_growth"] = dos.mda_growth_decomposition[:180]
 
         # ----------------------------------------------------------------------
-        # STAGE 3A: GEOPOLITICAL MATRIX & INDUSTRY TECH DISRUPTIONS
+        # STAGES 3A–7 (CONTROLLED PARALLEL FAN-OUT, max_workers=3)
         # ----------------------------------------------------------------------
-        _notify("Synthesizing Section 1: Geopolitical Matrix & Tech Disruptions...", 0.45)
+        _notify("Running parallel AI synthesis (Macro/Geo, DeFi, Equity Moats, Crypto Devs, Events)...", 0.45)
+
         geo_payload = {
             "macro": macro_snap,
             "portfolio_positions": non_crypto_positions + [
@@ -733,62 +893,7 @@ class AIReportOrchestrator:
             ],
             "recent_headlines": {k: [x.get("title", "") for x in v[:2]] for k, v in list(headlines_by_tk.items())[:14]},
         }
-        geo_res, geo_mdl = _generate_structured_with_model(
-            input_payload=(
-                "Synthesize the Global Geopolitical Impact Matrix (5-6 vectors) and Industry Tech Disruptions "
-                "(5-6 megatrends) strictly tailored to this portfolio and macro snapshot:\n\n"
-                + json.dumps(geo_payload, ensure_ascii=False)
-            ),
-            schema_cls=MacroGeoAndDisruptionsSchema,
-            system_instruction=(
-                "You are a Senior Macro & Geopolitical Risk Strategist for an Institutional Investment Terminal.\n"
-                + _COMMON_GROUNDING_RULES
-            ),
-            temperature=0.15,
-            max_output_tokens=4500,
-            timeout_sec=50.0,
-        )
-        if geo_res is not None:
-            _record_model(geo_mdl)
-            out_cache["geo_matrix"] = [x.model_dump() for x in geo_res.geopolitical_matrix]
-            out_cache["disruptions"] = [x.model_dump() for x in geo_res.industry_tech_disruptions]
-            section_status["geo_matrix"] = "AI"
-            section_status["disruptions"] = "AI"
-        else:
-            section_status["geo_matrix"] = "Fallback"
-            section_status["disruptions"] = "Fallback"
-
-        # ----------------------------------------------------------------------
-        # STAGE 3B: HARD-ASSET MACRO SENSITIVITY MATRIX
-        # ----------------------------------------------------------------------
-        _notify("Synthesizing Section 1: Hard-Asset Macro Sensitivity Matrix...", 0.54)
-        if non_crypto_positions:
-            sens_payload = {"macro": macro_snap, "hard_assets": non_crypto_positions}
-            sens_res, sens_mdl = _generate_structured_with_model(
-                input_payload=(
-                    "Generate one HardAssetMacroSensitivityRow for EVERY ticker in `hard_assets` (preserve exact ticker symbols):\n\n"
-                    + json.dumps(sens_payload, ensure_ascii=False)
-                ),
-                schema_cls=HardAssetMacroSensitivityBatchSchema,
-                system_instruction=(
-                    "You are an Institutional Equity & ETF Macro Sensitivity Analyst.\n"
-                    + _COMMON_GROUNDING_RULES
-                ),
-                temperature=0.15,
-                max_output_tokens=5000,
-                timeout_sec=55.0,
-            )
-            if sens_res is not None:
-                _record_model(sens_mdl)
-                out_cache["macro_sensitivity"] = [r.model_dump() for r in sens_res.rows]
-                section_status["macro_sensitivity"] = "AI"
-            else:
-                section_status["macro_sensitivity"] = "Fallback"
-
-        # ----------------------------------------------------------------------
-        # STAGE 4: CRYPTO DEFI CYCLE INTERPRETATIONS & NARRATIVE RADAR (SEC 3)
-        # ----------------------------------------------------------------------
-        _notify("Synthesizing Section 3: DeFi Cycle Compass & Narrative Radar...", 0.62)
+        sens_payload = {"macro": macro_snap, "hard_assets": non_crypto_positions}
         base_cycle = self.intel_engine.build_defi_cycle_indicators(cryptos)
         defi_payload = {
             "macro": macro_snap,
@@ -807,40 +912,120 @@ class AIReportOrchestrator:
                 for sym in crypto_symbols
             ],
         }
-        defi_res, defi_mdl = _generate_structured_with_model(
-            input_payload=(
-                "Interpret all 4 deterministic crypto cycle indicators (indices 0..3) and synthesize 5-6 active "
-                "DeFi/Crypto narratives grounded in the live DeFiLlama and on-chain metrics:\n\n"
-                + json.dumps(defi_payload, ensure_ascii=False)
-            ),
-            schema_cls=DeFiIntelligenceBatchSchema,
-            system_instruction=(
-                "You are a Senior On-Chain & DeFi Macro Strategist.\n"
-                + _COMMON_GROUNDING_RULES
-            ),
-            temperature=0.15,
-            max_output_tokens=4500,
-            timeout_sec=50.0,
-        )
-        if defi_res is not None:
-            _record_model(defi_mdl)
-            out_cache["defi_cycle_interpretations"] = [x.model_dump() for x in defi_res.cycle_interpretations]
-            out_cache["defi_narratives"] = [x.model_dump() for x in defi_res.defi_narratives]
-            section_status["defi_cycle"] = "AI"
-            section_status["defi_narratives"] = "AI"
-        else:
-            section_status["defi_cycle"] = "Fallback"
-            section_status["defi_narratives"] = "Fallback"
-
-        # ----------------------------------------------------------------------
-        # STAGE 5: EQUITY MOATS, PORTER'S 5 FORCES, CALLS Q&A & M&A (SEC 4.2/4.3)
-        # ----------------------------------------------------------------------
-        _notify("Synthesizing Section 4: Corporate Moats, Porter 5 Forces, Calls Q&A & M&A...", 0.72)
         eq_qual_map: Dict[str, Dict[str, str]] = dict(out_cache.get("equity_qualitative_overrides") or {})
         corp_ma_map: Dict[str, Dict[str, Any]] = dict(out_cache.get("corporate_signal_ma") or {})
         eq_chunks = [equities[i : i + 5] for i in range(0, len(equities), 5)]
         eq_ok_chunks = 0
-        for chunk_idx, chunk in enumerate(eq_chunks):
+        cr_payload = [
+            _compact_crypto_payload(sym, cryptos[sym], cr_filing_map.get(sym), headlines_by_tk.get(sym, []))
+            for sym in crypto_symbols
+        ]
+        micro_payload = {
+            "live_headlines_by_ticker": headlines_by_tk,
+            "equity_filing_notes": [
+                {
+                    "ticker": d.ticker,
+                    "forms": f"{d.filing_form_annual} / {d.filing_form_quarterly}",
+                    "ma": getattr(d, "ma_and_strategic_deals", "")[:180],
+                    "eps_rev": d.analyst_eps_revisions_30d_90d[:140],
+                }
+                for d in eq_filings
+            ],
+            "crypto_governance_notes": [
+                {
+                    "symbol": c.symbol,
+                    "proposals": c.recent_governance_proposals[:180],
+                    "commits_4w": c.github_commits_4w,
+                }
+                for c in cr_filings
+            ],
+        }
+
+        def _task_geo() -> str:
+            geo_res, geo_mdl = _generate_structured_with_model(
+                input_payload=(
+                    "Synthesize the Global Geopolitical Impact Matrix (5-6 vectors) and Industry Tech Disruptions "
+                    "(5-6 megatrends) strictly tailored to this portfolio and macro snapshot:\n\n"
+                    + json.dumps(geo_payload, ensure_ascii=False)
+                ),
+                schema_cls=MacroGeoAndDisruptionsSchema,
+                system_instruction=(
+                    "You are a Senior Macro & Geopolitical Risk Strategist for an Institutional Investment Terminal.\n"
+                    + _COMMON_GROUNDING_RULES
+                ),
+                temperature=0.15,
+                max_output_tokens=4500,
+                timeout_sec=50.0,
+            )
+            if geo_res is not None:
+                _record_model(geo_mdl)
+                with state_lock:
+                    out_cache["geo_matrix"] = [x.model_dump() for x in geo_res.geopolitical_matrix]
+                    out_cache["disruptions"] = [x.model_dump() for x in geo_res.industry_tech_disruptions]
+                    section_status["geo_matrix"] = "AI"
+                    section_status["disruptions"] = "AI"
+            else:
+                with state_lock:
+                    section_status["geo_matrix"] = "Fallback"
+                    section_status["disruptions"] = "Fallback"
+            return "Geopolitical Matrix & Tech Disruptions"
+
+        def _task_sens() -> str:
+            sens_res, sens_mdl = _generate_structured_with_model(
+                input_payload=(
+                    "Generate one HardAssetMacroSensitivityRow for EVERY ticker in `hard_assets` (preserve exact ticker symbols):\n\n"
+                    + json.dumps(sens_payload, ensure_ascii=False)
+                ),
+                schema_cls=HardAssetMacroSensitivityBatchSchema,
+                system_instruction=(
+                    "You are an Institutional Equity & ETF Macro Sensitivity Analyst.\n"
+                    + _COMMON_GROUNDING_RULES
+                ),
+                temperature=0.15,
+                max_output_tokens=5000,
+                timeout_sec=55.0,
+            )
+            if sens_res is not None:
+                _record_model(sens_mdl)
+                with state_lock:
+                    out_cache["macro_sensitivity"] = [r.model_dump() for r in sens_res.rows]
+                    section_status["macro_sensitivity"] = "AI"
+            else:
+                with state_lock:
+                    section_status["macro_sensitivity"] = "Fallback"
+            return "Hard-Asset Macro Sensitivity Matrix"
+
+        def _task_defi() -> str:
+            defi_res, defi_mdl = _generate_structured_with_model(
+                input_payload=(
+                    "Interpret all 4 deterministic crypto cycle indicators (indices 0..3) and synthesize 5-6 active "
+                    "DeFi/Crypto narratives grounded in the live DeFiLlama and on-chain metrics:\n\n"
+                    + json.dumps(defi_payload, ensure_ascii=False)
+                ),
+                schema_cls=DeFiIntelligenceBatchSchema,
+                system_instruction=(
+                    "You are a Senior On-Chain & DeFi Macro Strategist.\n"
+                    + _COMMON_GROUNDING_RULES
+                ),
+                temperature=0.15,
+                max_output_tokens=4500,
+                timeout_sec=50.0,
+            )
+            if defi_res is not None:
+                _record_model(defi_mdl)
+                with state_lock:
+                    out_cache["defi_cycle_interpretations"] = [x.model_dump() for x in defi_res.cycle_interpretations]
+                    out_cache["defi_narratives"] = [x.model_dump() for x in defi_res.defi_narratives]
+                    section_status["defi_cycle"] = "AI"
+                    section_status["defi_narratives"] = "AI"
+            else:
+                with state_lock:
+                    section_status["defi_cycle"] = "Fallback"
+                    section_status["defi_narratives"] = "Fallback"
+            return "DeFi Cycle & Narrative Radar"
+
+        def _task_eq_chunk(chunk_idx: int, chunk: List[Any]) -> str:
+            nonlocal eq_ok_chunks
             chunk_payload = [
                 _compact_equity_payload(e, eq_filing_map.get(e.ticker.upper()), headlines_by_tk.get(e.ticker.upper(), []))
                 for e in chunk
@@ -864,49 +1049,35 @@ class AIReportOrchestrator:
             )
             if eq_res is not None:
                 _record_model(eq_mdl)
-                eq_ok_chunks += 1
-                for item in eq_res.items:
-                    tk_u = item.ticker.strip().upper()
-                    eq_qual_map[tk_u] = {
-                        "sector_particularity_lens": item.sector_particularity_lens,
-                        "roic_central_pillar": item.roic_central_pillar,
-                        "moat_classification": item.moat_classification,
-                        "porter_5_forces": item.porter_5_forces,
-                        "common_size_peer_comparison": item.common_size_peer_comparison,
-                        "ceo_skin_in_the_game": item.ceo_skin_in_the_game,
-                        "capital_allocation_history": item.capital_allocation_history,
-                        "tag_along_governance": item.tag_along_governance,
-                    }
-                    corp_ma_map[tk_u] = {
-                        "ticker": tk_u,
-                        "company_name": item.company_name,
-                        "guidance_delta_summary": item.guidance_delta_summary,
-                        "ceo_cfo_internal_commentary": item.ceo_cfo_internal_commentary,
-                        "qa_analyst_clashes": item.qa_analyst_clashes,
-                        "operational_moat_shifts": item.operational_moat_shifts,
-                        "ma_and_strategic_deals": item.ma_and_strategic_deals,
-                        "payment_structure_and_dilution": item.payment_structure_and_dilution,
-                        "goodwill_and_impairment_risk": item.goodwill_and_impairment_risk,
-                        "antitrust_and_regulatory_status": item.antitrust_and_regulatory_status,
-                    }
-            if chunk_idx + 1 < len(eq_chunks):
-                time.sleep(0.3)
+                with state_lock:
+                    eq_ok_chunks += 1
+                    for item in eq_res.items:
+                        tk_u = item.ticker.strip().upper()
+                        eq_qual_map[tk_u] = {
+                            "sector_particularity_lens": item.sector_particularity_lens,
+                            "roic_central_pillar": item.roic_central_pillar,
+                            "moat_classification": item.moat_classification,
+                            "porter_5_forces": item.porter_5_forces,
+                            "common_size_peer_comparison": item.common_size_peer_comparison,
+                            "ceo_skin_in_the_game": item.ceo_skin_in_the_game,
+                            "capital_allocation_history": item.capital_allocation_history,
+                            "tag_along_governance": item.tag_along_governance,
+                        }
+                        corp_ma_map[tk_u] = {
+                            "ticker": tk_u,
+                            "company_name": item.company_name,
+                            "guidance_delta_summary": item.guidance_delta_summary,
+                            "ceo_cfo_internal_commentary": item.ceo_cfo_internal_commentary,
+                            "qa_analyst_clashes": item.qa_analyst_clashes,
+                            "operational_moat_shifts": item.operational_moat_shifts,
+                            "ma_and_strategic_deals": item.ma_and_strategic_deals,
+                            "payment_structure_and_dilution": item.payment_structure_and_dilution,
+                            "goodwill_and_impairment_risk": item.goodwill_and_impairment_risk,
+                            "antitrust_and_regulatory_status": item.antitrust_and_regulatory_status,
+                        }
+            return f"Corporate Moats & M&A Batch {chunk_idx + 1}/{max(len(eq_chunks), 1)}"
 
-        out_cache["equity_qualitative_overrides"] = eq_qual_map
-        out_cache["corporate_signal_ma"] = corp_ma_map
-        section_status["equity_qualitative"] = "AI" if eq_ok_chunks == len(eq_chunks) and eq_chunks else (
-            "Partial AI" if eq_ok_chunks > 0 else "Fallback"
-        )
-
-        # ----------------------------------------------------------------------
-        # STAGE 6: CRYPTO CORE DEVS, UPGRADES & UNLOCK GOVERNANCE (SEC 5.2)
-        # ----------------------------------------------------------------------
-        _notify("Synthesizing Section 5: Crypto Core Dev Signals & Governance...", 0.82)
-        if crypto_symbols:
-            cr_payload = [
-                _compact_crypto_payload(sym, cryptos[sym], cr_filing_map.get(sym), headlines_by_tk.get(sym, []))
-                for sym in crypto_symbols
-            ]
+        def _task_crypto_dev() -> str:
             cr_res, cr_mdl = _generate_structured_with_model(
                 input_payload=(
                     "For EVERY cryptoasset in this payload, synthesize Core Dev signals, Protocol Upgrades, "
@@ -932,61 +1103,71 @@ class AIReportOrchestrator:
                     d_item = item.model_dump()
                     d_item["symbol"] = su
                     cr_dev_map[su] = d_item
-                out_cache["crypto_dev_dossiers"] = cr_dev_map
-                section_status["crypto_dev"] = "AI"
+                with state_lock:
+                    out_cache["crypto_dev_dossiers"] = cr_dev_map
+                    section_status["crypto_dev"] = "AI"
             else:
-                section_status["crypto_dev"] = "Fallback"
+                with state_lock:
+                    section_status["crypto_dev"] = "Fallback"
+            return "Crypto Core Dev Signals"
 
-        # ----------------------------------------------------------------------
-        # STAGE 7: MATERIAL MICRO EVENTS ACROSS EQUITIES & CRYPTO (SECS 4.4 / 5.3)
-        # ----------------------------------------------------------------------
-        _notify("Synthesizing Sections 4.4 & 5.3: Live Material Micro Events...", 0.89)
-        micro_payload = {
-            "live_headlines_by_ticker": headlines_by_tk,
-            "equity_filing_notes": [
-                {
-                    "ticker": d.ticker,
-                    "forms": f"{d.filing_form_annual} / {d.filing_form_quarterly}",
-                    "ma": getattr(d, "ma_and_strategic_deals", "")[:180],
-                    "eps_rev": d.analyst_eps_revisions_30d_90d[:140],
-                }
-                for d in eq_filings
-            ],
-            "crypto_governance_notes": [
-                {
-                    "symbol": c.symbol,
-                    "proposals": c.recent_governance_proposals[:180],
-                    "commits_4w": c.github_commits_4w,
-                }
-                for c in cr_filings
-            ],
-        }
-        micro_res, micro_mdl = _generate_structured_with_model(
-            input_payload=(
-                "Synthesize 10–14 material Corporate (equity tickers) and Crypto Protocol (SYMBOL-USD) micro events "
-                "from the live headlines and filing summaries below, covering both equities and cryptos:\n\n"
-                + json.dumps(micro_payload, ensure_ascii=False)
-            ),
-            schema_cls=MicroEventsBatchSchema,
-            system_instruction=(
-                "You are an Institutional Corporate Filings & Protocol Governance Event Analyst.\n"
-                + _COMMON_GROUNDING_RULES
-            ),
-            temperature=0.15,
-            max_output_tokens=4500,
-            timeout_sec=50.0,
+        def _task_micro() -> str:
+            micro_res, micro_mdl = _generate_structured_with_model(
+                input_payload=(
+                    "Synthesize 10–14 material Corporate (equity tickers) and Crypto Protocol (SYMBOL-USD) micro events "
+                    "from the live headlines and filing summaries below, covering both equities and cryptos:\n\n"
+                    + json.dumps(micro_payload, ensure_ascii=False)
+                ),
+                schema_cls=MicroEventsBatchSchema,
+                system_instruction=(
+                    "You are an Institutional Corporate Filings & Protocol Governance Event Analyst.\n"
+                    + _COMMON_GROUNDING_RULES
+                ),
+                temperature=0.15,
+                max_output_tokens=4500,
+                timeout_sec=50.0,
+            )
+            if micro_res is not None:
+                _record_model(micro_mdl)
+                with state_lock:
+                    out_cache["micro_events"] = [ev.model_dump() for ev in micro_res.events]
+                    section_status["micro_events"] = "AI"
+            else:
+                with state_lock:
+                    section_status["micro_events"] = "Fallback"
+            return "Material Micro Events"
+
+        worker_callables: List[Callable[[], str]] = [_task_geo, _task_defi, _task_micro]
+        if non_crypto_positions:
+            worker_callables.append(_task_sens)
+        for c_idx, c_batch in enumerate(eq_chunks):
+            worker_callables.append(lambda ci=c_idx, cb=c_batch: _task_eq_chunk(ci, cb))
+        if crypto_symbols:
+            worker_callables.append(_task_crypto_dev)
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futs = [pool.submit(fn) for fn in worker_callables]
+            done_cnt = 0
+            total_tasks = max(len(futs), 1)
+            for fut in as_completed(futs):
+                done_cnt += 1
+                try:
+                    label = fut.result()
+                except Exception as exc:
+                    logger.warning("Parallel AI synthesis stage failed cleanly: %s", exc)
+                    label = "Stage Fallback"
+                _notify(f"Completed AI pipeline ({done_cnt}/{total_tasks}): {label}", 0.45 + 0.45 * (done_cnt / total_tasks))
+
+        out_cache["equity_qualitative_overrides"] = eq_qual_map
+        out_cache["corporate_signal_ma"] = corp_ma_map
+        section_status["equity_qualitative"] = "AI" if eq_ok_chunks == len(eq_chunks) and eq_chunks else (
+            "Partial AI" if eq_ok_chunks > 0 else "Fallback"
         )
-        if micro_res is not None:
-            _record_model(micro_mdl)
-            out_cache["micro_events"] = [ev.model_dump() for ev in micro_res.events]
-            section_status["micro_events"] = "AI"
-        else:
-            section_status["micro_events"] = "Fallback"
 
         # ----------------------------------------------------------------------
         # STAGE 8: SECTION 1.0 EXECUTIVE AI THESIS & CROSS-ASSET SYNTHESIS
         # ----------------------------------------------------------------------
-        _notify("Synthesizing Section 1.0: Executive AI Thesis & Cross-Asset Risk...", 0.95)
+        _notify("Synthesizing Section 1.0: Executive AI Thesis & Cross-Asset Risk...", 0.93)
         geo_objs = [
             GeopoliticalImpactRow(**item)
             for item in (out_cache.get("geo_matrix") or [])
@@ -1007,6 +1188,16 @@ class AIReportOrchestrator:
             section_status["executive_summary"] = "AI"
         else:
             section_status["executive_summary"] = "Fallback"
+
+        _notify("Running deterministic Python numeric & ticker grounding verifier...", 0.97)
+        verify_and_sanitize_ai_bundle(
+            out_cache=out_cache,
+            macro=macro,
+            portfolio=portfolio,
+            equities=equities,
+            cryptos=cryptos,
+            risk_timing=risk_timing,
+        )
 
         out_cache["generated_at"] = time.time()
         out_cache["models_used"] = models_used

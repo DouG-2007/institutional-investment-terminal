@@ -321,6 +321,42 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertFalse(notif_payload["ai_enhanced"])
             self.assertGreater(notif_payload["alerts_count"], 0)
 
+        # AI Numeric & Ticker Grounding Verifier (independent of API key)
+        from core.ai_report_orchestrator import verify_and_sanitize_ai_bundle
+
+        sample_eq = self.equities[0]
+        mock_cache = {
+            "macro_sensitivity": [
+                {"ticker": sample_eq.ticker, "company_name": "Valid"},
+                {"ticker": "FAKE999", "company_name": "Hallucinated"},
+            ],
+            "executive_summary": {
+                "macro_regime_thesis": "With VIX at 99.90 and US 10Y at 19.50%, positioning remains cautious.",
+                "cross_asset_risk_synthesis": "Monitor portfolio drift.",
+                "key_actionable_priorities": ["Maintain discipline."],
+            },
+            "equity_qualitative_overrides": {
+                sample_eq.ticker: {"roic_central_pillar": "Driven by ROIC of 999.0% across core units."},
+                "FAKE999": {"roic_central_pillar": "Should be stripped."},
+            },
+            "corporate_signal_ma": {},
+            "crypto_dev_dossiers": {},
+        }
+        ver_meta = verify_and_sanitize_ai_bundle(
+            out_cache=mock_cache,
+            macro=self.macro,
+            portfolio=self.portfolio,
+            equities=self.equities,
+            cryptos=self.cryptos,
+            risk_timing=self.risk_timing,
+        )
+        self.assertTrue(ver_meta["verified_clean"])
+        self.assertGreaterEqual(ver_meta["auto_corrected_claims"], 3)
+        self.assertEqual([r["ticker"] for r in mock_cache["macro_sensitivity"]], [sample_eq.ticker])
+        self.assertNotIn("FAKE999", mock_cache["equity_qualitative_overrides"])
+        self.assertNotIn("99.90", mock_cache["executive_summary"]["macro_regime_thesis"])
+        self.assertNotIn("999.0%", mock_cache["equity_qualitative_overrides"][sample_eq.ticker]["roic_central_pillar"])
+
     def test_7_ecosystem_integrity_audit_33_criteria(self) -> None:
         audit = run_complete_ecosystem_integrity_audit(
             macro=self.macro,

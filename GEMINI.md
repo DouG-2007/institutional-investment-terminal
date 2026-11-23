@@ -47,7 +47,7 @@ This file defines the architectural invariants, module responsibilities, persist
 | `core/background_notifier.py` | Windows Task Scheduler (`Antigravity_Quant_Morning_Notifier`) ON/OFF passive alerting daemon (Telegram / Discord) with optional Gemini executive interpretation. |
 | `core/integrity_guard.py` | Plotly anti-overlap sanitizer (`sanitize_plotly_figure_against_overlaps`) and 33-criterion ecosystem data preservation auditor (`run_complete_ecosystem_integrity_audit`). |
 | `core/gemini_client.py` | Direct `google-genai` Interactions API wrapper (`store=False`), `.env` loader, Structured Outputs (Pydantic), PDF executive synthesis, and graceful fallback when `GEMINI_API_KEY` is absent. |
-| `core/ai_report_orchestrator.py` | Full-portfolio AI Master Report orchestrator supporting both `Full Deep Hydration` and `Economic / Fast Batch` (`skip_filing_hydration`) profiles across dual disk caches (`custom_filings_cache.json` 7d + `ai_master_insights_cache.json` 24h) while preserving 100% deterministic math. |
+| `core/ai_report_orchestrator.py` | Parallel (`max_workers=3`) AI Master Report orchestrator supporting `Full Deep Hydration` and `Economic / Fast Batch` profiles across dual disk caches (`custom_filings_cache.json` 7d + `ai_master_insights_cache.json` 24h) plus deterministic post-synthesis numeric & ticker grounding verification (`verify_and_sanitize_ai_bundle`). |
 | `core/ai_analyst.py` | Read-only `google-antigravity` SDK agent with 7 custom tools linked to deterministic `core/` engines, explicit session persistence, and strict tool-grounding prompt constraints. |
 
 ---
