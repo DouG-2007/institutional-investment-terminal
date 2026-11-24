@@ -75,6 +75,25 @@ def _safe_float(
     return f
 
 
+def close_yfinance_thread_caches() -> None:
+    """Closes thread-local peewee SQLite connections opened by yfinance.cache on the calling thread."""
+    try:
+        import yfinance.cache as yc
+
+        for mgr_name, attr in (
+            ("_TzCacheManager", "_tz_cache"),
+            ("_CookieCacheManager", "_Cookie_cache"),
+            ("_ISINCacheManager", "_isin_cache"),
+        ):
+            mgr = getattr(yc, mgr_name, None)
+            cache_obj = getattr(mgr, attr, None) if mgr is not None else None
+            db = getattr(cache_obj, "db", None) if cache_obj is not None else None
+            if db is not None and not db.is_closed():
+                db.close()
+    except Exception:
+        pass
+
+
 def _fetch_json(url: str, timeout: float = 5.5) -> Optional[Any]:
     """Fetches and decodes JSON payload with short timeout; returns None on error."""
     try:
@@ -251,6 +270,8 @@ def fetch_live_etf_constituents(
             return etf, weights
         except Exception:
             return etf, {}
+        finally:
+            close_yfinance_thread_caches()
 
     with ThreadPoolExecutor(max_workers=min(4, len(to_fetch))) as pool:
         for etf, weights in pool.map(_one_etf, to_fetch):
@@ -625,7 +646,10 @@ def fetch_live_equity_fundamentals(
         sec_map = {}
 
     def _task(tk: str) -> Tuple[str, Dict[str, Any]]:
-        return tk, _fetch_single_equity_live(tk, sec_map_cfg.get(tk, "OTHER"), sec_map)
+        try:
+            return tk, _fetch_single_equity_live(tk, sec_map_cfg.get(tk, "OTHER"), sec_map)
+        finally:
+            close_yfinance_thread_caches()
 
     with ThreadPoolExecutor(max_workers=min(6, len(missing))) as pool:
         for tk, res in pool.map(_task, missing):
@@ -821,7 +845,7 @@ def download_daily_close_series_with_binance_fallback(
     if yf_map:
         try:
             dl_syms = list(dict.fromkeys(yf_map.values()))
-            df = yf.download(dl_syms, period=period, interval="1d", progress=False)
+            df = yf.download(dl_syms, period=period, interval="1d", progress=False, threads=False)
             if not df.empty and "Close" in df.columns:
                 closes = df["Close"]
                 if isinstance(closes, pd.Series):
@@ -836,6 +860,8 @@ def download_daily_close_series_with_binance_fallback(
                             hist_by_sym[orig] = s_clean
         except Exception:
             pass
+        finally:
+            close_yfinance_thread_caches()
 
     missing_cryptos = [s for s in req if s.endswith("-USD") and s not in hist_by_sym]
     if missing_cryptos:
@@ -990,6 +1016,8 @@ def fetch_live_adtv_map(
                 return tk, round((vol * px) / 1e6, 1)
         except Exception:
             pass
+        finally:
+            close_yfinance_thread_caches()
         return tk, None
 
     with ThreadPoolExecutor(max_workers=min(6, len(need_fast))) as pool:

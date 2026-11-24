@@ -670,3 +670,78 @@ def auto_sync_configured_brokers(
             normalize_to_100=True,
         )
     return combined
+
+
+def build_custody_reconciliation(
+    synced_result: CustodySyncResult,
+    sqlite_assets: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Compares live broker/exchange custody positions (IBKR + Binance) side-by-side
+    against SQLite target weights (`portfolio_assets`), highlighting overweight/underweight
+    drift, zeroed watchlist/rebuy positions, unconfigured custody assets, LTV collateral value,
+    and free stablecoin/USD cash eligible for Shannon's Demon inflow.
+    """
+    custody_map: Dict[str, SyncedPosition] = {
+        p.ticker.upper(): p for p in (synced_result.positions or [])
+    }
+    sqlite_map: Dict[str, Dict[str, Any]] = {
+        str(a.get("ticker", "")).upper(): a for a in (sqlite_assets or []) if a.get("ticker")
+    }
+    ordered_tks = list(dict.fromkeys([*sqlite_map.keys(), *custody_map.keys()]))
+
+    rows: List[Dict[str, Any]] = []
+    ltv_collateral_usd = 0.0
+    zeroed_count = 0
+    new_in_custody_count = 0
+
+    for tk in ordered_tks:
+        c_pos = custody_map.get(tk)
+        s_row = sqlite_map.get(tk)
+        target_w = round(float(s_row.get("target_weight_pct", 0.0) or 0.0), 2) if s_row else 0.0
+        actual_w = round(float(c_pos.actual_weight_pct), 2) if c_pos else 0.0
+        mv_usd = round(float(c_pos.market_value_usd), 2) if c_pos else 0.0
+        drift_pp = round(actual_w - target_w, 2)
+        ltv_ok = bool(s_row.get("ltv_turbo_eligible", False)) if s_row else bool(c_pos and c_pos.ltv_turbo_eligible)
+
+        if c_pos and ltv_ok:
+            ltv_collateral_usd += mv_usd
+
+        if c_pos is None:
+            source_lbl = "Zeroed / Watchlist"
+            status = "ZEROED (Rebuy Target)"
+            zeroed_count += 1
+        elif s_row is None:
+            source_lbl = c_pos.source
+            status = "NEW IN CUSTODY"
+            new_in_custody_count += 1
+        elif drift_pp > 2.0:
+            source_lbl = c_pos.source
+            status = f"OVERWEIGHT (+{drift_pp:.1f}pp)"
+        elif drift_pp < -2.0:
+            source_lbl = c_pos.source
+            status = f"UNDERWEIGHT ({drift_pp:.1f}pp)"
+        else:
+            source_lbl = c_pos.source
+            status = "ALIGNED"
+
+        rows.append({
+            "Ticker": tk,
+            "Custody Source": source_lbl,
+            "Custody Value (USD)": round(mv_usd, 2),
+            "Custody Weight (%)": actual_w,
+            "SQLite Target (%)": target_w,
+            "Drift (pp)": drift_pp,
+            "LTV Collateral": "YES" if ltv_ok else "NO",
+            "Reconciliation Status": status,
+        })
+
+    rows.sort(key=lambda r: abs(r["Drift (pp)"]), reverse=True)
+    return {
+        "rows": rows,
+        "synced_nav_usd": round(float(synced_result.total_nav_usd or 0.0), 2),
+        "free_cash_usd": round(float(synced_result.stablecoin_cash_usd or 0.0), 2),
+        "ltv_collateral_usd": round(ltv_collateral_usd, 2),
+        "zeroed_count": zeroed_count,
+        "new_in_custody_count": new_in_custody_count,
+    }

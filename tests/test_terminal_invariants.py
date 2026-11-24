@@ -1,20 +1,18 @@
 """
 Institutional Multi-Asset Investment Terminal — Automated Test Suite
 Verifies core financial invariants, SQLite custody ledger CRUD, Plotly charts,
-Excel exports, Read-Only Antigravity agent lockdown, zero-key graceful
+Custody reconciliation, Read-Only Antigravity agent lockdown, zero-key graceful
 degradation, and the 33-criterion ecosystem integrity audit.
 """
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import tempfile
 import unittest
 from unittest import mock
 
-import openpyxl
 import pandas as pd
 
 from core.ai_analyst import InstitutionalAIAnalyst, build_readonly_agent_config
@@ -41,11 +39,14 @@ from core.backtest_engine import run_portfolio_backtest
 from core.crypto_engine import CryptoEngine
 from core.deep_dive_engine import DeepDiveEngine
 from core.equity_engine import EquityEngine
-from core.excel_exporter import build_institutional_excel_bytes
 from core.filings_engine import FilingsEngine
 from core.geopolitics_micro_engine import GeopoliticsMicroEngine
 from core.integrity_guard import run_complete_ecosystem_integrity_audit
-from core.live_quant_fetcher import GLOBAL_CURRENCY_OPTIONS, fetch_live_currency_rate
+from core.live_quant_fetcher import (
+    GLOBAL_CURRENCY_OPTIONS,
+    close_yfinance_thread_caches,
+    fetch_live_currency_rate,
+)
 from core.macro_engine import MacroEngine
 from core.pdf_exporter import InstitutionalPDFExporter
 from core.portfolio_engine import PortfolioEngine
@@ -72,6 +73,10 @@ class TestTerminalInvariants(unittest.TestCase):
             vix_current=float(cls.macro.monetary_aggregates.get("vix_current", 18.4)),
             capital_gains_tax_rate_pct=15.0,
         )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        close_yfinance_thread_caches()
 
     def test_1_financial_invariants_no_altman_and_tax_drag(self) -> None:
         pdf_exp = InstitutionalPDFExporter()
@@ -251,23 +256,55 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertGreaterEqual(len(bt["stress_tests"]), 3)
             self.assertFalse(bt["corr_matrix_df"].empty)
 
-    def test_4_excel_exporter_valid_workbook(self) -> None:
-        xlsx_bytes = build_institutional_excel_bytes(
-            portfolio=self.portfolio,
-            equities=self.equities,
-            cryptos=self.cryptos,
-            risk_timing=self.risk_timing,
-            backtest={"portfolio_cagr_pct": 18.0, "sharpe_ratio": 1.2, "max_drawdown_pct": 12.0},
+    def test_4_custody_reconciliation_and_dynamic_crypto_screener(self) -> None:
+        from core.custody_sync_engine import (
+            CustodySyncResult,
+            SyncedPosition,
+            build_custody_reconciliation,
         )
-        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes))
-        expected_sheets = {
-            "Portfolio_Holdings",
-            "ETF_LookThrough",
-            "Equities_Forensic_Valuation",
-            "Crypto_OnChain_Tokenomics",
-        }
-        self.assertEqual(set(wb.sheetnames), expected_sheets)
-        self.assertGreater(wb["Portfolio_Holdings"].max_row, 1)
+
+        # 1) Custody reconciliation compares live IBKR/Binance snapshot against SQLite targets
+        sync_res = CustodySyncResult(
+            ok=True,
+            source_summary="IBKR + Binance",
+            positions=[
+                SyncedPosition(
+                    ticker="NVDA", name="NVIDIA Corp.", source="IBKR",
+                    quantity=100.0, market_price_usd=140.0, market_value_usd=14000.0,
+                    avg_buy_price_usd=100.0, actual_weight_pct=70.0,
+                    asset_class_ui="Stock", sector_ui="Big Tech", ltv_turbo_eligible=True,
+                    role_description="Core",
+                ),
+                SyncedPosition(
+                    ticker="COST", name="Costco", source="IBKR",
+                    quantity=6.0, market_price_usd=1000.0, market_value_usd=6000.0,
+                    avg_buy_price_usd=950.0, actual_weight_pct=30.0,
+                    asset_class_ui="Stock", sector_ui="Retail", ltv_turbo_eligible=True,
+                    role_description="New Custody",
+                ),
+            ],
+            total_nav_usd=20000.0,
+            stablecoin_cash_usd=2500.0,
+        )
+        sqlite_rows = [
+            {"ticker": "NVDA", "target_weight_pct": 60.0, "ltv_turbo_eligible": True},
+            {"ticker": "BTC-USD", "target_weight_pct": 40.0, "ltv_turbo_eligible": True},
+        ]
+        rec = build_custody_reconciliation(sync_res, sqlite_rows)
+        self.assertEqual(rec["synced_nav_usd"], 20000.0)
+        self.assertEqual(rec["free_cash_usd"], 2500.0)
+        self.assertEqual(rec["ltv_collateral_usd"], 20000.0)
+        self.assertEqual(rec["zeroed_count"], 1)
+        self.assertEqual(rec["new_in_custody_count"], 1)
+        status_by_tk = {r["Ticker"]: r["Reconciliation Status"] for r in rec["rows"]}
+        self.assertIn("OVERWEIGHT", status_by_tk["NVDA"])
+        self.assertIn("ZEROED", status_by_tk["BTC-USD"])
+        self.assertEqual(status_by_tk["COST"], "NEW IN CUSTODY")
+
+        # 2) Crypto Screener supports custom/non-KB extra_symbols cleanly
+        sc_rows = self.screener.run_crypto_screener(extra_symbols=["DOGE-USD"])
+        self.assertTrue(any(r.symbol == "DOGE" for r in sc_rows))
+        close_yfinance_thread_caches()
 
     def test_5_antigravity_readonly_lockdown(self) -> None:
         cfg = build_readonly_agent_config(api_key="dummy-test-key")

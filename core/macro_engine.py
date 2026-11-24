@@ -126,7 +126,9 @@ class MacroEngine:
         yf_map = {"DXY": "DX-Y.NYB", "GOLD": "GC=F", "DBC": "DBC", "SP500": "^GSPC"}
         yf_series: Dict[str, pd.Series] = {}
         try:
-            yf_df = yf.download(list(yf_map.values()), period="2y", interval="1wk", progress=False)
+            from core.live_quant_fetcher import close_yfinance_thread_caches
+
+            yf_df = yf.download(list(yf_map.values()), period="2y", interval="1wk", progress=False, threads=False)
             if not yf_df.empty and "Close" in yf_df.columns:
                 closes = yf_df["Close"]
                 for k, tk in yf_map.items():
@@ -134,6 +136,7 @@ class MacroEngine:
                         s = closes[tk].dropna()
                         if not s.empty:
                             yf_series[k] = s
+            close_yfinance_thread_caches()
         except Exception:
             pass
 

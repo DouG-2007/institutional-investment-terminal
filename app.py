@@ -1030,6 +1030,36 @@ def main() -> None:
                     st.success(f"Synced {up_cnt} positions into SQLite ({rm_cnt} removed) and normalized weights to 100.00%!")
                     st.rerun()
 
+        active_custody = st.session_state.get("custody_sync_preview") or st.session_state.get("custody_auto_sync_result")
+        if active_custody is not None and getattr(active_custody, "ok", False) and getattr(active_custody, "positions", None):
+            from core.custody_sync_engine import build_custody_reconciliation
+
+            rec = build_custody_reconciliation(active_custody, port_eng_live.get_all_assets_from_db())
+            with st.expander(
+                f"📊 Custody vs. SQLite Reconciliation ({active_custody.source_summary}) — "
+                f"{rec['zeroed_count']} Zeroed/Rebuy | Free Cash: USD {rec['free_cash_usd']:,.0f}",
+                expanded=False,
+            ):
+                rc1, rc2, rc3, rc4 = st.columns(4)
+                rc1.metric("Synced Invested NAV", f"USD {rec['synced_nav_usd']:,.0f}")
+                rc2.metric("Free Cash / Stablecoins", f"USD {rec['free_cash_usd']:,.0f}")
+                rc3.metric("LTV-Eligible Collateral", f"USD {rec['ltv_collateral_usd']:,.0f}")
+                rc4.metric("Zeroed / New Assets", f"{rec['zeroed_count']} / {rec['new_in_custody_count']}")
+                df_rec = pd.DataFrame([
+                    {
+                        "Ticker": r["Ticker"],
+                        "Source": r["Custody Source"],
+                        "Custody Value (USD)": f"${r['Custody Value (USD)']:,.2f}",
+                        "Custody Weight": f"{r['Custody Weight (%)']:.2f}%",
+                        "SQLite Target": f"{r['SQLite Target (%)']:.2f}%",
+                        "Drift (pp)": f"{r['Drift (pp)']:+.2f}pp",
+                        "LTV": r["LTV Collateral"],
+                        "Status": r["Reconciliation Status"],
+                    }
+                    for r in rec["rows"]
+                ])
+                render_clean_table(df_rec, badge_cols=["Status", "LTV"])
+
         col_crud1, col_crud2 = st.columns([2, 1])
         with col_crud1:
             with st.form("form_upsert_asset", clear_on_submit=False):
@@ -1135,13 +1165,17 @@ def main() -> None:
                 value=st.session_state["deep_dive_ticker"],
             )
         with col_s2:
+            watchlist_defaults = [
+                "NVDA", "AAPL", "MSFT", "ASML", "TSM", "JPM", "MELI", "AVGO", "MA", "NU",
+                "BTC-USD", "ETH-USD", "PENDLE-USD", "LINK-USD", "MKR-USD", "UNI-USD",
+                "SPY", "QQQ", "QLD", "ITA", "COST", "LLY", "SOL-USD", "AAVE-USD",
+            ]
+            dynamic_picks = list(
+                dict.fromkeys([p.ticker for p in portfolio.positions] + watchlist_defaults)
+            )
             quick_pick = st.selectbox(
                 "Or quickly pick a Portfolio / Watchlist Asset:",
-                options=[
-                    "NVDA", "AAPL", "MSFT", "ASML", "TSM", "JPM", "MELI", "AVGO", "MA", "NU",
-                    "BTC-USD", "ETH-USD", "PENDLE-USD", "LINK-USD", "MKR-USD", "UNI-USD",
-                    "SPY", "QQQ", "QLD", "ITA", "COST", "LLY", "SOL-USD", "AAVE-USD",
-                ],
+                options=dynamic_picks,
                 index=0,
             )
         with col_s3:

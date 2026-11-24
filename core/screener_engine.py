@@ -554,7 +554,64 @@ class ScreenerEngine:
                         continue
         return out
 
-    def run_crypto_screener(self) -> List[CryptoScreenerRow]:
+    @staticmethod
+    def _build_crypto_screener_row(c: Dict[str, Any]) -> CryptoScreenerRow:
+        """Evaluates the 5 strict tokenomics/security/on-chain filters into a CryptoScreenerRow."""
+        f1_supply = float(c["circ_pct"]) >= 65.0
+        f2_unlock = float(c["unlock_pct"]) <= 2.5
+        f3_sec = int(c["sniffer"]) >= 85
+        f4_dev_earn = (int(c["devs"]) >= 40) and (float(c["real_earnings_m"]) > 0)
+        f5_mvrv = float(c["mvrv_z"]) <= 2.0
+
+        passed_cnt = sum([f1_supply, f2_unlock, f3_sec, f4_dev_earn, f5_mvrv])
+        all_passed = passed_cnt == 5
+
+        unlock_st = (
+            f"Low Impact ({float(c['unlock_pct']):.2f}% < 1.0%/mo)"
+            if float(c["unlock_pct"]) < 1.0
+            else (
+                f"Moderate Impact ({float(c['unlock_pct']):.2f}% <= 2.5%/mo)"
+                if f2_unlock
+                else f"HIGH DILUTION ({float(c['unlock_pct']):.2f}% > 2.5%/mo — VCs)"
+            )
+        )
+        post_unlock_px = round(float(c["px"]) / (1.0 + (float(c["unlock_pct"]) / 100.0)), 2)
+
+        if all_passed:
+            verdict = (
+                f"APPROVED 5/5 (Real Cash Flow +${float(c['real_earnings_m']):.1f}M | "
+                f"Supply {float(c['circ_pct']):.1f}% | MVRV Z {float(c['mvrv_z']):.2f})"
+            )
+        else:
+            verdict = f"REJECTED ({passed_cnt}/5 Filters — Failed on Supply Dilution / Negative Real Earnings)"
+
+        return CryptoScreenerRow(
+            symbol=str(c["symbol"]),
+            name=str(c["name"]),
+            category=str(c["category"]),
+            price_usd=float(c["px"]),
+            market_cap_b=float(c["mcap_b"]),
+            fdv_b=float(c["fdv_b"]),
+            circulating_supply_pct=float(c["circ_pct"]),
+            monthly_unlock_pct=float(c["unlock_pct"]),
+            unlock_status=unlock_st,
+            post_unlock_theoretical_px=post_unlock_px,
+            token_sniffer_score=int(c["sniffer"]),
+            security_audits=str(c["audits"]),
+            active_devs_github=int(c["devs"]),
+            github_commits_4w=int(c["commits"]),
+            protocol_real_earnings_m=float(c["real_earnings_m"]),
+            real_yield_pct=float(c["real_yield_pct"]),
+            pf_ratio=float(c["pf"]),
+            mvrv_z_score=float(c["mvrv_z"]),
+            nupl=float(c["nupl"]),
+            whitepaper_and_dao=str(c["wp_dao"]),
+            filters_passed_count=passed_cnt,
+            all_5_filters_passed=all_passed,
+            framework_verdict=verdict,
+        )
+
+    def run_crypto_screener(self, extra_symbols: Optional[List[str]] = None) -> List[CryptoScreenerRow]:
         out: List[CryptoScreenerRow] = []
         yf_syms = [f"{c['symbol']}-USD" for c in CRYPTO_CANDIDATES_RAW]
 
@@ -602,54 +659,58 @@ class ScreenerEngine:
                 c["real_earnings_m"] = round(fees_m - iss_m, 2)
                 c["pf"] = round((float(c["mcap_b"]) * 1000.0) / fees_m, 1)
 
-            f1_supply = c["circ_pct"] >= 65.0
-            f2_unlock = c["unlock_pct"] <= 2.5
-            f3_sec = c["sniffer"] >= 85
-            f4_dev_earn = (c["devs"] >= 40) and (c["real_earnings_m"] > 0)
-            f5_mvrv = c["mvrv_z"] <= 2.0
+            out.append(self._build_crypto_screener_row(c))
 
-            passed_cnt = sum([f1_supply, f2_unlock, f3_sec, f4_dev_earn, f5_mvrv])
-            all_passed = passed_cnt == 5
+        if extra_symbols:
+            known = {r.symbol.upper() for r in out}
+            extras_norm = []
+            for s in extra_symbols:
+                su = (s or "").strip().upper()
+                if not su:
+                    continue
+                base = su.split("-")[0]
+                if base not in known and f"{base}-USD" not in [e[1] for e in extras_norm]:
+                    extras_norm.append((base, f"{base}-USD"))
+            if extras_norm:
+                try:
+                    from core.crypto_engine import CryptoEngine
+                    from core.filings_engine import FilingsEngine
 
-            unlock_st = (
-                f"Low Impact ({c['unlock_pct']:.2f}% < 1.0%/mo)"
-                if c["unlock_pct"] < 1.0
-                else (
-                    f"Moderate Impact ({c['unlock_pct']:.2f}% <= 2.5%/mo)"
-                    if f2_unlock
-                    else f"HIGH DILUTION ({c['unlock_pct']:.2f}% > 2.5%/mo — VCs)"
-                )
-            )
-            post_unlock_px = round(c["px"] / (1.0 + (c["unlock_pct"] / 100.0)), 2)
-
-            if all_passed:
-                verdict = f"APPROVED 5/5 (Real Cash Flow +${c['real_earnings_m']:.1f}M | Supply {c['circ_pct']:.1f}% | MVRV Z {c['mvrv_z']:.2f})"
-            else:
-                verdict = f"REJECTED ({passed_cnt}/5 Filters — Failed on Supply Dilution / Negative Real Earnings)"
-
-            out.append(CryptoScreenerRow(
-                symbol=c["symbol"],
-                name=c["name"],
-                category=c["category"],
-                price_usd=c["px"],
-                market_cap_b=c["mcap_b"],
-                fdv_b=c["fdv_b"],
-                circulating_supply_pct=c["circ_pct"],
-                monthly_unlock_pct=c["unlock_pct"],
-                unlock_status=unlock_st,
-                post_unlock_theoretical_px=post_unlock_px,
-                token_sniffer_score=c["sniffer"],
-                security_audits=c["audits"],
-                active_devs_github=c["devs"],
-                github_commits_4w=c["commits"],
-                protocol_real_earnings_m=c["real_earnings_m"],
-                real_yield_pct=c["real_yield_pct"],
-                pf_ratio=c["pf"],
-                mvrv_z_score=c["mvrv_z"],
-                nupl=c["nupl"],
-                whitepaper_and_dao=c["wp_dao"],
-                filters_passed_count=passed_cnt,
-                all_5_filters_passed=all_passed,
-                framework_verdict=verdict,
-            ))
+                    cr_profiles = CryptoEngine().analyze_portfolio_cryptos([sym for _, sym in extras_norm])
+                    cr_dossiers = {
+                        d.symbol.upper(): d
+                        for d in FilingsEngine().get_crypto_dossiers([sym for _, sym in extras_norm])
+                    }
+                    for base, sym_usd in extras_norm:
+                        prof = cr_profiles.get(sym_usd)
+                        if prof is None:
+                            continue
+                        dos = cr_dossiers.get(sym_usd)
+                        tv = prof.tokenomics_valuation
+                        sup = prof.supply_structure
+                        on = prof.onchain_metrics
+                        out.append(
+                            self._build_crypto_screener_row({
+                                "symbol": base,
+                                "name": prof.name,
+                                "category": prof.category,
+                                "px": prof.spot_price_usd,
+                                "mcap_b": prof.market_cap_b,
+                                "fdv_b": prof.fdv_b,
+                                "circ_pct": prof.circulating_pct,
+                                "unlock_pct": sup.get("unlock_pct_of_circ", 1.5),
+                                "sniffer": getattr(dos, "token_sniffer_score", 75),
+                                "audits": getattr(dos, "audit_firms", "Public Telemetry Pending"),
+                                "devs": getattr(dos, "github_active_devs_monthly", 0),
+                                "commits": getattr(dos, "github_commits_4w", 0),
+                                "real_earnings_m": tv.get("protocol_real_earnings_m", 0.0),
+                                "real_yield_pct": tv.get("real_yield_pct", 0.0),
+                                "pf": tv.get("pf_ratio", 0.0),
+                                "mvrv_z": on.get("mvrv_z_score", 0.0),
+                                "nupl": on.get("nupl", 0.0),
+                                "wp_dao": getattr(dos, "wp_value_proposition", prof.category),
+                            })
+                        )
+                except Exception:
+                    pass
         return out
