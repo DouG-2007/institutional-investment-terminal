@@ -216,10 +216,26 @@ def _load_insights_cache_unlocked() -> Optional[Dict[str, Any]]:
         return None
 
 
-def load_cached_ai_master_insights() -> Optional[Dict[str, Any]]:
-    """Fast thread-safe read of persisted Master AI insights cache (<5ms)."""
+def load_cached_ai_master_insights(portfolio_sig: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Fast thread-safe read of persisted Master AI insights cache (<5ms) scoped by portfolio_sig."""
     with _ORCH_CACHE_LOCK:
-        return _load_insights_cache_unlocked()
+        raw = _load_insights_cache_unlocked()
+        if not isinstance(raw, dict):
+            return None
+        by_scope = raw.get("by_scope") if isinstance(raw.get("by_scope"), dict) else {}
+        if portfolio_sig:
+            scoped = by_scope.get(portfolio_sig)
+            if isinstance(scoped, dict):
+                return scoped
+            if raw.get("portfolio_sig") == portfolio_sig:
+                return raw
+            return None
+        # Default (unscoped callers like GeopoliticsMicroEngine / IntelligenceReportsEngine):
+        # prefer any full-portfolio ('ALL|...') entry before falling back to top-level flat cache
+        for k, v in by_scope.items():
+            if isinstance(k, str) and k.startswith("ALL|") and isinstance(v, dict):
+                return v
+        return raw
 
 
 def save_ai_master_insights_cache(payload: Dict[str, Any]) -> None:
@@ -227,10 +243,34 @@ def save_ai_master_insights_cache(payload: Dict[str, Any]) -> None:
         try:
             cache_dir = os.path.dirname(AI_MASTER_INSIGHTS_CACHE_PATH)
             os.makedirs(cache_dir, exist_ok=True)
+            existing = _load_insights_cache_unlocked() or {}
+            by_scope: Dict[str, Any] = {}
+            if isinstance(existing.get("by_scope"), dict):
+                by_scope.update(existing["by_scope"])
+            elif isinstance(existing.get("portfolio_sig"), str):
+                legacy_copy = {k: v for k, v in existing.items() if k != "by_scope"}
+                by_scope[existing["portfolio_sig"]] = legacy_copy
+
+            sig = str(payload.get("portfolio_sig") or "DEFAULT")
+            clean_entry = {k: v for k, v in payload.items() if k != "by_scope"}
+            by_scope[sig] = clean_entry
+
+            # Keep top-level flat mirror anchored on 'ALL|...' when available so Single-Asset
+            # runs never overwrite full-portfolio AI insights on disk.
+            top_base = clean_entry
+            if not sig.startswith("ALL|"):
+                for k, v in by_scope.items():
+                    if isinstance(k, str) and k.startswith("ALL|") and isinstance(v, dict):
+                        top_base = v
+                        break
+
+            persisted = dict(top_base)
+            persisted["by_scope"] = by_scope
+
             fd, tmp_path = tempfile.mkstemp(prefix=".ai_master_", suffix=".tmp", dir=cache_dir)
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                    json.dump(persisted, f, indent=2, ensure_ascii=False)
                 os.replace(tmp_path, AI_MASTER_INSIGHTS_CACHE_PATH)
             finally:
                 if os.path.exists(tmp_path):
@@ -270,6 +310,13 @@ def _collect_live_portfolio_headlines(tickers: List[str], max_per_ticker: int = 
             return tk, items or []
         except Exception:
             return tk, []
+        finally:
+            try:
+                from core.live_quant_fetcher import close_yfinance_thread_caches
+
+                close_yfinance_thread_caches()
+            except Exception:
+                pass
 
     with ThreadPoolExecutor(max_workers=6) as pool:
         futs = [pool.submit(_one, tk) for tk in clean_tks]
@@ -779,11 +826,19 @@ class AIReportOrchestrator:
         cr_filing_map = {c.symbol.upper(): c for c in cr_filings}
 
         # ----------------------------------------------------------------------
-        # CACHE CHECK FOR NARRATIVE MATRICES (24H TTL, PORTFOLIO-SIGNATURE SCOPED)
+        # CACHE CHECK FOR NARRATIVE MATRICES (24H TTL, MULTI-SCOPE SAFE)
         # ----------------------------------------------------------------------
         now = time.time()
         ttl_sec = max(300.0, float(insights_ttl_hours) * 3600.0)
-        cached = load_cached_ai_master_insights()
+        cached = load_cached_ai_master_insights(portfolio_sig)
+        # When generating Single-Asset Master 360 ('<TK>|<db_sig>'), also reuse warm
+        # 'ALL|<db_sig>' full-portfolio insights if present to avoid redundant Gemini calls.
+        if cached is None and "|" in portfolio_sig and not portfolio_sig.startswith("ALL|"):
+            _, db_part = portfolio_sig.split("|", 1)
+            all_cached = load_cached_ai_master_insights(f"ALL|{db_part}")
+            if isinstance(all_cached, dict):
+                cached = all_cached
+
         required_keys_list = [
             "geo_matrix",
             "disruptions",
@@ -798,7 +853,14 @@ class AIReportOrchestrator:
         if (
             not force_refresh_insights
             and isinstance(cached, dict)
-            and cached.get("portfolio_sig") == portfolio_sig
+            and (
+                cached.get("portfolio_sig") == portfolio_sig
+                or (
+                    not portfolio_sig.startswith("ALL|")
+                    and "|" in portfolio_sig
+                    and cached.get("portfolio_sig") == f"ALL|{portfolio_sig.split('|', 1)[1]}"
+                )
+            )
             and (now - float(cached.get("generated_at") or 0.0)) < ttl_sec
             and all(bool(cached.get(k)) for k in required_keys)
         ):

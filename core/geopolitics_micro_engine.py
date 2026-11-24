@@ -364,3 +364,10 @@ class GeopoliticsMicroEngine:
             return out
         except Exception:
             return []
+        finally:
+            try:
+                from core.live_quant_fetcher import close_yfinance_thread_caches
+
+                close_yfinance_thread_caches()
+            except Exception:
+                pass

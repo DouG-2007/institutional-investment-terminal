@@ -314,6 +314,19 @@ class TestTerminalInvariants(unittest.TestCase):
         self.assertIn("SUI-USD", ev_tks)
         self.assertEqual(normalize_and_validate_hhmm("8:30"), (True, "08:30"))
         self.assertFalse(normalize_and_validate_hhmm("25:99")[0])
+
+        # 4) Multi-scope AI insights cache preserves 'ALL' portfolio insights when Single-Asset runs
+        import core.ai_report_orchestrator as aio
+
+        with tempfile.TemporaryDirectory() as tmp_ai_dir:
+            tmp_ai_path = os.path.join(tmp_ai_dir, "ai_cache.json")
+            with mock.patch.object(aio, "AI_MASTER_INSIGHTS_CACHE_PATH", tmp_ai_path):
+                aio.save_ai_master_insights_cache({"portfolio_sig": "ALL|sig1", "tag": "FULL"})
+                aio.save_ai_master_insights_cache({"portfolio_sig": "NVDA|sig1", "tag": "SINGLE"})
+                self.assertEqual((aio.load_cached_ai_master_insights("ALL|sig1") or {}).get("tag"), "FULL")
+                self.assertEqual((aio.load_cached_ai_master_insights("NVDA|sig1") or {}).get("tag"), "SINGLE")
+                self.assertEqual((aio.load_cached_ai_master_insights() or {}).get("tag"), "FULL")
+
         close_yfinance_thread_caches()
 
     def test_5_antigravity_readonly_lockdown(self) -> None:
