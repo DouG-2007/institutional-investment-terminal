@@ -754,11 +754,109 @@ def _fetch_global_crypto_macro() -> Dict[str, Any]:
     return res
 
 
+_YF_CRYPTO_MAP = {
+    "UNI-USD": "UNI7083-USD",
+}
+_BINANCE_FIRST_CRYPTOS = {"SUI-USD"}
+
+
+def fetch_crypto_daily_history_binance(symbol: str, limit: int = 1000, max_pages: int = 1) -> pd.Series:
+    """
+    Fetches daily close history for `<BASE>-USD` from Binance Spot public `/api/v3/klines`
+    (zero API key needed) as a fast primary/fallback source when Yahoo Finance lacks data.
+    """
+    base = symbol.strip().upper().replace("-USD", "")
+    if not base:
+        return pd.Series(dtype=float)
+
+    for quote in ("USDT", "FDUSD", "USDC"):
+        pair = f"{base}{quote}"
+        all_rows: List[Any] = []
+        end_ms: Optional[int] = None
+        for _page in range(max(1, max_pages)):
+            url = f"https://api.binance.com/api/v3/klines?symbol={pair}&interval=1d&limit={min(1000, max(10, limit))}"
+            if end_ms is not None:
+                url += f"&endTime={end_ms}"
+            try:
+                resp = _HTTP.get(url, timeout=8)
+                if resp.status_code != 200:
+                    break
+                batch = resp.json()
+                if not isinstance(batch, list) or not batch:
+                    break
+                all_rows = batch + all_rows
+                if len(batch) < 1000:
+                    break
+                end_ms = int(batch[0][0]) - 1
+            except Exception:
+                break
+        if all_rows:
+            dates = pd.to_datetime([int(r[0]) for r in all_rows], unit="ms").normalize()
+            closes = [float(r[4]) for r in all_rows]
+            s = pd.Series(closes, index=dates, name=symbol.strip().upper(), dtype=float)
+            s = s[~s.index.duplicated(keep="last")].sort_index()
+            if len(s) >= 20:
+                return s
+    return pd.Series(dtype=float)
+
+
+def download_daily_close_series_with_binance_fallback(
+    symbols: Sequence[str],
+    period: str = "5y",
+) -> Dict[str, pd.Series]:
+    """
+    Downloads daily Close series via `yfinance`, routing known delisted/mismatched crypto
+    tickers (e.g., SUI-USD) and any missing `*-USD` symbols transparently to Binance klines.
+    """
+    req = [s.strip().upper() for s in symbols if s and s.strip()]
+    if not req:
+        return {}
+
+    hist_by_sym: Dict[str, pd.Series] = {}
+    yf_map: Dict[str, str] = {
+        s: _YF_CRYPTO_MAP.get(s, s)
+        for s in req
+        if s not in _BINANCE_FIRST_CRYPTOS
+    }
+    if yf_map:
+        try:
+            dl_syms = list(dict.fromkeys(yf_map.values()))
+            df = yf.download(dl_syms, period=period, interval="1d", progress=False)
+            if not df.empty and "Close" in df.columns:
+                closes = df["Close"]
+                if isinstance(closes, pd.Series):
+                    closes = closes.to_frame(name=dl_syms[0])
+                closes = closes.copy()
+                closes.index = pd.to_datetime(closes.index).tz_localize(None).normalize()
+                closes = closes.sort_index()
+                for orig, yf_tk in yf_map.items():
+                    if yf_tk in closes.columns:
+                        s_clean = closes[yf_tk].dropna()
+                        if len(s_clean) >= 20:
+                            hist_by_sym[orig] = s_clean
+        except Exception:
+            pass
+
+    missing_cryptos = [s for s in req if s.endswith("-USD") and s not in hist_by_sym]
+    if missing_cryptos:
+        pages = 2 if period in ("5y", "max") else 1
+        with ThreadPoolExecutor(max_workers=min(4, len(missing_cryptos))) as pool:
+            futs = {pool.submit(fetch_crypto_daily_history_binance, sym, 1000, pages): sym for sym in missing_cryptos}
+            for fut, sym in futs.items():
+                try:
+                    s_bn = fut.result()
+                    if not s_bn.empty:
+                        hist_by_sym[sym] = s_bn
+                except Exception:
+                    pass
+    return hist_by_sym
+
+
 def fetch_live_crypto_metrics(symbols: Sequence[str]) -> Dict[str, Dict[str, Any]]:
     """
-    Fetches live 5y SMAs/Pi-Cycle (`yfinance`), Binance Futures funding/OI/24h Vol,
-    DeFiLlama TVL/Annualized Fees, CoinGecko BTC dominance, Stablecoin SSR, and
-    CoinMetrics MVRV/Supply where available. 15-minute JSON cache.
+    Fetches live 5y SMAs/Pi-Cycle (`yfinance` w/ Binance klines fallback), Binance Futures
+    funding/OI/24h Vol, DeFiLlama TVL/Annualized Fees, CoinGecko BTC dominance, Stablecoin SSR,
+    and CoinMetrics MVRV/Supply where available. 15-minute JSON cache.
     """
     syms = [s.strip().upper() for s in symbols if s and s.strip()]
     out: Dict[str, Dict[str, Any]] = {}
@@ -775,24 +873,9 @@ def fetch_live_crypto_metrics(symbols: Sequence[str]) -> Dict[str, Dict[str, Any
         return out
 
     global_macro = _fetch_global_crypto_macro()
-    yf_map = {s: ("UNI7083-USD" if s == "UNI-USD" else s) for s in missing}
 
     # Download 5y daily close series once for true 200W SMA / 111D / 350D*2 Pi Cycle
-    hist_by_sym: Dict[str, pd.Series] = {}
-    try:
-        dl_syms = list(set(yf_map.values()))
-        df = yf.download(dl_syms, period="5y", interval="1d", progress=False)
-        if not df.empty and "Close" in df.columns:
-            closes = df["Close"]
-            if isinstance(closes, pd.Series):
-                closes = closes.to_frame(name=dl_syms[0])
-            for orig, yf_tk in yf_map.items():
-                if yf_tk in closes.columns:
-                    s_clean = closes[yf_tk].dropna()
-                    if not s_clean.empty:
-                        hist_by_sym[orig] = s_clean
-    except Exception:
-        pass
+    hist_by_sym = download_daily_close_series_with_binance_fallback(missing, period="5y")
 
     def _build_one_crypto(sym: str) -> Tuple[str, Dict[str, Any]]:
         base = sym.replace("-USD", "")

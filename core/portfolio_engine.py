@@ -10,7 +10,7 @@ MODULE 1.4 & MODULE 6: PORTFOLIO OVERVIEW, DYNAMIC PORTFOLIO MANAGER (SQLite CRU
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 import json
 import os
 import sqlite3
@@ -893,3 +893,45 @@ class PortfolioEngine:
             lookthrough_holdings=lookthrough_list,
             sector_exposure_summary=sector_summary,
         )
+
+
+PORTFOLIO_DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "portfolio_store.db",
+)
+
+
+def get_portfolio_asset_tickers(
+    asset_filter: str = "all",
+    db_path: Optional[str] = None,
+) -> List[str]:
+    """
+    Canonical reader of ordered tickers from `portfolio_store.db` (`portfolio_assets`),
+    ensuring an absolute project-root DB path and deterministic connection cleanup.
+    asset_filter: 'all' | 'equity' | 'crypto'
+    """
+    path = db_path or PORTFOLIO_DB_PATH
+    if not os.path.exists(path):
+        return []
+    with closing(sqlite3.connect(path)) as conn:
+        rows = conn.execute(
+            "SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC"
+        ).fetchall()
+
+    out: List[str] = []
+    for tk_raw, cat_raw in rows:
+        tk = str(tk_raw or "").strip().upper()
+        cat = str(cat_raw or "")
+        if not tk:
+            continue
+        is_crypto = ("Crypto" in cat) or ("Altcoin" in cat) or tk.endswith("-USD")
+        is_etf = "ETF" in cat
+        if asset_filter == "equity":
+            if not is_crypto and not is_etf:
+                out.append(tk)
+        elif asset_filter == "crypto":
+            if is_crypto:
+                out.append(tk)
+        else:
+            out.append(tk)
+    return out

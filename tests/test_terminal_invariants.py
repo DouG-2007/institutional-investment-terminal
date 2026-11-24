@@ -480,6 +480,46 @@ class TestTerminalInvariants(unittest.TestCase):
                 self.assertIsNotNone(loaded_c)
                 self.assertEqual(len(loaded_c.positions), 3)
 
+    def test_9_dynamic_non_kb_assets_and_binance_klines(self) -> None:
+        from core.portfolio_engine import get_portfolio_asset_tickers
+        from core.live_quant_fetcher import download_daily_close_series_with_binance_fallback
+        import pandas as pd
+
+        # 1) Canonical SQLite ticker reader with explicit isolated DB path
+        with tempfile.TemporaryDirectory() as tmpd:
+            cfg_path = os.path.join(tmpd, "dyn_cfg.json")
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "assets": [
+                            {"ticker": "NVDA", "name": "NVIDIA", "category": "Hard-Asset Stock", "sector_vertical": "TECH_HIGH_GROWTH", "target_weight_pct": 50.0, "avg_buy_price": 90.0},
+                            {"ticker": "SPY", "name": "SPDR S&P", "category": "Hard-Asset ETF", "sector_vertical": "ETF", "target_weight_pct": 25.0, "avg_buy_price": 500.0},
+                            {"ticker": "SUI-USD", "name": "Sui", "category": "Crypto Altcoin", "sector_vertical": "OTHER", "target_weight_pct": 25.0, "avg_buy_price": 2.0},
+                        ]
+                    },
+                    f,
+                )
+            pe = PortfolioEngine(config_path=cfg_path)
+            self.assertEqual(get_portfolio_asset_tickers("all", db_path=pe.db_path), ["NVDA", "SPY", "SUI-USD"])
+            self.assertEqual(get_portfolio_asset_tickers("equity", db_path=pe.db_path), ["NVDA"])
+            self.assertEqual(get_portfolio_asset_tickers("crypto", db_path=pe.db_path), ["SUI-USD"])
+
+        # 2) EquityEngine + CryptoEngine analyze non-core assets seamlessly
+        eq_dyn = EquityEngine(self.rf_pct).analyze_portfolio_equities(["NVDA", "COST"])
+        self.assertEqual([e.ticker for e in eq_dyn], ["NVDA", "COST"])
+
+        cr_dyn = CryptoEngine().analyze_portfolio_cryptos(["BTC-USD", "SUI-USD"])
+        self.assertIn("BTC-USD", cr_dyn)
+        self.assertIn("SUI-USD", cr_dyn)
+
+        # 3) Binance klines fallback fills SUI-USD without calling Yahoo for delisted SUI-USD
+        fake_s = pd.Series([2.0, 2.2, 2.4] * 10, index=pd.date_range("2025-01-01", periods=30, freq="D"), name="SUI-USD")
+        with mock.patch("core.live_quant_fetcher.fetch_crypto_daily_history_binance", return_value=fake_s) as mock_bn:
+            res_map = download_daily_close_series_with_binance_fallback(["SUI-USD"], period="3y")
+            self.assertTrue(mock_bn.called)
+            self.assertIn("SUI-USD", res_map)
+            self.assertEqual(len(res_map["SUI-USD"]), 30)
+
 
 if __name__ == "__main__":
     unittest.main()

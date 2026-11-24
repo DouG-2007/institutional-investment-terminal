@@ -218,15 +218,12 @@ class GeopoliticsMicroEngine:
     ) -> List[MicroCorporateProtocolEvent]:
         if tickers is None:
             try:
-                import sqlite3
-                db_path = os.path.join(_ROOT_DIR, "portfolio_store.db")
-                if not os.path.exists(db_path):
-                    db_path = "portfolio_store.db"
-                from contextlib import closing
-                with closing(sqlite3.connect(db_path)) as conn:
-                    rows = conn.execute("SELECT ticker FROM portfolio_assets ORDER BY display_order ASC").fetchall()
-                tickers = [r[0].upper() for r in rows]
+                from core.portfolio_engine import get_portfolio_asset_tickers
+
+                tickers = get_portfolio_asset_tickers("all")
             except Exception:
+                tickers = []
+            if not tickers:
                 tickers = [
                     "BTC-USD", "ETH-USD", "PENDLE-USD", "LINK-USD", "MKR-USD", "UNI-USD",
                     "SPY", "QQQ", "QLD", "ITA",

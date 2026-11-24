@@ -696,12 +696,12 @@ class FilingsEngine:
     def get_equity_dossiers(self, tickers: List[str] | None = None) -> List[EquityDocumentaryDossier]:
         if tickers is None:
             try:
-                from contextlib import closing
-                import sqlite3
-                with closing(sqlite3.connect(_db_path())) as conn:
-                    rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
-                tickers = [r[0] for r in rows if "Crypto" not in r[1] and "ETF" not in r[1]]
+                from core.portfolio_engine import get_portfolio_asset_tickers
+
+                tickers = get_portfolio_asset_tickers("equity")
             except Exception:
+                tickers = []
+            if not tickers:
                 tickers = ["NVDA", "AAPL", "MSFT", "JPM", "ASML", "TSM", "MELI", "AVGO", "MA", "NU"]
 
         ordered_tks: List[str] = []
@@ -739,12 +739,12 @@ class FilingsEngine:
     def get_crypto_dossiers(self, symbols: List[str] | None = None) -> List[CryptoDocumentaryDossier]:
         if symbols is None:
             try:
-                from contextlib import closing
-                import sqlite3
-                with closing(sqlite3.connect(_db_path())) as conn:
-                    rows = conn.execute("SELECT ticker, category FROM portfolio_assets ORDER BY display_order ASC").fetchall()
-                symbols = [r[0] for r in rows if "Crypto" in r[1] or r[0].endswith("-USD")]
+                from core.portfolio_engine import get_portfolio_asset_tickers
+
+                symbols = get_portfolio_asset_tickers("crypto")
             except Exception:
+                symbols = []
+            if not symbols:
                 symbols = ["BTC-USD", "ETH-USD", "PENDLE-USD", "LINK-USD", "MKR-USD", "UNI-USD"]
 
         ordered_syms: List[str] = []

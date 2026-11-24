@@ -32,8 +32,10 @@ def _load_or_fetch_price_matrix(
     tickers: List[str],
     lookback_period: str = "3y",
 ) -> pd.DataFrame:
-    """Loads cached 3y Close price matrix or downloads fresh daily closes via `yfinance`."""
-    req_yf = list(dict.fromkeys([_map_yf_ticker(t) for t in tickers] + ["SPY", "QQQ", "BTC-USD"]))
+    """Loads cached 3y Close price matrix or downloads fresh daily closes via `yfinance` + Binance fallback."""
+    orig_req = list(dict.fromkeys([t.strip().upper() for t in tickers if t and t.strip()] + ["SPY", "QQQ", "BTC-USD"]))
+    col_map = {_map_yf_ticker(t): t for t in orig_req}
+    req_yf = list(dict.fromkeys(_map_yf_ticker(t) for t in orig_req))
 
     if os.path.exists(BACKTEST_PARQUET_PATH) and lookback_period == "3y":
         try:
@@ -46,14 +48,14 @@ def _load_or_fetch_price_matrix(
             pass
 
     try:
-        raw = yf.download(req_yf, period=lookback_period, interval="1d", progress=False)
-        if raw.empty or "Close" not in raw.columns:
+        from core.live_quant_fetcher import download_daily_close_series_with_binance_fallback
+
+        series_map = download_daily_close_series_with_binance_fallback(orig_req, period=lookback_period)
+        if not series_map:
             return pd.DataFrame()
-        closes = raw["Close"]
-        if isinstance(closes, pd.Series):
-            closes = closes.to_frame(name=req_yf[0])
-        closes = closes.copy()
-        closes.index = pd.to_datetime(closes.index).tz_localize(None)
+        closes = pd.DataFrame({_map_yf_ticker(orig_tk): ser for orig_tk, ser in series_map.items()})
+        if closes.empty:
+            return pd.DataFrame()
         closes = closes.sort_index()
         # Filter to actual equity trading calendar before forward-filling crypto prices
         if "SPY" in closes.columns:
