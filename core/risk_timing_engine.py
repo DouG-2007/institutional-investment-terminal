@@ -303,8 +303,8 @@ class RiskTimingEngine:
                 "Asset Class / Vertical": "6. Bitcoin (BTC — Sovereign Reserve Asset)",
                 "Primary Metric": "NUPL, MVRV Z-Score, 200W SMA and Pi Cycle Top",
                 "Advisory Buy Reference": "NUPL < 0.0 OR MVRV Z <= 0.50 OR Price <= 1.05x 200W SMA",
-                "Advisory 50% Trim Reference": "Pi Cycle Top triggered (111d > 2x350d) OR NUPL Reverse Cross (< 0.60 after > 0.65)",
-                "Strategic Note": "On-chain macro cycle reference; structural 50% core allocation remains in cold storage.",
+                "Advisory 50% Trim Reference": "Pi Cycle Top triggered (111d >= 2x 350d SMA — exclusive parabolic-top trigger)",
+                "Strategic Note": "Exclusive Pi Cycle trigger avoids mid-bull whipsaws (no NUPL Reverse Cross trim); 50% core stays in cold storage.",
             },
             {
                 "Asset Class / Vertical": "7A. Crypto L1 Majors (ETH, SOL — Core Infrastructure)",
@@ -346,9 +346,9 @@ class RiskTimingEngine:
                 om = c.onchain_metrics
                 ind_str = f"NUPL: {om['nupl']:.2f} | MVRV Z: {om['mvrv_z_score']:.2f} | Px/200W: {om['price_to_200w_sma_x']:.2f}x"
                 buy_ref = "NUPL < 0.0 or MVRV Z <= 0.5 or Px <= 1.05x 200W SMA"
-                prune_ref = "Pi Cycle Top Active or NUPL Reverse Cross (< 0.60 post > 0.65)"
+                prune_ref = "Pi Cycle Top Active (111d >= 2x 350d SMA)"
                 in_buy = (om["nupl"] < 0.0) or (om["mvrv_z_score"] <= 0.5) or (om["price_to_200w_sma_x"] <= 1.05)
-                in_prune = om["pi_cycle_top_triggered"] or (om["nupl"] > 0.65)
+                in_prune = bool(om["pi_cycle_top_triggered"])
                 status = "Within Aggressive Buy Reference" if in_buy else ("Cycle Top Signal / Prune Reference" if in_prune else "Neutral Cycle Band (Hold / Discretionary DCA)")
                 shannon_ok = not in_prune
             elif tk in cryptos:

@@ -244,7 +244,7 @@ Conversational quantitative and forensic analyst built with `google-antigravity 
 * **Nominal NVT & NVT Golden Cross:** `Market Cap / 24h On-Chain Tx Volume` (`< 30x` Undervalued, `30x–75x` Fair, `> 75x` Overvalued).
 * **MVRV Z-Score:** `< 0.50` Historic Trough (Accumulation), `0.50–2.00` Expansion, `> 2.50–3.00` Euphoria Peak.
 * **aSOPR:** In bull markets, `1.000` acts as dynamic on-chain support.
-* **Cycle Execution & Altcoin Differentiation:** `BTC` triggers `50%` trims on `Pi Cycle Top` or `NUPL Reverse Cross (0.65 -> 0.60)`; **`L1 Majors` (`ETH`, `SOL`)** follow full-cycle `0%` pruning Hold; **`DeFi / Mid-Caps`** trigger `100%` exits on `BTC NUPL > 0.60` / `MVRV > 3.0` + trailing drawdown `>= 20%` and re-enter strictly at historical capitulation **`BTC <= 1.05x 200W SMA`** (optionally confirmed w/ `NUPL < 0.0`).
+* **Cycle Execution & Altcoin Differentiation:** `BTC` triggers `50%` trims exclusively on **`Pi Cycle Top`** (`111d >= 2x 350d SMA` — removing premature `NUPL Reverse Cross` mid-bull trims, so in non-parabolic cycles it acts automatically as `0%` Hold); **`L1 Majors` (`ETH`, `SOL`)** follow full-cycle `0%` pruning Hold; **`DeFi / Mid-Caps`** trigger `100%` exits on `BTC NUPL > 0.60` / `MVRV > 3.0` + trailing drawdown `>= 20%` and re-enter strictly at historical capitulation **`BTC <= 1.05x 200W SMA`** (optionally confirmed w/ `NUPL < 0.0`).
 * **Continuous LTV Governance:** Fixed continuous `20%` baseline (expandable tactically up to `25%`, no `10%` defensive reduction; `28%–30%` anti-cyclical panic turbo; `45%–50%` Hard-Cap safety ceiling).
 * **Protocol Real Earnings & Real Yield (DeFi Economics):**
 

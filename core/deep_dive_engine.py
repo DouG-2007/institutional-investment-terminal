@@ -953,7 +953,7 @@ class DeepDiveEngine:
                         else "BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0) + Protocol Real Earnings > 0 + Unlocks < 1.5%/month"
                     ),
                     "prune_reference": (
-                        "Pi Cycle Top triggered or NUPL Reverse Cross (< 0.60 after > 0.65)"
+                        "Pi Cycle Top triggered (111d >= 2x 350d SMA — exclusive parabolic-top trim)"
                         if norm_ticker == "BTC-USD"
                         else (
                             "0% Cyclical Pruning (L1 Major Full-Cycle Structural Hold)"

@@ -18,8 +18,8 @@ Framework:
   - CYCLICAL (XOM, CAT, FCX, VALE): Inverse Relative Multiples + Mid-Cycle DCF
   - DEFENSIVE_RETAIL (WMT, COST, PG, KO, JNJ): Relative Multiples + DCF,
     Revenue Growth gate, FCF Yield vs ^TNX
-  - CRYPTO_BTC & CRYPTO_ALT: Pi Cycle, NUPL Reverse Cross (0.65 -> 0.60),
-    MVRV Z-Score, 200W SMA, Hash Ribbon, NVT Golden Cross, Trailing DD
+  - CRYPTO_BTC & CRYPTO_ALT: Pi Cycle Top exclusive parabolic BTC trim (`pi_cycle_only`),
+    MVRV Z-Score, 200W SMA (`<= 1.05x`), Hash Ribbon, NVT Golden Cross, Trailing DD
 ================================================================================
 """
 
@@ -1100,7 +1100,7 @@ class ComposableValuationBacktestSimulator:
         bank_pb_veto: float = 1.0,
         bank_buy_pegy: float = 1.0,
         bank_prune_pegy: float = 1.5,
-        btc_top_mode: str = "picycle_or_reverse_nupl",
+        btc_top_mode: str = "pi_cycle_only",
         crypto_exit_nupl: float = 0.60,
         crypto_exit_dd: float = -0.20,
         crypto_reenter_mode: str = "200w_105",
@@ -1436,7 +1436,9 @@ class ComposableValuationBacktestSimulator:
             if "BTC-USD" in weights and "BTC-USD" in units and units["BTC-USD"] > 0 and btc_top_mode != "none":
                 p_btc = float(px["BTC-USD"].loc[d])
                 top_hit = False
-                if btc_top_mode == "picycle_or_reverse_nupl":
+                if btc_top_mode == "pi_cycle_only":
+                    top_hit = btc_sig["pi_cycle"]
+                elif btc_top_mode == "picycle_or_reverse_nupl":
                     top_hit = btc_sig["pi_cycle"] or btc_sig["nupl_reverse_cross"]
                 elif btc_top_mode == "picycle_or_nupl65":
                     top_hit = btc_sig["pi_cycle"] or (btc_sig["nupl"] > 0.65)
@@ -1657,6 +1659,7 @@ class ComposableValuationBacktestSimulator:
                 "buy_pegy": buy_pegy, "prune_pegy": prune_pegy,
                 "prune_mode": prune_mode, "prune_destination": prune_destination,
                 "ltv_mode": ltv_mode, "inflow_mode": inflow_mode,
+                "btc_top_mode": btc_top_mode,
                 "rebalance_freq": rebalance_freq, "enable_tax": enable_tax,
             },
             dates=dates,
@@ -1698,7 +1701,7 @@ def run_valuation_backtest(
     bank_pb_veto: float = 1.0,
     bank_buy_pegy: float = 1.0,
     bank_prune_pegy: float = 1.5,
-    btc_top_mode: str = "picycle_or_reverse_nupl",
+    btc_top_mode: str = "pi_cycle_only",
     crypto_exit_nupl: float = 0.60,
     crypto_exit_dd: float = -0.20,
     crypto_reenter_mode: str = "200w_105",

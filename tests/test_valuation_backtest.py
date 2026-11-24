@@ -185,6 +185,8 @@ class TestValuationBacktestEngine(unittest.TestCase):
         self.assertGreater(res.metrics["final_capital"], 0.0)
         # Official defaults: TECH_HIGH_GROWTH (NVDA) and L1 Majors (ETH-USD) never pruned on multiple/DD
         self.assertFalse(any(t.asset in ("NVDA", "ETH-USD") and ("PRUNE" in t.action or "SAIDA" in t.action) for t in res.trade_log))
+        # Official BTC default uses exclusive Pi Cycle Top (never mid-cycle NUPL reverse cross)
+        self.assertEqual(res.config.get("btc_top_mode"), "pi_cycle_only")
         # Continuous LTV baseline maintains non-zero leverage with no 10% drop
         self.assertGreater(res.ltv_series.iloc[-1], 0.0)
 

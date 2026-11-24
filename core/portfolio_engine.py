@@ -268,6 +268,9 @@ class PortfolioEngine:
                 new_sell = "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break)."
             elif new_sec in ("TECH_CASH_COW", "FINANCIAL_TOLLBOOTH") and "> 1.6x" in new_sell:
                 new_sell = new_sell.replace("> 1.6x", "> 1.4x")
+            elif cat == "Crypto BTC":
+                if "NUPL Reverse Cross" in new_sell or "after > 0.65" in new_sell:
+                    new_sell = "Consultative Prune Reference (50%): Pi Cycle Top triggered (111d >= 2x 350d SMA)."
             elif cat == "Crypto Altcoin" and tk in ("ETH-USD", "SOL-USD"):
                 if "NUPL < 0.30" in new_acc or "Trailing Drawdown >= 20%" in new_sell or "MVRV Z > 3.0" in new_sell:
                     new_acc = "Consultative Benchmark (L1 Major): Accumulate at BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0)."
@@ -479,7 +482,7 @@ class PortfolioEngine:
         )
         if category == "Crypto BTC":
             acc_rule = "Advisory Reference: NUPL < 0.0 OR MVRV Z <= 0.50 OR Price <= 1.05x 200W SMA."
-            sell_rule = "Advisory 50% Trim Reference: Pi Cycle Top active OR NUPL Reverse Cross (< 0.60 after > 0.65)."
+            sell_rule = "Advisory 50% Trim Reference: Pi Cycle Top active (111d >= 2x 350d SMA)."
         elif category == "Crypto Altcoin":
             if tk in ("ETH-USD", "SOL-USD"):
                 acc_rule = "Advisory Reference (L1 Major): Accumulate at BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0)."
