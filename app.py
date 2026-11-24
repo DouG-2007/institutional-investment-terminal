@@ -376,6 +376,8 @@ def main() -> None:
         st.session_state["det_pdf_cache"] = {}
     if "sidebar_tax_rate_input" not in st.session_state:
         st.session_state["sidebar_tax_rate_input"] = 15.0
+    if "sidebar_capital_usd" not in st.session_state:
+        st.session_state["sidebar_capital_usd"] = 100_000.0
 
     port_eng_live = PortfolioEngine()
     from core.custody_sync_engine import auto_sync_configured_brokers, has_env_custody_credentials
@@ -402,9 +404,9 @@ def main() -> None:
             "Base Calculation Capital (USD)",
             min_value=10_000.0,
             max_value=100_000_000.0,
-            value=100_000.0,
             step=10_000.0,
             format="%.0f",
+            key="sidebar_capital_usd",
         )
         jurisdiction_preset = st.selectbox(
             "Tax Jurisdiction Preset",
@@ -507,14 +509,19 @@ def main() -> None:
             f"Last synchronization: **{macro.timestamp}** | "
             f"**{len(portfolio.positions)} Holdings** in SQLite Portfolio."
         )
-        auto_res_sb = st.session_state.get("custody_auto_sync_result")
+        auto_res_sb = st.session_state.get("custody_auto_sync_result") or st.session_state.get("custody_sync_preview")
         if auto_res_sb is not None:
             if getattr(auto_res_sb, "ok", False):
+                synced_tot = float(getattr(auto_res_sb, "total_nav_usd", 0.0) or 0.0) + float(getattr(auto_res_sb, "stablecoin_cash_usd", 0.0) or 0.0)
                 st.caption(
                     f"🔗 Auto-Synced Custody ({auto_res_sb.source_summary}): "
                     f"NAV USD {auto_res_sb.total_nav_usd:,.0f} | Cash USD {auto_res_sb.stablecoin_cash_usd:,.0f} "
                     f"(zeroed assets kept)."
                 )
+                if synced_tot >= 10_000.0 and abs(synced_tot - capital_usd) > 1.0:
+                    if st.button(f"💰 Apply Synced NAV (USD {synced_tot:,.0f}) to Capital", width="stretch", key="btn_apply_synced_nav_sb"):
+                        st.session_state["sidebar_capital_usd"] = round(synced_tot, 2)
+                        st.rerun()
             elif getattr(auto_res_sb, "error_message", ""):
                 st.caption(f"⚠️ Custody Auto-Sync Notice: {auto_res_sb.error_message}")
 
@@ -690,13 +697,23 @@ def main() -> None:
                         prog_bar.progress(max(0.0, min(1.0, float(frac))))
                         prog_label.caption(msg)
 
+                    ai_equities = (
+                        [e for e in equities if e.ticker.upper() == focus_ticker]
+                        if focus_ticker
+                        else equities
+                    )
+                    ai_cryptos = (
+                        {k: v for k, v in cryptos.items() if k.upper() == focus_ticker}
+                        if focus_ticker
+                        else cryptos
+                    )
                     ai_bundle = AIReportOrchestrator().build_complete_ai_master_bundle(
                         macro=macro,
                         portfolio=portfolio,
-                        equities=equities,
-                        cryptos=cryptos,
+                        equities=ai_equities,
+                        cryptos=ai_cryptos,
                         risk_timing=risk_timing,
-                        portfolio_sig=db_sig,
+                        portfolio_sig=f"{scope_tag}|{db_sig}",
                         force_refresh_insights=force_refresh_insights,
                         force_refresh_filings=force_refresh_filings,
                         skip_filing_hydration=(is_economic_mode and not force_refresh_filings),
@@ -1312,12 +1329,26 @@ def main() -> None:
         eligible_rows = [r for r in risk_timing.consultative_asset_timing_table if r.shannon_inflow_eligible]
         if not eligible_rows:
             eligible_rows = risk_timing.consultative_asset_timing_table[:5]
-        total_w_elig = sum(r.target_weight_pct for r in eligible_rows) or 1.0
+        gaps = [max(0.0, float(r.target_weight_pct) - float(r.current_weight_pct)) for r in eligible_rows]
+        total_gap = sum(gaps)
+        if total_gap > 0.0:
+            raw_shares = [g / total_gap for g in gaps]
+            alloc_desc = "underweight gap (target − current) across eligible assets"
+        else:
+            total_w_elig = sum(r.target_weight_pct for r in eligible_rows) or 1.0
+            raw_shares = [r.target_weight_pct / total_w_elig for r in eligible_rows]
+            alloc_desc = "target weight across eligible assets (none currently underweight)"
+
+        ranked_inflow = sorted(
+            zip(eligible_rows, raw_shares),
+            key=lambda pair: pair[1],
+            reverse=True,
+        )
 
         with col_inf2:
             st.markdown(
                 f'<div class="insight-callout"><strong>{len(eligible_rows)} Qualified Assets to Receive Fresh Inflow of USD {inflow_usd:,.0f}:</strong> '
-                f'Proportional allocation by target weight across assets simultaneously satisfying fundamental/on-chain discount criteria.</div>',
+                f'Shannon Inflow allocation weighted by {alloc_desc}.</div>',
                 unsafe_allow_html=True,
             )
 
@@ -1326,11 +1357,13 @@ def main() -> None:
                 "Ticker": r.asset_ticker,
                 "Asset": r.asset_name,
                 "Vertical": r.framework_category,
+                "Drift (pp)": f"{r.weight_drift_pp:+.2f}pp",
                 "Current Metric": r.primary_indicator_current,
                 "Advisory Status": "INFLOW ELIGIBLE" if r.shannon_inflow_eligible else "MONITOR",
-                "Suggested Inflow (USD)": f"USD {(inflow_usd * (r.target_weight_pct / total_w_elig)):,.2f} ({(r.target_weight_pct / total_w_elig)*100:.1f}% of Inflow)",
+                "Suggested Inflow (USD)": f"USD {(inflow_usd * share):,.2f} ({share * 100:.1f}% of Inflow)",
             }
-            for r in eligible_rows
+            for r, share in ranked_inflow
+            if share > 0.0
         ])
         render_clean_table(df_inflow, badge_cols=["Advisory Status"])
 
