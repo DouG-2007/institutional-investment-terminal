@@ -520,6 +520,53 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertIn("SUI-USD", res_map)
             self.assertEqual(len(res_map["SUI-USD"]), 30)
 
+        # 4) Generic ETF Look-Through decomposes any ETF in SQLite (e.g. VOO)
+        with tempfile.TemporaryDirectory() as tmpdir2:
+            etf_cfg = os.path.join(tmpdir2, "etf_test.json")
+            with open(etf_cfg, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "assets": [
+                            {
+                                "ticker": "NVDA", "name": "NVIDIA Corp.", "category": "Hard-Asset Stock",
+                                "sector_vertical": "TECH_HIGH_GROWTH", "target_weight_pct": 50.0,
+                                "avg_buy_price": 100.0, "ltv_turbo_eligible": True, "fair_price": 150.0,
+                            },
+                            {
+                                "ticker": "VOO", "name": "Vanguard S&P 500 ETF", "category": "Hard-Asset ETF",
+                                "sector_vertical": "INDEX_ETF", "target_weight_pct": 50.0,
+                                "avg_buy_price": 450.0, "ltv_turbo_eligible": True, "fair_price": 500.0,
+                            },
+                        ]
+                    },
+                    f,
+                )
+            pe2 = PortfolioEngine(config_path=etf_cfg)
+            with (
+                mock.patch("core.portfolio_engine.fetch_all_quotes_parallel", return_value={"NVDA": 120.0, "VOO": 500.0}),
+                mock.patch("core.live_quant_fetcher.fetch_live_etf_constituents", return_value={"VOO": {"NVDA": 7.5}}) as mock_etf_fetch,
+            ):
+                lt_res = pe2.build_overview_and_lookthrough(100000.0)
+                self.assertTrue(mock_etf_fetch.called)
+                nvda_lt = next((x for x in lt_res.lookthrough_holdings if x.ticker == "NVDA"), None)
+                self.assertIsNotNone(nvda_lt)
+                self.assertAlmostEqual(nvda_lt.total_indirect_pct, 3.75, places=2)
+                self.assertIn("VOO (3.75%)", nvda_lt.overlap_sources)
+                basket_lt = next((x for x in lt_res.lookthrough_holdings if x.ticker == "ETF-BASKET"), None)
+                self.assertIsNotNone(basket_lt)
+                self.assertIn("VOO Residual (46.25%)", basket_lt.overlap_sources)
+
+        # 5) FilingsEngine deterministic fallback provides valid non-KB dossiers (zero Gemini quota)
+        fe = FilingsEngine()
+        cost_dos = fe.get_equity_dossiers(["COST"])
+        sui_dos = fe.get_crypto_dossiers(["SUI-USD"])
+        self.assertEqual(len(cost_dos), 1)
+        self.assertEqual(cost_dos[0].ticker, "COST")
+        self.assertTrue(len(cost_dos[0].mda_growth_decomposition) > 10)
+        self.assertEqual(len(sui_dos), 1)
+        self.assertEqual(sui_dos[0].symbol, "SUI-USD")
+        self.assertTrue(len(sui_dos[0].wp_value_proposition) > 10)
+
 
 if __name__ == "__main__":
     unittest.main()

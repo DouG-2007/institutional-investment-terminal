@@ -684,24 +684,29 @@ class PortfolioEngine:
         total_pnl_pct = round((total_pnl_usd / total_cost_basis_usd) * 100.0, 2) if total_cost_basis_usd > 0 else 0.0
 
         # ======================================================================
-        # ETF LOOK-THROUGH DECOMPOSITION (SPY, QQQ, SMH, ITA, and 2x QLD)
+        # ETF LOOK-THROUGH DECOMPOSITION (SPY, QQQ, SMH, ITA, 2x QLD + Any ETF)
         # ======================================================================
         # Overlay live ETF top holdings (%) onto a shallow copy of ETF_CONSTITUENTS_MAP
         etf_map: Dict[str, Dict[str, Dict[str, Any]]] = {
             etf_k: {c_k: dict(c_v) for c_k, c_v in c_dict.items()}
             for etf_k, c_dict in ETF_CONSTITUENTS_MAP.items()
         }
+        portfolio_etfs = [ek for ek in etf_weights.keys() if ek != "QLD" and etf_weights.get(ek, 0.0) > 0]
+        fetch_etfs = tuple(dict.fromkeys(["SPY", "QQQ", "SMH", "ITA", *portfolio_etfs]))
         try:
             from core.live_quant_fetcher import fetch_live_etf_constituents
 
-            live_etf_w = fetch_live_etf_constituents(("SPY", "QQQ", "SMH", "ITA"))
+            live_etf_w = fetch_live_etf_constituents(fetch_etfs)
             for etf_k, w_dict in live_etf_w.items():
-                if etf_k in etf_map and w_dict:
-                    for c_tk, c_w in w_dict.items():
-                        if c_tk in etf_map[etf_k]:
-                            etf_map[etf_k][c_tk]["weight_pct"] = c_w
-                        else:
-                            etf_map[etf_k][c_tk] = {"name": c_tk, "sector": "Equity", "weight_pct": c_w}
+                if not w_dict:
+                    continue
+                if etf_k not in etf_map:
+                    etf_map[etf_k] = {}
+                for c_tk, c_w in w_dict.items():
+                    if c_tk in etf_map[etf_k]:
+                        etf_map[etf_k][c_tk]["weight_pct"] = c_w
+                    else:
+                        etf_map[etf_k][c_tk] = {"name": c_tk, "sector": "Equity", "weight_pct": c_w}
         except Exception:
             pass
 
@@ -710,6 +715,7 @@ class PortfolioEngine:
         w_smh = etf_weights.get("SMH", 0.0)
         w_ita = etf_weights.get("ITA", 0.0)
         w_qld = etf_weights.get("QLD", 0.0)  # QLD provides 2x daily leverage on the Nasdaq-100 (QQQ)
+        extra_etfs = [ek for ek in portfolio_etfs if ek not in ("SPY", "QQQ", "SMH", "ITA")]
 
         # Strictly filters equities that the investor ACTUALLY owns in the portfolio
         # to highlight the overlap of ETF holdings across direct equities,
@@ -731,6 +737,7 @@ class PortfolioEngine:
         owned_smh_sum = 0.0
         owned_ita_sum = 0.0
         owned_qld_sum = 0.0
+        owned_extra_sums: Dict[str, float] = {ek: 0.0 for ek in extra_etfs}
 
         for tk in all_lookthrough_tickers:
             d_info = direct_stock_weights.get(tk)
@@ -753,7 +760,15 @@ class PortfolioEngine:
             owned_ita_sum += ita_ind
             owned_qld_sum += qld_2x_ind
 
-            tot_ind = round(spy_ind + qqq_ind + smh_ind + ita_ind + qld_2x_ind, 3)
+            extra_ind_by_etf: Dict[str, float] = {}
+            for ek in extra_etfs:
+                ek_h = etf_map.get(ek, {}).get(tk, {}).get("weight_pct", 0.0)
+                ek_ind = round(etf_weights.get(ek, 0.0) * (ek_h / 100.0), 3)
+                if ek_ind > 0:
+                    owned_extra_sums[ek] += ek_ind
+                    extra_ind_by_etf[ek] = ek_ind
+
+            tot_ind = round(spy_ind + qqq_ind + smh_ind + ita_ind + qld_2x_ind + sum(extra_ind_by_etf.values()), 3)
             tot_eff = round(direct_w + tot_ind, 3)
             if tot_eff <= 0:
                 continue
@@ -774,6 +789,8 @@ class PortfolioEngine:
                 sources.append(f"ITA ({ita_ind:.2f}%)")
             if qld_2x_ind > 0:
                 sources.append(f"QLD 2x ({qld_2x_ind:.2f}%)")
+            for ek, ek_ind in extra_ind_by_etf.items():
+                sources.append(f"{ek} ({ek_ind:.2f}%)")
 
             lookthrough_list.append(
                 LookThroughHolding(
@@ -801,7 +818,11 @@ class PortfolioEngine:
         rem_smh = round(max(0.0, w_smh - owned_smh_sum), 3)
         rem_ita = round(max(0.0, w_ita - owned_ita_sum), 3)
         rem_qld = round(max(0.0, (w_qld * 2.0) - owned_qld_sum), 3)
-        rem_tot = round(rem_spy + rem_qqq + rem_smh + rem_ita + rem_qld, 3)
+        rem_extras = {
+            ek: round(max(0.0, etf_weights.get(ek, 0.0) - owned_extra_sums.get(ek, 0.0)), 3)
+            for ek in extra_etfs
+        }
+        rem_tot = round(rem_spy + rem_qqq + rem_smh + rem_ita + rem_qld + sum(rem_extras.values()), 3)
         if rem_tot > 0:
             rem_sources = []
             if rem_spy > 0:
@@ -814,11 +835,17 @@ class PortfolioEngine:
                 rem_sources.append(f"ITA Defense ({rem_ita:.2f}%)")
             if rem_qld > 0:
                 rem_sources.append(f"QLD 2x Residual ({rem_qld:.2f}%)")
+            for ek, rem_ek in rem_extras.items():
+                if rem_ek > 0:
+                    rem_sources.append(f"{ek} Residual ({rem_ek:.2f}%)")
+            active_etf_labels = [
+                ek for ek in ("SPY", "QQQ", "QLD", "SMH", "ITA", *extra_etfs) if etf_weights.get(ek, 0.0) > 0
+            ]
             lookthrough_list.append(
                 LookThroughHolding(
                     ticker="ETF-BASKET",
                     company_name="Diversified ETF Residual Basket (Index Constituents Outside Direct Holdings)",
-                    sector="Index Diversification (SPY/QQQ/QLD/ITA)",
+                    sector=f"Index Diversification ({'/'.join(active_etf_labels) or 'SPY/QQQ/QLD/ITA'})",
                     direct_weight_pct=0.0,
                     spy_indirect_pct=rem_spy,
                     qqq_indirect_pct=rem_qqq,
