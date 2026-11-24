@@ -13,12 +13,18 @@ import os
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+import datetime
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
 from core.portfolio_engine import PortfolioEngine
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CUSTODY_CACHE_PATH = os.path.join(ROOT_DIR, "data_cache", "custody_sync_cache.json")
+DEFAULT_CUSTODY_CACHE_TTL_SEC = 1200.0  # 20 minutes
 
 BINANCE_API_BASE = "https://api.binance.com"
 IBKR_FLEX_SEND_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest"
@@ -561,12 +567,61 @@ def has_env_custody_credentials() -> bool:
     return has_ibkr or has_binance
 
 
+def _load_custody_sync_cache(ttl_sec: float = DEFAULT_CUSTODY_CACHE_TTL_SEC) -> Optional[CustodySyncResult]:
+    if not os.path.exists(CUSTODY_CACHE_PATH):
+        return None
+    try:
+        with open(CUSTODY_CACHE_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        saved_at = float(raw.get("cached_at") or 0.0)
+        if (time.time() - saved_at) >= max(30.0, float(ttl_sec)):
+            return None
+        positions = [SyncedPosition(**p) for p in (raw.get("positions") or []) if isinstance(p, dict)]
+        if not positions:
+            return None
+        return CustodySyncResult(
+            ok=bool(raw.get("ok", True)),
+            source_summary=str(raw.get("source_summary", "Cached Custody")),
+            positions=positions,
+            total_nav_usd=float(raw.get("total_nav_usd", 0.0)),
+            stablecoin_cash_usd=float(raw.get("stablecoin_cash_usd", 0.0)),
+            warnings=list(raw.get("warnings") or []),
+            error_message=str(raw.get("error_message", "")),
+        )
+    except Exception:
+        return None
+
+
+def _save_custody_sync_cache(result: CustodySyncResult) -> None:
+    if not result.ok or not result.positions:
+        return
+    try:
+        os.makedirs(os.path.dirname(CUSTODY_CACHE_PATH), exist_ok=True)
+        payload = {
+            "cached_at": time.time(),
+            "ok": result.ok,
+            "source_summary": result.source_summary,
+            "total_nav_usd": result.total_nav_usd,
+            "stablecoin_cash_usd": result.stablecoin_cash_usd,
+            "warnings": result.warnings,
+            "error_message": result.error_message,
+            "positions": [asdict(p) for p in result.positions],
+        }
+        with open(CUSTODY_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
 def auto_sync_configured_brokers(
     port_engine: PortfolioEngine,
     min_dust_usd: float = 10.0,
+    force_refresh: bool = False,
+    ttl_sec: float = DEFAULT_CUSTODY_CACHE_TTL_SEC,
 ) -> Optional[CustodySyncResult]:
     """
     Runs automatic read-only sync from IBKR Flex and/or Binance Spot when credentials exist in `.env`.
+    Uses a short-TTL local cache (20 min by default) unless `force_refresh=True` for instant boot.
     Always uses `merge_preserve_targets` so zeroed-out positions remain in SQLite as watchlist/rebuy targets.
     Uses zero Gemini API quota (100% deterministic API + SQLite).
     """
@@ -574,6 +629,20 @@ def auto_sync_configured_brokers(
     ibkr_qid = os.getenv("IBKR_FLEX_QUERY_ID", "").strip()
     bn_key = os.getenv("BINANCE_API_KEY", "").strip()
     bn_sec = os.getenv("BINANCE_API_SECRET", "").strip()
+
+    if not ((ibkr_tok and ibkr_qid) or (bn_key and bn_sec)):
+        return None
+
+    if not force_refresh:
+        cached = _load_custody_sync_cache(ttl_sec=ttl_sec)
+        if cached is not None:
+            apply_synced_positions_to_sqlite(
+                port_engine,
+                cached.positions,
+                sync_mode="merge_preserve_targets",
+                normalize_to_100=True,
+            )
+            return cached
 
     results: List[CustodySyncResult] = []
     if ibkr_tok and ibkr_qid:
@@ -593,6 +662,7 @@ def auto_sync_configured_brokers(
 
     combined = combine_custody_results(results)
     if combined.ok and combined.positions:
+        _save_custody_sync_cache(combined)
         apply_synced_positions_to_sqlite(
             port_engine,
             combined.positions,

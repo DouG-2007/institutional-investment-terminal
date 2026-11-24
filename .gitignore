@@ -28,6 +28,7 @@ data_cache/ai_sessions/
 data_cache/custom_filings_cache.json
 data_cache/ai_master_insights_cache.json
 data_cache/live_quant_cache.json
+data_cache/custody_sync_cache.json
 data_cache/sec_tickers.json
 data_cache/sec_historical_facts_cache.json
 data_cache/sec_historical_facts_v2.json

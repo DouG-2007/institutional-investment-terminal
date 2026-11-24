@@ -378,13 +378,16 @@ def main() -> None:
         st.session_state["sidebar_tax_rate_input"] = 15.0
     if "sidebar_capital_usd" not in st.session_state:
         st.session_state["sidebar_capital_usd"] = 100_000.0
+    if "tab4_inflow_usd" not in st.session_state:
+        st.session_state["tab4_inflow_usd"] = 10_000.0
 
     port_eng_live = PortfolioEngine()
     from core.custody_sync_engine import auto_sync_configured_brokers, has_env_custody_credentials
 
     if has_env_custody_credentials() and not st.session_state.get("custody_auto_synced_boot", False):
+        force_cust = bool(st.session_state.pop("custody_force_refresh", False))
         with st.spinner("Auto-syncing read-only custody positions (IBKR / Binance)..."):
-            auto_sync_res = auto_sync_configured_brokers(port_eng_live)
+            auto_sync_res = auto_sync_configured_brokers(port_eng_live, force_refresh=force_cust)
         st.session_state["custody_auto_synced_boot"] = True
         st.session_state["custody_auto_sync_result"] = auto_sync_res
         if auto_sync_res and auto_sync_res.ok:
@@ -466,6 +469,7 @@ def main() -> None:
             st.session_state["ai_pdf_cache"] = {}
             st.session_state["det_pdf_cache"] = {}
             st.session_state["custody_auto_synced_boot"] = False
+            st.session_state["custody_force_refresh"] = True
             st.session_state["refresh_token"] += 1
             if also_refresh_ai:
                 clear_ai_master_insights_cache()
@@ -718,6 +722,7 @@ def main() -> None:
                         force_refresh_filings=force_refresh_filings,
                         skip_filing_hydration=(is_economic_mode and not force_refresh_filings),
                         progress_cb=_on_ai_progress,
+                        focus_ticker=focus_ticker,
                     )
                     if ai_bundle and ai_bundle.get("enabled"):
                         prog_label.caption("Compiling 7-Section Vector PDF with AI Insights & Portfolio Dossiers...")
@@ -1323,9 +1328,15 @@ def main() -> None:
                 "Fresh Cash Inflow Amount (USD)",
                 min_value=500.0,
                 max_value=5_000_000.0,
-                value=10_000.0,
                 step=1_000.0,
+                key="tab4_inflow_usd",
             )
+            synced_cash_res = st.session_state.get("custody_auto_sync_result") or st.session_state.get("custody_sync_preview")
+            synced_cash_val = float(getattr(synced_cash_res, "stablecoin_cash_usd", 0.0) or 0.0) if (synced_cash_res and getattr(synced_cash_res, "ok", False)) else 0.0
+            if synced_cash_val >= 500.0 and abs(synced_cash_val - inflow_usd) > 1.0:
+                if st.button(f"💵 Use Synced Cash (USD {synced_cash_val:,.0f})", width="stretch", key="btn_tab4_use_synced_cash"):
+                    st.session_state["tab4_inflow_usd"] = round(synced_cash_val, 2)
+                    st.rerun()
         eligible_rows = [r for r in risk_timing.consultative_asset_timing_table if r.shannon_inflow_eligible]
         if not eligible_rows:
             eligible_rows = risk_timing.consultative_asset_timing_table[:5]

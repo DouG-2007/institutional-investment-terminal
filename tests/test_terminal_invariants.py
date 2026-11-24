@@ -465,9 +465,20 @@ class TestTerminalInvariants(unittest.TestCase):
             self.assertAlmostEqual(sum(a["target_weight_pct"] for a in synced_db), 100.0, delta=0.05)
 
             # Verify zero-env auto_sync returns None without network calls
-            from core.custody_sync_engine import auto_sync_configured_brokers
+            from core.custody_sync_engine import (
+                _load_custody_sync_cache,
+                _save_custody_sync_cache,
+                auto_sync_configured_brokers,
+            )
             with mock.patch.dict(os.environ, {"IBKR_FLEX_TOKEN": "", "IBKR_FLEX_QUERY_ID": "", "BINANCE_API_KEY": "", "BINANCE_API_SECRET": ""}, clear=False):
                 self.assertIsNone(auto_sync_configured_brokers(pe))
+
+            # Verify local custody sync cache round-trip using temp path
+            with mock.patch("core.custody_sync_engine.CUSTODY_CACHE_PATH", os.path.join(tmpd, "custody_cache.json")):
+                _save_custody_sync_cache(combined)
+                loaded_c = _load_custody_sync_cache(ttl_sec=600.0)
+                self.assertIsNotNone(loaded_c)
+                self.assertEqual(len(loaded_c.positions), 3)
 
 
 if __name__ == "__main__":

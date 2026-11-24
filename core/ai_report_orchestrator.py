@@ -710,6 +710,7 @@ class AIReportOrchestrator:
         insights_ttl_hours: float = DEFAULT_INSIGHTS_TTL_HOURS,
         filings_ttl_days: float = DEFAULT_FILINGS_TTL_DAYS,
         progress_cb: Optional[Callable[[str, float], None]] = None,
+        focus_ticker: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Ensures every active portfolio asset has an AI-hydrated documentary dossier
@@ -783,18 +784,17 @@ class AIReportOrchestrator:
         now = time.time()
         ttl_sec = max(300.0, float(insights_ttl_hours) * 3600.0)
         cached = load_cached_ai_master_insights()
-        required_keys = (
+        required_keys_list = [
             "geo_matrix",
             "disruptions",
-            "macro_sensitivity",
-            "defi_cycle_interpretations",
-            "defi_narratives",
-            "equity_qualitative_overrides",
-            "corporate_signal_ma",
-            "crypto_dev_dossiers",
             "micro_events",
             "executive_summary",
-        )
+        ]
+        if equity_tickers:
+            required_keys_list.extend(["equity_qualitative_overrides", "corporate_signal_ma", "macro_sensitivity"])
+        if crypto_symbols:
+            required_keys_list.extend(["defi_cycle_interpretations", "defi_narratives", "crypto_dev_dossiers"])
+        required_keys = tuple(required_keys_list)
         if (
             not force_refresh_insights
             and isinstance(cached, dict)
@@ -817,10 +817,15 @@ class AIReportOrchestrator:
         # STAGE 2: COLLECT LIVE NEWS HEADLINES + MACRO/DEFI TELEMETRY
         # ----------------------------------------------------------------------
         _notify("Fetching live headlines & DeFiLlama telemetry across portfolio...", 0.38)
-        all_tickers = [p.ticker for p in getattr(portfolio, "positions", [])] or (equity_tickers + crypto_symbols)
+        focus_tk = (focus_ticker or "").strip().upper()
+        all_tickers = (
+            [focus_tk]
+            if focus_tk
+            else ([p.ticker for p in getattr(portfolio, "positions", [])] or (equity_tickers + crypto_symbols))
+        )
         headlines_by_tk = _collect_live_portfolio_headlines(all_tickers, max_per_ticker=3)
         macro_snap = _compact_macro_snapshot(macro)
-        llama_stats = self.intel_engine.fetch_live_defillama_macro_stats()
+        llama_stats = self.intel_engine.fetch_live_defillama_macro_stats() if crypto_symbols else {}
         models_used: List[str] = []
         section_status: Dict[str, str] = {}
 
@@ -861,7 +866,8 @@ class AIReportOrchestrator:
                 "current_weight_pct": round(float(p.current_weight_pct), 2),
             }
             for p in getattr(portfolio, "positions", [])
-            if not any(k in str(p.category) for k in ("Crypto", "Altcoin", "Cripto"))
+            if (not any(k in str(p.category) for k in ("Crypto", "Altcoin", "Cripto")))
+            and (not focus_tk or p.ticker.upper() == focus_tk)
         ]
         eq_by_tk = {e.ticker.upper(): e for e in equities}
         for pos in non_crypto_positions:
@@ -1137,13 +1143,18 @@ class AIReportOrchestrator:
                     section_status["micro_events"] = "Fallback"
             return "Material Micro Events"
 
-        worker_callables: List[Callable[[], str]] = [_task_geo, _task_defi, _task_micro]
+        worker_callables: List[Callable[[], str]] = [_task_geo, _task_micro]
+        if crypto_symbols:
+            worker_callables.append(_task_defi)
+            worker_callables.append(_task_crypto_dev)
+        else:
+            section_status["defi_cycle"] = "Skipped (No Crypto in Scope)"
+            section_status["defi_narratives"] = "Skipped (No Crypto in Scope)"
+            section_status["crypto_dev"] = "Skipped (No Crypto in Scope)"
         if non_crypto_positions:
             worker_callables.append(_task_sens)
         for c_idx, c_batch in enumerate(eq_chunks):
             worker_callables.append(lambda ci=c_idx, cb=c_batch: _task_eq_chunk(ci, cb))
-        if crypto_symbols:
-            worker_callables.append(_task_crypto_dev)
 
         with ThreadPoolExecutor(max_workers=3) as pool:
             futs = [pool.submit(fn) for fn in worker_callables]
