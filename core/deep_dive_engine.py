@@ -945,10 +945,22 @@ class DeepDiveEngine:
                 related_micro_events=rel_micro,
                 crypto_internal_dev=IntelligenceReportsEngine().get_crypto_internal_dev_dossier(norm_ticker, c_prof.name),
                 risk_and_timing_context={
-                    "ltv_collat_eligible": "Yes (Eligible via WBTC on Aave V3 up to 20% Base LTV)" if norm_ticker == "BTC-USD" else "No (Altcoins exhibit high systemic volatility; prohibited from debt collateral under Framework)",
+                    "ltv_collat_eligible": "Yes (Eligible via WBTC on Aave V3 up to 20%–25% Continuous LTV)" if norm_ticker == "BTC-USD" else "No (Altcoins exhibit high systemic volatility; prohibited from debt collateral under Framework)",
                     "tax_drag_hurdle_pct": 11.76 if norm_ticker == "BTC-USD" else 8.82,
-                    "buy_reference": "NUPL < 0.0 or MVRV Z <= 0.5 or Price <= 1.05x 200W SMA" if norm_ticker == "BTC-USD" else "BTC NUPL < 0.30 + Protocol Real Earnings > 0 + Unlocks < 1.5%/month",
-                    "prune_reference": "Pi Cycle Top triggered or NUPL Reverse Cross (< 0.60 after > 0.65)" if norm_ticker == "BTC-USD" else "BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing Drawdown >= 20%",
+                    "buy_reference": (
+                        "NUPL < 0.0 or MVRV Z <= 0.5 or Price <= 1.05x 200W SMA"
+                        if norm_ticker == "BTC-USD"
+                        else "BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0) + Protocol Real Earnings > 0 + Unlocks < 1.5%/month"
+                    ),
+                    "prune_reference": (
+                        "Pi Cycle Top triggered or NUPL Reverse Cross (< 0.60 after > 0.65)"
+                        if norm_ticker == "BTC-USD"
+                        else (
+                            "0% Cyclical Pruning (L1 Major Full-Cycle Structural Hold)"
+                            if norm_ticker in ("ETH-USD", "SOL-USD")
+                            else "100% Exit: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing Drawdown >= 20% or P/F > 35x"
+                        )
+                    ),
                 },
             )
 
@@ -1277,10 +1289,14 @@ class DeepDiveEngine:
             related_geopolitics=rel_geo,
             related_micro_events=rel_micro,
             risk_and_timing_context={
-                "ltv_collat_eligible": "Yes (Eligible for IBKR Box Spread collateral up to 20% Structural Base LTV)",
+                "ltv_collat_eligible": "Yes (Eligible for IBKR Box Spread collateral up to 20%–25% Continuous LTV)",
                 "tax_drag_hurdle_pct": 8.45,
-                "buy_reference": f"Gold Band of Sovereign Multiple ({vm['enterprise_pegy_ref'] if not is_bank else vm['pegy_financeiro_ref']}) and g_impl <= g_fund",
-                "prune_reference": "Consultative 50% prune only if PEGY > 1.60x (or > 1.50x for Banks) exceeding Tax-Drag Hurdle Rate",
+                "buy_reference": f"Gold Band of Sovereign Multiple ({vm['enterprise_pegy_ref'] if not is_bank else vm['pegy_financeiro_ref']}) + Quality Gates (Sloan/CFO)",
+                "prune_reference": (
+                    "0% Valuation Pruning (High-Growth Tech Compounder Hold — exit only on structural thesis break)"
+                    if sv == "TECH_HIGH_GROWTH"
+                    else "Consultative 50% prune only if PEGY > 1.60x (or > 1.50x for Banks) or Quality deterioration exceeding Tax-Drag Hurdle Rate"
+                ),
             },
             corporate_signal_ma=corp_ma,
         )

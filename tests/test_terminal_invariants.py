@@ -141,6 +141,7 @@ class TestTerminalInvariants(unittest.TestCase):
             loss_pos.pnl_pct = orig_pnl
 
         # Banking calibration: FINANCIAL_BANK must use Financial PEGY and enforce P/B >= 1.0 filter
+        # Disruptive Fintechs (NU) map to TECH_HIGH_GROWTH (EV/EBIT PEGY)
         banks = [e for e in self.equities if e.sector_vertical == "FINANCIAL_BANK"]
         self.assertGreater(len(banks), 0)
         for b in banks:

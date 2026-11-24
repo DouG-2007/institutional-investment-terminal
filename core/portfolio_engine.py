@@ -249,6 +249,43 @@ class PortfolioEngine:
             count = cur.fetchone()[0]
             if count == 0 and os.path.exists(self.config_path):
                 self._seed_sqlite_from_json_file(conn)
+            elif count > 0:
+                self._migrate_legacy_framework_rules(conn)
+
+    def _migrate_legacy_framework_rules(self, conn: sqlite3.Connection) -> None:
+        """Idempotently upgrades stale pre-parity framework strings without altering weights/prices."""
+        changed = False
+        rows = conn.execute(
+            "SELECT ticker, category, sector_vertical, accumulate_rule, sell_rule FROM portfolio_assets"
+        ).fetchall()
+        for tk, cat, sec, acc, sell in rows:
+            new_sec = "TECH_HIGH_GROWTH" if (tk == "NU" and sec == "FINANCIAL_BANK") else sec
+            new_acc, new_sell = acc or "", sell or ""
+            if new_sec == "TECH_HIGH_GROWTH" and (
+                "Prune Reference (50%)" in new_sell or (tk == "NU" and sec == "FINANCIAL_BANK")
+            ):
+                new_acc = "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x)."
+                new_sell = "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break)."
+            elif cat == "Crypto Altcoin" and tk in ("ETH-USD", "SOL-USD"):
+                if "NUPL < 0.30" in new_acc or "Trailing Drawdown >= 20%" in new_sell or "MVRV Z > 3.0" in new_sell:
+                    new_acc = "Consultative Benchmark (L1 Major): Accumulate at BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0)."
+                    new_sell = "Consultative Full-Cycle Hold (L1 Major): 0% cyclical pruning or trailing stop."
+            elif cat == "Crypto Altcoin":
+                if "NUPL < 0.30" in new_acc or "P/F < 10.0x" in new_acc:
+                    new_acc = "Consultative Benchmark (DeFi): BTC <= 1.05x 200W SMA (w/ NUPL < 0.0) + Healthy P/F & Real Earnings > 0."
+                if new_sell in (
+                    "Consultative Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0.",
+                    "Consultative Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%.",
+                ):
+                    new_sell = "Consultative 100% Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%."
+            if (new_sec, new_acc, new_sell) != (sec, acc, sell):
+                conn.execute(
+                    "UPDATE portfolio_assets SET sector_vertical = ?, accumulate_rule = ?, sell_rule = ? WHERE ticker = ?",
+                    (new_sec, new_acc, new_sell, tk),
+                )
+                changed = True
+        if changed:
+            conn.commit()
 
     def _seed_sqlite_from_json_file(self, conn: sqlite3.Connection) -> None:
         try:
@@ -408,27 +445,27 @@ class PortfolioEngine:
         default_rules = {
             "TECH_HIGH_GROWTH": (
                 "Advisory Reference (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
-                "Advisory 50% Trim Reference: Enterprise PEGY (EV/EBIT NTM) > 1.6x.",
+                "Advisory Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break).",
             ),
             "TECH_CASH_COW": (
-                "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
-                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.6x.",
+                "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) 0–1.2x + Quality Gates (Sloan/CFO).",
+                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.6x or Gross Margin deterioration.",
             ),
             "FINANCIAL_BANK": (
                 "Advisory Reference (Banks): Financial PEGY 0 to 1.0x WITH P/B filter >= 1.0x.",
                 "Advisory 50% Trim Reference: Financial PEGY > 1.5x.",
             ),
             "FINANCIAL_TOLLBOOTH": (
-                "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
+                "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) 0–1.2x + Quality Gates.",
                 "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.6x.",
             ),
             "RETAIL": (
-                "Advisory Reference (Defensives): P/E & EV/EBITDA <= 0.85x Sector + Price <= 0.85x DCF (with positive SSS).",
+                "Advisory Reference (Defensives): P/E & EV/EBITDA <= 0.85x Sector + Price <= 0.85x DCF (SSS & Quality Gates).",
                 "Advisory 50% Trim Reference: P/E & EV/EBITDA >= 1.20x Sector OR Price >= 1.20x DCF.",
             ),
             "CYCLICAL": (
-                "Advisory Reference (Cyclicals): Elevated EV/EBITDA multiple (cycle trough) and price below mid-cycle DCF.",
-                "Advisory 50% Trim Reference: Compressed EV/EBITDA multiple at cycle peak with peak margins.",
+                "Advisory Reference (Cyclicals): Elevated EV/EBITDA multiple (cycle trough), Price <= 0.85x DCF + Quality Gates.",
+                "Advisory 50% Trim Reference: Compressed EV/EBITDA multiple (< 0.80x) at cycle peak or Price > 1.25x DCF.",
             ),
         }
         acc_rule, sell_rule = default_rules.get(
@@ -442,8 +479,12 @@ class PortfolioEngine:
             acc_rule = "Advisory Reference: NUPL < 0.0 OR MVRV Z <= 0.50 OR Price <= 1.05x 200W SMA."
             sell_rule = "Advisory 50% Trim Reference: Pi Cycle Top active OR NUPL Reverse Cross (< 0.60 after > 0.65)."
         elif category == "Crypto Altcoin":
-            acc_rule = "Advisory Reference: Macro Trough (BTC NUPL < 0.30) with healthy P/F and positive Real Earnings."
-            sell_rule = "Advisory Cyclical Exit Reference: BTC NUPL > 0.60 OR MVRV Z > 3.0 combined with Trailing Drawdown >= 20%."
+            if tk in ("ETH-USD", "SOL-USD"):
+                acc_rule = "Advisory Reference (L1 Major): Accumulate at BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0)."
+                sell_rule = "Advisory Full-Cycle Hold (L1 Major): 0% cyclical pruning or trailing stop."
+            else:
+                acc_rule = "Advisory Reference (DeFi/Alt): Re-enter ONLY at BTC <= 1.05x 200W SMA (w/ NUPL < 0.0) + Healthy P/F & Real Earnings > 0."
+                sell_rule = "Advisory 100% Cyclical Exit Reference: BTC NUPL > 0.60 OR MVRV Z > 3.0 combined with Trailing Drawdown >= 20%."
 
         fp = fair_price if (fair_price and fair_price > 0) else DEFAULT_SPOT_PRICES.get(tk, max(10.0, avg_buy_price * 1.15))
         role_desc = role_description or f"Strategic position ({category} • {sector_vertical}) monitored by Value Investing Framework."

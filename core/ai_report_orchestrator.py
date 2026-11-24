@@ -71,7 +71,7 @@ _COMMON_GROUNDING_RULES = (
     "1. Write exclusively in crisp, concise institutional English suitable for dense A4 landscape PDF tables.\n"
     "2. Cite ONLY exact numbers, percentages, prices, and ratios present in the provided JSON payload, SEC/protocol filings, or fetched headlines — NEVER invent, extrapolate, or estimate missing metrics.\n"
     "3. NEVER compute or reference Altman Z-Score.\n"
-    "4. Banking calibration (FINANCIAL_BANK: JPM, NU, DBSDY): use P/TBV vs. ROE, Financial PEGY, Basel CET1/LCR, and P/B >= 1.0x veto; never reference EV/EBITDA or CFO/EBITDA for banks.\n"
+    "4. Banking calibration (FINANCIAL_BANK: JPM, DBSDY, BAC, WFC, C): use P/TBV vs. ROE, Financial PEGY, Basel CET1/LCR, and P/B >= 1.0x veto; never reference EV/EBITDA or CFO/EBITDA for banks. Fintechs (NU) map to TECH_HIGH_GROWTH (EV/EBIT PEGY).\n"
     "5. All strategic takeaways are strictly consultative / non-binding (never automated trading).\n"
     "6. Keep every table cell focused and concise (1–2 crisp sentences, ~140–240 chars) to prevent PDF clipping."
 )

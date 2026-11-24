@@ -85,7 +85,7 @@ flowchart TB
 
 ### Core Module Breakdown:
 * **`core/market_data.py`, `core/live_quant_fetcher.py` & `core/macro_engine.py`:** Parallel live price ingestion, real-time quantitative overlays (`^VIX`, `USDBRL=X`, FRED High-Yield Credit Spread `BAMLH0A0HYM2`, SEC EDGAR XBRL + `yfinance` financial statements w/ FX conversion, live ETF `top_holdings`, Binance Futures funding/OI, DeFiLlama TVL/Fees/Stablecoins, CoinGecko dominance, CoinMetrics `btc`/`eth` MVRV/Supply + 5y Z-Score altcoin proxies, live ADTV), and macroeconomic cycle tracking (Sahm Rule + Payrolls/ICSA, 10Y–2Y curve steepening, Services vs. Mfg PMI + FRED `IPMAN`, and M2 vs. DXY).
-* **`core/portfolio_engine.py`, `core/custody_sync_engine.py` & `core/backtest_engine.py`:** Manages the ACID relational database (`portfolio_store.db`: `portfolio_assets`) and JSON mirror (`portfolio_config.json`), auto-syncs open positions and cost basis from Interactive Brokers (Flex Web Service / Activity XML) and Binance Spot (`Enable Reading` API) while preserving zeroed-out watchlist/rebuy holdings, computes mark-to-market drift and live *Look-Through* ETF overlap (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`), and executes a 3-year historical daily backtest aligned to `SPY` trading days (`data_cache/backtest_prices_3y.parquet`) with VaR/CVaR (95%/99%), Top-12 correlation matrix, historical crash stress-tests, and Shannon Inflow vs. Passive DCA simulation.
+* **`core/portfolio_engine.py`, `core/custody_sync_engine.py`, `core/backtest_engine.py` & `core/valuation_backtest.py`:** Manages the ACID relational database (`portfolio_store.db`: `portfolio_assets`) and JSON mirror (`portfolio_config.json`), auto-syncs open positions and cost basis from Interactive Brokers (Flex Web Service / Activity XML) and Binance Spot (`Enable Reading` API) while preserving zeroed-out watchlist/rebuy holdings, computes mark-to-market drift and live *Look-Through* ETF overlap (`SPY`, `QQQ`, `SMH`, `ITA`, `QLD 2x`), executes a 3-year historical daily backtest aligned to `SPY` trading days (`data_cache/backtest_prices_3y.parquet`) with VaR/CVaR (95%/99%), Top-12 correlation matrix, historical crash stress-tests, and Shannon Inflow vs. Passive DCA simulation, and provides a composable 10-year point-in-time SEC XBRL + FRED + on-chain parity backtest simulator (`core/valuation_backtest.py`).
 * **`core/equity_engine.py`:** Forensic accounting audit and 8-method Forward (NTM) valuation engine (Forward 3-scenario DCF w/ 10% MoS, Paired Reverse DCF, Owner Earnings Yield, Multiples, EVA, Sector-Strict PEGY, Greenblatt Magic Formula, and SOTP). Overlays live XBRL/`yfinance` GAAP statements onto shallow KB copies, refreshes global banking scatter peers (`BAC`, `WFC`, `GS`, `ITUB`, `DBSDY`) alongside portfolio banks via P/TBV vs. ROE, Financial PEGY, and a mandatory `P/B >= 1.00x` floor, and intentionally excludes Altman Z-Score.
 * **`core/crypto_engine.py`:** On-chain cycle intelligence (`MVRV Z-Score`, `NUPL`, `aSOPR 1.0`, `Pi Cycle Top`, `200W SMA`), mining metrics (`Hash Ribbon`, `MMC`), derivatives (`Binance Futures` funding & OI), and protocol sustainability (`DeFiLlama` TVL & annualized fees feeding `Protocol Real Earnings` and `P/F`, `Real Yield`, 30/60/90d unlocks, theoretical post-unlock price).
 * **`core/filing_fetcher.py` & `core/filings_engine.py`:** Merges static verified dossiers (`EQUITY_FILINGS_DB`, `CRYPTO_FILINGS_DB`) with zero-download multi-document suites (`10-K/20-F` + `10-Q/6-K` + `8-K` + `Form 4`/`DEF 14A` + `yfinance` Analyst Consensus for equities; Whitepaper + GitHub live 28d commits/devs + Snapshot DAO + DeFiLlama Audits/Hacks for crypto), Google Search grounding supplement, and Gemini Pydantic Structured Outputs cached in `data_cache/custom_filings_cache.json`.
@@ -230,19 +230,22 @@ Conversational quantitative and forensic analyst built with `google-antigravity 
 
     $$\text{Enterprise PEGY (FCF)} = \frac{EV/\text{FCF}_{\text{NTM}}}{\text{FCF Growth}_{\text{NTM}} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Gold Range: } \le 1.20x)$$
 
-  * **High-Growth Tech & Semis (`TECH_HIGH_GROWTH`):**
+  * **High-Growth Tech, Semis & Fintechs (`TECH_HIGH_GROWTH`, incl. `NU`):**
 
-    $$\text{Enterprise PEGY (EBIT)} = \frac{EV/\text{EBIT}_{\text{NTM}}}{\text{EBIT Growth}_{\text{NTM}} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Gold Range: } \le 1.20x)$$
+    $$\text{Enterprise PEGY (EBIT)} = \frac{EV/\text{EBIT}_{\text{NTM}}}{\text{EBIT Growth}_{\text{NTM}} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Gold Range: } \le 1.20x \text{ | } 0\% \text{ Valuation Pruning})$$
 
+  * **Asymmetric Pruning & Quality Gates:** `TECH_HIGH_GROWTH` compounders apply valuation strictly to direct inflows and cross-asset rotations (`0%` PEGY pruning). Mature `TECH_CASH_COW`, `FINANCIAL_BANK`, `CYCLICAL`, and `RETAIL` positions pair `50%` valuation trims with accounting Quality Gates (`Sloan <= +10%`, `CFO/EBITDA >= 0.70x`, Gross Margin stability).
   * **Retail & Defensives (`RETAIL`):** Calibrated with positive Same-Store Sales (SSS) requirements.
 
 ---
 
-### 3. On-Chain Crypto Intelligence & Tokenomics
+### 3. On-Chain Crypto Intelligence, Asymmetric Exits & Continuous LTV
 
 * **Nominal NVT & NVT Golden Cross:** `Market Cap / 24h On-Chain Tx Volume` (`< 30x` Undervalued, `30x–75x` Fair, `> 75x` Overvalued).
 * **MVRV Z-Score:** `< 0.50` Historic Trough (Accumulation), `0.50–2.00` Expansion, `> 2.50–3.00` Euphoria Peak.
 * **aSOPR:** In bull markets, `1.000` acts as dynamic on-chain support.
+* **Cycle Execution & Altcoin Differentiation:** `BTC` triggers `50%` trims on `Pi Cycle Top` or `NUPL Reverse Cross (0.65 -> 0.60)`; **`L1 Majors` (`ETH`, `SOL`)** follow full-cycle `0%` pruning Hold; **`DeFi / Mid-Caps`** trigger `100%` exits on `BTC NUPL > 0.60` / `MVRV > 3.0` + trailing drawdown `>= 20%` and re-enter strictly at historical capitulation **`BTC <= 1.05x 200W SMA`** (optionally confirmed w/ `NUPL < 0.0`).
+* **Continuous LTV Governance:** Fixed continuous `20%` baseline (expandable tactically up to `25%`, no `10%` defensive reduction; `28%–30%` anti-cyclical panic turbo; `45%–50%` Hard-Cap safety ceiling).
 * **Protocol Real Earnings & Real Yield (DeFi Economics):**
 
   $$\text{Protocol Real Earnings} = \text{Annual Protocol Fees} - \text{Annual Token Emission}$$

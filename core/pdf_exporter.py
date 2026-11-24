@@ -1541,7 +1541,7 @@ class InstitutionalPDFExporter:
                         <tbody>
                             <tr><td><strong>Structural Base LTV</strong></td><td class="mono">{ltv['ltv_global_current_pct']:.2f}%</td><td>{_esc(ltv['ltv_structural_base_ref'])}</td></tr>
                             <tr><td><strong>Turbo Trigger (28% to 30% LTV)</strong></td><td>{_auto_badge(ltv['turbo_trigger_status'])}</td><td>{_esc(ltv['turbo_trigger_ref'])}</td></tr>
-                            <tr><td><strong>Defensive Reduction (10% LTV)</strong></td><td>{_auto_badge(ltv['defensive_reduction_status'])}</td><td>{_esc(ltv['defensive_reduction_ref'])}</td></tr>
+                            <tr><td><strong>Continuous LTV Policy (No 10% Drop)</strong></td><td>{_auto_badge(ltv['defensive_reduction_status'])}</td><td>{_esc(ltv['defensive_reduction_ref'])}</td></tr>
                         </tbody>
                     </table>
                 </div>

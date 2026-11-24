@@ -1313,8 +1313,8 @@ EQUITY_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
     },
     "NU": {
         "name": "Nu Holdings Ltd. (Nubank)",
-        "sector_vertical": "FINANCIAL_BANK",
-        "sector_label": "Fintech / Digital Banking & Financial Platform Monopoly",
+        "sector_vertical": "TECH_HIGH_GROWTH",
+        "sector_label": "Fintech / High-Growth Digital Financial Platform",
         "default_px": 14.20,
         "mcap_b": 68.5,
         "ev_b": 68.5,

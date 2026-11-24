@@ -21,8 +21,8 @@
       "target_weight_pct": 5.0,
       "fair_price": 3150.0,
       "role_description": "Global Smart Contracts Base Layer & Institutional Asset Settlement Hub",
-      "accumulate_rule": "Consultative Benchmark: Macro Trough (BTC NUPL < 0.30) with healthy P/F and positive Real Earnings.",
-      "sell_rule": "Consultative Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 combined with Trailing Drawdown >= 20%.",
+      "accumulate_rule": "Consultative Benchmark (L1 Major): Accumulate at BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0).",
+      "sell_rule": "Consultative Full-Cycle Hold (L1 Major): 0% cyclical pruning or trailing stop.",
       "yield_mechanism": "Native PoS consensus staking generating ~3.4% p.a. Real Yield in ETH.",
       "sector_vertical": "OTHER"
     },
@@ -82,7 +82,7 @@
       "fair_price": 182.0,
       "role_description": "Accelerated AI Computing Monopoly (Blackwell Architecture) & CUDA Ecosystem",
       "accumulate_rule": "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/EBIT NTM) > 1.6x.",
+      "sell_rule": "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break).",
       "yield_mechanism": "Rapid Free Cash Flow expansion + authorized USD 50B share repurchase program.",
       "sector_vertical": "TECH_HIGH_GROWTH"
     },
@@ -130,7 +130,7 @@
       "fair_price": 835.0,
       "role_description": "Absolute Global Monopoly in EUV Lithography (100% Market Share) & High-NA EUV",
       "accumulate_rule": "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/EBIT NTM) > 1.6x.",
+      "sell_rule": "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break).",
       "yield_mechanism": "Growing dividends + share buybacks backed by EUR 36B contracted backlog.",
       "sector_vertical": "TECH_HIGH_GROWTH"
     },
@@ -142,7 +142,7 @@
       "fair_price": 228.0,
       "role_description": "Global Leading-Edge 3nm/2nm Foundry & CoWoS Advanced Packaging Monopoly",
       "accumulate_rule": "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/EBIT NTM) > 1.6x.",
+      "sell_rule": "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break).",
       "yield_mechanism": "Growing quarterly dividends secured by >90% leading-edge market share.",
       "sector_vertical": "TECH_HIGH_GROWTH"
     },
@@ -154,7 +154,7 @@
       "fair_price": 2240.0,
       "role_description": "Dominant E-Commerce, Fintech (Mercado Pago) & Logistics Network in Latin America",
       "accumulate_rule": "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/EBIT NTM) > 1.6x.",
+      "sell_rule": "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break).",
       "yield_mechanism": "Strong operational Free Cash Flow expansion and advertising monetization.",
       "sector_vertical": "TECH_HIGH_GROWTH"
     },
@@ -165,8 +165,8 @@
       "target_weight_pct": 4.0,
       "fair_price": 192.0,
       "role_description": "Leader in Custom AI Silicon (Google/Meta ASICs) & Mission-Critical VMware Software",
-      "accumulate_rule": "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/FCF NTM) > 1.6x.",
+      "accumulate_rule": "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
+      "sell_rule": "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break).",
       "yield_mechanism": "13 consecutive years of dividend growth + EBITDA margins above 60%.",
       "sector_vertical": "TECH_HIGH_GROWTH"
     },
@@ -189,10 +189,10 @@
       "target_weight_pct": 4.0,
       "fair_price": 17.5,
       "role_description": "Ultra-Low-Cost Digital Banking Platform ($0.80/mo), 110M+ Clients & ROE > 28%",
-      "accumulate_rule": "Consultative Benchmark (Banks): Financial PEGY between 0 and 1.0x with P/B >= 1.0x.",
-      "sell_rule": "Consultative Prune Reference (50%): Financial PEGY > 1.5x.",
+      "accumulate_rule": "Consultative Benchmark (High-Growth Tech/Fintech): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x).",
+      "sell_rule": "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break).",
       "yield_mechanism": "100% earnings retention driving aggressive deposit expansion in Mexico and Colombia.",
-      "sector_vertical": "FINANCIAL_BANK"
+      "sector_vertical": "TECH_HIGH_GROWTH"
     },
     {
       "ticker": "PENDLE-USD",
@@ -201,8 +201,8 @@
       "target_weight_pct": 2.5,
       "fair_price": 5.8,
       "role_description": "DeFi Yield Tokenization Monopoly (PT/YT) & Fixed-Income AMM",
-      "accumulate_rule": "Consultative Benchmark: BTC NUPL < 0.30 and P/F < 20x with Real Yield > 8%.",
-      "sell_rule": "Consultative Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%.",
+      "accumulate_rule": "Consultative Benchmark (DeFi): BTC <= 1.05x 200W SMA (w/ NUPL < 0.0) and P/F < 20x with Real Yield > 8%.",
+      "sell_rule": "Consultative 100% Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%.",
       "yield_mechanism": "Real Yield on vePENDLE (~8.9% p.a.) driven by institutional interest rate swap fees.",
       "sector_vertical": "OTHER"
     },
@@ -213,8 +213,8 @@
       "target_weight_pct": 2.5,
       "fair_price": 22.0,
       "role_description": "Decentralized Oracle Standard ($75B+ TVS) & CCIP Standard for RWA/SWIFT Cross-Chain",
-      "accumulate_rule": "Consultative Benchmark: BTC NUPL < 0.30 and MVRV Z < 0.80.",
-      "sell_rule": "Consultative Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%.",
+      "accumulate_rule": "Consultative Benchmark (DeFi/Infra): BTC <= 1.05x 200W SMA (w/ NUPL < 0.0) and MVRV Z < 0.80.",
+      "sell_rule": "Consultative 100% Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%.",
       "yield_mechanism": "Validator node staking v0.2 + CCIP institutional transaction fee revenue.",
       "sector_vertical": "OTHER"
     },
@@ -225,8 +225,8 @@
       "target_weight_pct": 2.5,
       "fair_price": 2100.0,
       "role_description": "DeFi Central Bank Issuing DAI/USDS with Real-World Treasury (T-Bills) Reserves",
-      "accumulate_rule": "Consultative Benchmark: P/F < 10.0x with Smart Burn Engine repurchasing MKR.",
-      "sell_rule": "Consultative Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0.",
+      "accumulate_rule": "Consultative Benchmark (DeFi): BTC <= 1.05x 200W SMA (w/ NUPL < 0.0) and P/F < 10.0x.",
+      "sell_rule": "Consultative 100% Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%.",
       "yield_mechanism": "Continuous Smart Burn Engine repurchasing & burning MKR with T-Bill yields (~6.8% yield).",
       "sector_vertical": "OTHER"
     },
@@ -237,8 +237,8 @@
       "target_weight_pct": 2.5,
       "fair_price": 12.5,
       "role_description": "Global DEX Liquidity Standard (V4 Hooks) & Unichain Layer-2 Rollup",
-      "accumulate_rule": "Consultative Benchmark: BTC NUPL < 0.30 with strong trading fee volume.",
-      "sell_rule": "Consultative Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0.",
+      "accumulate_rule": "Consultative Benchmark (DeFi): BTC <= 1.05x 200W SMA (w/ NUPL < 0.0) with strong trading fee volume.",
+      "sell_rule": "Consultative 100% Cyclical Exit Reference: BTC NUPL > 0.60 or MVRV Z > 3.0 with Trailing DD >= 20%.",
       "yield_mechanism": "Fee Switch and MEV capture on Unichain distributed to validators and UNI stakers.",
       "sector_vertical": "OTHER"
     }
