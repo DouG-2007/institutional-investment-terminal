@@ -53,6 +53,18 @@ class NotifierSettings:
         self.schedule_time = val
 
 
+def normalize_and_validate_hhmm(raw_time: str) -> Tuple[bool, str]:
+    """Validates and normalizes daily scheduler time into strict 24-hour 'HH:MM' format."""
+    cleaned = (raw_time or "").strip()
+    parts = cleaned.split(":")
+    if len(parts) != 2 or not (parts[0].isdigit() and parts[1].isdigit()):
+        return False, "Invalid time format. Use 24-hour HH:MM (e.g., 08:30)."
+    hh, mm = int(parts[0]), int(parts[1])
+    if not (0 <= hh <= 23 and 0 <= mm <= 59):
+        return False, "Time out of range. Hours must be 00-23 and minutes 00-59."
+    return True, f"{hh:02d}:{mm:02d}"
+
+
 class BackgroundNotifierEngine:
     def __init__(self, config_path: str = NOTIFIER_CONFIG_PATH) -> None:
         self.config_path = config_path
@@ -98,6 +110,10 @@ class BackgroundNotifierEngine:
         return NotifierSettings()
 
     def save_settings_and_sync_scheduler(self, settings: NotifierSettings) -> Tuple[bool, str]:
+        ok_time, time_res = normalize_and_validate_hhmm(settings.schedule_time)
+        if not ok_time:
+            return False, time_res
+        settings.schedule_time = time_res
         settings.last_updated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if settings.enabled:
             ok_sched, msg_sched = self._register_windows_task(settings.schedule_time)

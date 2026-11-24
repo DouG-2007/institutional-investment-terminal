@@ -304,6 +304,16 @@ class TestTerminalInvariants(unittest.TestCase):
         # 2) Crypto Screener supports custom/non-KB extra_symbols cleanly
         sc_rows = self.screener.run_crypto_screener(extra_symbols=["DOGE-USD"])
         self.assertTrue(any(r.symbol == "DOGE" for r in sc_rows))
+
+        # 3) Micro events fallback covers non-KB equity/crypto holdings + HH:MM validator
+        from core.background_notifier import normalize_and_validate_hhmm
+
+        ev_fb = self.geo.get_micro_events(["COST", "SUI-USD"], prefer_ai_cache=False)
+        ev_tks = {e.asset_ticker.upper() for e in ev_fb}
+        self.assertIn("COST", ev_tks)
+        self.assertIn("SUI-USD", ev_tks)
+        self.assertEqual(normalize_and_validate_hhmm("8:30"), (True, "08:30"))
+        self.assertFalse(normalize_and_validate_hhmm("25:99")[0])
         close_yfinance_thread_caches()
 
     def test_5_antigravity_readonly_lockdown(self) -> None:

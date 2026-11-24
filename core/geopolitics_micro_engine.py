@@ -215,6 +215,7 @@ class GeopoliticsMicroEngine:
         self,
         tickers: List[str] | None = None,
         prefer_ai_cache: bool = True,
+        include_live_headlines: bool = False,
     ) -> List[MicroCorporateProtocolEvent]:
         if tickers is None:
             try:
@@ -229,8 +230,10 @@ class GeopoliticsMicroEngine:
                     "SPY", "QQQ", "QLD", "ITA",
                     "NVDA", "AAPL", "MSFT", "JPM", "ASML", "TSM", "MELI", "AVGO", "MA", "NU",
                 ]
-        tk_set = {t.upper() for t in tickers}
+        ordered_tks = list(dict.fromkeys(t.strip().upper() for t in tickers if t and t.strip()))
+        tk_set = set(ordered_tks)
 
+        base_events: List[MicroCorporateProtocolEvent] = []
         if prefer_ai_cache:
             try:
                 from core.ai_report_orchestrator import load_cached_ai_master_insights
@@ -239,13 +242,110 @@ class GeopoliticsMicroEngine:
                 raw_events = ai_cache.get("micro_events") or []
                 parsed = [MicroCorporateProtocolEvent(**item) for item in raw_events if isinstance(item, dict)]
                 if parsed:
-                    filtered = [m for m in parsed if m.asset_ticker.upper() in tk_set]
-                    if filtered:
-                        return filtered
+                    base_events = [m for m in parsed if m.asset_ticker.upper() in tk_set]
             except Exception:
-                pass
+                base_events = []
 
-        return [m for m in MICRO_EVENTS_DB if m.asset_ticker.upper() in tk_set]
+        if not base_events:
+            base_events = [m for m in MICRO_EVENTS_DB if m.asset_ticker.upper() in tk_set]
+
+        covered = {m.asset_ticker.upper() for m in base_events}
+        missing_tks = [t for t in ordered_tks if t not in covered]
+        if missing_tks:
+            base_events.extend(
+                self._build_fallback_micro_events(missing_tks, include_live_headlines=include_live_headlines)
+            )
+        return base_events
+
+    def _build_fallback_micro_events(
+        self,
+        missing_tickers: List[str],
+        include_live_headlines: bool = False,
+    ) -> List[MicroCorporateProtocolEvent]:
+        """Builds deterministic telemetry (and optional Yahoo news) events for non-KB portfolio assets."""
+        meta_by_tk: Dict[str, Dict[str, Any]] = {}
+        try:
+            from core.portfolio_engine import PortfolioEngine
+
+            for a in PortfolioEngine().get_all_assets_from_db():
+                tk_u = str(a.get("ticker", "")).upper()
+                if tk_u:
+                    meta_by_tk[tk_u] = a
+        except Exception:
+            pass
+
+        eq_kb: Dict[str, Any] = {}
+        cr_kb: Dict[str, Any] = {}
+        try:
+            from core.equity_engine import EQUITY_FUNDAMENTAL_KB
+            from core.crypto_engine import CRYPTO_FUNDAMENTAL_KB
+
+            eq_kb = EQUITY_FUNDAMENTAL_KB
+            cr_kb = CRYPTO_FUNDAMENTAL_KB
+        except Exception:
+            pass
+
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
+        out: List[MicroCorporateProtocolEvent] = []
+        for tk in missing_tickers:
+            asset_meta = meta_by_tk.get(tk, {})
+            is_crypto = tk.endswith("-USD") or ("Crypto" in str(asset_meta.get("category", "")))
+            if include_live_headlines:
+                headlines = self.fetch_live_ticker_headlines(tk, max_items=1)
+                if headlines and headlines[0].get("title"):
+                    h = headlines[0]
+                    out.append(
+                        MicroCorporateProtocolEvent(
+                            date=h.get("date", today_str),
+                            asset_ticker=tk,
+                            source_type=f"Live Market Feed ({h.get('publisher', 'News')})",
+                            headline=h["title"],
+                            event_category="Market News & Filing Monitor",
+                            fundamental_impact_analysis=f"Active market coverage tracked alongside deterministic {('on-chain/tokenomics' if is_crypto else 'SEC XBRL/NTM valuation')} guardrails.",
+                            classification="Neutral / Monitor",
+                        )
+                    )
+                    continue
+
+            if is_crypto:
+                ck = cr_kb.get(tk, {})
+                earn_m = ck.get("protocol_real_earnings_m")
+                unlock_pct = ck.get("unlock_pct_of_circ")
+                headline = (
+                    f"{asset_meta.get('name') or ck.get('name') or tk}: Active Tokenomics, Unlock & Protocol Fee Monitoring"
+                )
+                analysis = (
+                    f"Real Earnings {float(earn_m):+.1f}M/yr | Monthly Unlock {float(unlock_pct):.2f}%/circ."
+                    if earn_m is not None and unlock_pct is not None
+                    else "Monitored deterministically via live Binance Futures funding/OI, DeFiLlama TVL/fees, and on-chain Z-Score metrics."
+                )
+                src = "DeFiLlama / On-Chain Telemetry"
+            else:
+                ek = eq_kb.get(tk, {})
+                pe_ntm = ek.get("pe_ntm")
+                sloan = ek.get("sloan_pct")
+                headline = (
+                    f"{asset_meta.get('name') or ek.get('name') or tk}: Active SEC EDGAR XBRL & Consensus Monitoring"
+                )
+                analysis = (
+                    f"Sloan Ratio {float(sloan):+.1f}% | Forward NTM P/E {float(pe_ntm):.1f}x."
+                    if sloan is not None and pe_ntm is not None
+                    else "Monitored deterministically via live Yahoo Finance statements, SEC EDGAR XBRL filings, and Reverse DCF guardrails."
+                )
+                src = "SEC EDGAR XBRL / Consensus Telemetry"
+
+            out.append(
+                MicroCorporateProtocolEvent(
+                    date=today_str,
+                    asset_ticker=tk,
+                    source_type=src,
+                    headline=headline,
+                    event_category="Deterministic Holding Surveillance",
+                    fundamental_impact_analysis=analysis,
+                    classification="Neutral / Monitor",
+                )
+            )
+        return out
 
     def fetch_live_ticker_headlines(self, ticker: str, max_items: int = 3) -> List[Dict[str, str]]:
         try:

@@ -154,7 +154,7 @@ Generates a standalone multi-page institutional PDF dossier on any portfolio hol
    * **Cryptoassets:** Fetches CoinGecko metadata + Whitepaper/Docs (PDF or HTML) + live GitHub 28-day commits & unique active devs + Snapshot GraphQL DAO governance proposals + DeFiLlama security audits, staking TVL & Hacks Database cross-check + Google Search grounding supplement.
    * Structures all extracted evidence into `EquityDocumentaryDossier` / `CryptoDocumentaryDossier` via Gemini Structured Outputs and persists it to `data_cache/custom_filings_cache.json`.
    * **Optional Manual Mode:** Upload a local `.pdf` / `.txt` file or paste filing/transcript excerpts and click **`✨ Extract from Uploaded / Pasted Document`**.
-6. **Download Individual Deep Dive PDF (Full Master-Report Parity):** Click **`📥 DOWNLOAD INDIVIDUAL DEEP DIVE DOSSIER (.PDF)`** to compile a multi-page A4 institutional dossier containing **100% of the Master Report intelligence scoped to that asset** (5-filter funnel, 5y forensic series, 12-KPI CAGRs, solvency reserves, all 8 valuation methods + SOTP, full SEC 10-K/10-Q/footnotes & Analyst consensus, M&A/goodwill & Earnings Call Q&A, Porter's 5 Forces & Moat, Crypto Whitepaper/GitHub/DeepDAO/Audits/Unlocks, and geopolitical/micro events).
+6. **Download Individual Deep Dive PDF (On-Demand Cached, Full Master-Report Parity):** Click **`⚡ Generate & Compile Individual Deep Dive Dossier (.PDF)`** (cached per ticker in session so tab switches remain instant) and then **`📥 DOWNLOAD INDIVIDUAL DEEP DIVE DOSSIER (.PDF)`** to compile a multi-page A4 institutional dossier containing **100% of the Master Report intelligence scoped to that asset** (5-filter funnel, 5y forensic series, 12-KPI CAGRs, solvency reserves, all 8 valuation methods + SOTP, full SEC 10-K/10-Q/footnotes & Analyst consensus, M&A/goodwill & Earnings Call Q&A, Porter's 5 Forces & Moat, Crypto Whitepaper/GitHub/DeepDAO/Audits/Unlocks, and geopolitical/micro events).
 
 ---
 
@@ -163,8 +163,8 @@ Generates a standalone multi-page institutional PDF dossier on any portfolio hol
 1. **Shannon's Demon Inflow Rebalance Simulator:** Enter fresh capital (`USD`) to calculate tax-free inflow allocations directed strictly to discounted underweight holdings (*zero tax-drag*).
 2. **Anti-Cyclical Convex Leverage & LTV Stress-Tester:** Simulates joint equity/BTC shocks against the **50.0% LTV Hard-Cap** and estimates Aave V3 liquidation Health Factors (altcoins are strictly prohibited as collateral).
 3. **Background Morning Notifier (`ON / OFF`) + Optional AI Briefing:**
-   * Master switch (`OFF` by default) integrated with Windows Task Scheduler (`Antigravity_Quant_Morning_Notifier` via `schtasks.exe`) for Telegram Bot and Discord Webhook alerts.
-   * Toggle **`✨ Enable AI Executive Interpretation on Morning Briefing`**, customize conditional triggers (**`VIX >=`**, **`Drift >= pp`**, **`BTC NUPL <=`**, **`DCF Upside >= %`**), and click **`👁️ Preview Morning Briefing Payload`** to inspect deterministic signals enriched with concise Gemini synthesis before saving or dispatching.
+   * Master switch (`OFF` by default) integrated with Windows Task Scheduler (`Antigravity_Quant_Morning_Notifier` via `schtasks.exe`) with validated 24h **`HH:MM`** scheduling for **Telegram Bot** and **Discord Webhook** alerts.
+   * Toggle **`✨ Enable AI Executive Interpretation on Morning Briefing`**, customize conditional triggers (**`VIX >=`**, **`Drift >= pp`**, **`BTC NUPL <=`**, **`DCF Upside >= %`**), click **`👁️ Preview Briefing`** to inspect deterministic signals enriched with concise Gemini synthesis, or click **`📤 Send Test Alert Now`** to verify delivery directly before enabling the background schedule.
 
 ---
 

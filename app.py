@@ -374,6 +374,8 @@ def main() -> None:
         st.session_state["ai_pdf_cache"] = {}
     if "det_pdf_cache" not in st.session_state:
         st.session_state["det_pdf_cache"] = {}
+    if "dd_pdf_cache" not in st.session_state:
+        st.session_state["dd_pdf_cache"] = {}
     if "sidebar_tax_rate_input" not in st.session_state:
         st.session_state["sidebar_tax_rate_input"] = 15.0
     if "sidebar_capital_usd" not in st.session_state:
@@ -468,6 +470,7 @@ def main() -> None:
             st.cache_data.clear()
             st.session_state["ai_pdf_cache"] = {}
             st.session_state["det_pdf_cache"] = {}
+            st.session_state["dd_pdf_cache"] = {}
             st.session_state["custody_auto_synced_boot"] = False
             st.session_state["custody_force_refresh"] = True
             st.session_state["refresh_token"] += 1
@@ -1189,8 +1192,8 @@ def main() -> None:
             user_ticker=active_dd_tk,
             portfolio=portfolio,
         )
-        pdf_exp_dd = InstitutionalPDFExporter()
-        dd_pdf_bytes = pdf_exp_dd.generate_deep_dive_pdf_bytes(dd_res)
+        dd_cache_key = f"{dd_res.normalized_ticker}|{capital_usd:.0f}|{st.session_state['refresh_token']}|{db_sig}"
+        dd_pdf_bytes = st.session_state["dd_pdf_cache"].get(dd_cache_key)
 
         d1, d2, d3, d4 = st.columns(4)
         with d1:
@@ -1229,15 +1232,27 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        st.download_button(
-            label=f"📥 DOWNLOAD INDIVIDUAL DEEP DIVE DOSSIER FOR {dd_res.normalized_ticker} (.PDF)",
-            data=dd_pdf_bytes,
-            file_name=f"Deep_Dive_Dossier_{dd_res.normalized_ticker}.pdf",
-            mime="application/pdf",
-            width="stretch",
-            type="primary",
-            key=f"dl_dd_{dd_res.normalized_ticker}",
-        )
+        if dd_pdf_bytes is not None:
+            st.download_button(
+                label=f"📥 DOWNLOAD INDIVIDUAL DEEP DIVE DOSSIER FOR {dd_res.normalized_ticker} (.PDF)",
+                data=dd_pdf_bytes,
+                file_name=f"Deep_Dive_Dossier_{dd_res.normalized_ticker}.pdf",
+                mime="application/pdf",
+                width="stretch",
+                type="primary",
+                key=f"dl_dd_{dd_res.normalized_ticker}",
+            )
+        else:
+            if st.button(
+                f"⚡ Generate & Compile Individual Deep Dive Dossier for {dd_res.normalized_ticker} (.PDF)",
+                width="stretch",
+                type="primary",
+                key=f"btn_compile_dd_{dd_res.normalized_ticker}",
+                help="On-demand PDF compilation keeps tab switching and dashboard reruns instant.",
+            ):
+                with st.spinner(f"Compiling individual PDF dossier for {dd_res.normalized_ticker}..."):
+                    st.session_state["dd_pdf_cache"][dd_cache_key] = InstitutionalPDFExporter().generate_deep_dive_pdf_bytes(dd_res)
+                st.rerun()
         st.caption(
             f"All decision-making tables for `{dd_res.normalized_ticker}` (5-filter funnel, 5-year forensics, 12-KPI CAGRs, "
             "8-method valuation, SEC 10-K/M&A/Calls or Whitepaper/GitHub/Unlocks dossiers, geopolitics & timing governance) "
@@ -1462,12 +1477,21 @@ def main() -> None:
 
         n_col1, n_col2 = st.columns([1, 2])
         with n_col1:
+            from core.background_notifier import normalize_and_validate_hhmm
+
             enabled_now = st.toggle(
                 "🔔 Enable Morning Background Notifier (ON / OFF)",
                 value=bool(notif_cfg.enabled),
                 help="When turned OFF, no external alerts are dispatched.",
             )
-            sched_time = st.text_input("Daily Scan Time (HH:MM)", value=notif_cfg.schedule_time_hhmm)
+            channel_choice = st.radio(
+                "Delivery Channel",
+                ["Telegram", "Discord"],
+                index=0 if notif_cfg.channel_type != "Discord" else 1,
+                horizontal=True,
+                key="notif_channel_radio",
+            )
+            sched_time = st.text_input("Daily Scan Time (HH:MM — 24h)", value=notif_cfg.schedule_time_hhmm)
             tg_token = st.text_input("Telegram Bot Token (Optional — fill when ready)", value=notif_cfg.telegram_bot_token, type="password")
             tg_chat = st.text_input("Telegram Chat ID (Optional)", value=notif_cfg.telegram_chat_id)
             dc_hook = st.text_input("Discord Webhook URL (Optional)", value=notif_cfg.discord_webhook_url, type="password")
@@ -1488,22 +1512,37 @@ def main() -> None:
                 tr_dcf = st.number_input("Equity DCF Upside Trigger (% >=)", min_value=5.0, max_value=100.0, value=float(getattr(notif_cfg, "dcf_upside_alert_pct", 12.0)), step=1.0)
 
             if st.button("💾 Save Notifier Settings (ON/OFF)", width="stretch", type="primary"):
-                notif_cfg.enabled = enabled_now
-                notif_cfg.schedule_time_hhmm = sched_time
-                notif_cfg.telegram_bot_token = tg_token
-                notif_cfg.telegram_chat_id = tg_chat
-                notif_cfg.discord_webhook_url = dc_hook
-                notif_cfg.enable_ai_briefing = bool(enable_ai_briefing_now)
-                notif_cfg.vix_alert_threshold = float(tr_vix)
-                notif_cfg.drift_alert_threshold_pp = float(tr_drift)
-                notif_cfg.btc_nupl_buy_threshold = float(tr_nupl)
-                notif_cfg.dcf_upside_alert_pct = float(tr_dcf)
-                notifier_eng.save_config(notif_cfg)
-                st.success(f"Notifier state saved: {'ENABLED (ON)' if enabled_now else 'DISABLED (OFF — Silent Mode)'}!")
-                st.rerun()
+                ok_hhmm, norm_hhmm = normalize_and_validate_hhmm(sched_time)
+                if not ok_hhmm:
+                    st.error(norm_hhmm)
+                else:
+                    notif_cfg.enabled = enabled_now
+                    notif_cfg.channel_type = channel_choice
+                    notif_cfg.schedule_time_hhmm = norm_hhmm
+                    notif_cfg.telegram_bot_token = tg_token
+                    notif_cfg.telegram_chat_id = tg_chat
+                    notif_cfg.discord_webhook_url = dc_hook
+                    notif_cfg.enable_ai_briefing = bool(enable_ai_briefing_now)
+                    notif_cfg.vix_alert_threshold = float(tr_vix)
+                    notif_cfg.drift_alert_threshold_pp = float(tr_drift)
+                    notif_cfg.btc_nupl_buy_threshold = float(tr_nupl)
+                    notif_cfg.dcf_upside_alert_pct = float(tr_dcf)
+                    notifier_eng.save_config(notif_cfg)
+                    st.success(f"Notifier state saved ({channel_choice} @ {norm_hhmm}): {'ENABLED (ON)' if enabled_now else 'DISABLED (OFF — Silent Mode)'}!")
+                    st.rerun()
 
-            if st.button("👁️ Preview Morning Briefing Payload", width="stretch", key="btn_preview_briefing"):
+            nb1, nb2 = st.columns(2)
+            with nb1:
+                preview_clicked = st.button("👁️ Preview Briefing", width="stretch", key="btn_preview_briefing")
+            with nb2:
+                test_send_clicked = st.button("📤 Send Test Alert Now", width="stretch", key="btn_send_test_alert")
+
+            if preview_clicked or test_send_clicked:
                 notif_preview_cfg = notifier_eng.load_settings()
+                notif_preview_cfg.channel_type = channel_choice
+                notif_preview_cfg.telegram_bot_token = tg_token
+                notif_preview_cfg.telegram_chat_id = tg_chat
+                notif_preview_cfg.discord_webhook_url = dc_hook
                 notif_preview_cfg.vix_alert_threshold = float(tr_vix)
                 notif_preview_cfg.drift_alert_threshold_pp = float(tr_drift)
                 notif_preview_cfg.btc_nupl_buy_threshold = float(tr_nupl)
@@ -1520,6 +1559,15 @@ def main() -> None:
                         settings_override=notif_preview_cfg,
                     )
                 st.session_state["notifier_preview"] = preview_res
+                if test_send_clicked:
+                    ok_send, send_msg = notifier_eng.dispatch_notification(
+                        preview_res.get("formatted_message", ""),
+                        notif_preview_cfg,
+                    )
+                    if ok_send:
+                        st.success(send_msg)
+                    else:
+                        st.warning(send_msg)
 
         with n_col2:
             status_badge = "ENABLED (ON — Active Monitoring)" if notif_cfg.enabled else "DISABLED (OFF — Silent Mode / Pre-Investment)"
