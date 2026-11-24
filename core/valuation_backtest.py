@@ -57,6 +57,8 @@ DEFAULT_SECTOR_MAP: Dict[str, str] = {
     "AVGO": "TECH_HIGH_GROWTH",
     "MELI": "TECH_HIGH_GROWTH",
     "NU": "TECH_HIGH_GROWTH",
+    "GOOGL": "TECH_HIGH_GROWTH",
+    "GOOG": "TECH_HIGH_GROWTH",
     "INTC": "TECH_HIGH_GROWTH",
     "PYPL": "TECH_HIGH_GROWTH",
     "BABA": "TECH_HIGH_GROWTH",
@@ -65,7 +67,6 @@ DEFAULT_SECTOR_MAP: Dict[str, str] = {
     # Cash Cows & Payment Processors (PDF p. 4: Processors treated as Tech)
     "AAPL": "TECH_CASH_COW",
     "MSFT": "TECH_CASH_COW",
-    "GOOGL": "TECH_CASH_COW",
     "META": "TECH_CASH_COW",
     "MA": "TECH_CASH_COW",
     "V": "TECH_CASH_COW",
@@ -991,8 +992,9 @@ class ComposableValuationBacktestSimulator:
             val = self.val_engine.calc_enterprise_pegy(
                 ticker, price, d, metric=metric_kind, yield_in_denominator=yield_in_denominator
             )
+            eff_prune = min(prune_pegy, 1.4) if (prune_pegy is not None and sector == "TECH_CASH_COW") else prune_pegy
             is_buy = (val <= buy_pegy) and (not quality_veto)
-            is_prune = (prune_pegy is not None and val > prune_pegy) or quality_exit
+            is_prune = (eff_prune is not None and val > eff_prune) or quality_exit
             return (is_buy, is_prune, f"Enterprise_PEGY_{metric_kind}", val)
 
         if method == "bank_pegy_pb":

@@ -94,7 +94,7 @@
       "fair_price": 236.0,
       "role_description": "Closed Consumer Tech Ecosystem with Pricing Power and Massive Buybacks",
       "accumulate_rule": "Consultative Benchmark (Cash Cow): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/FCF NTM) > 1.6x (weigh Tax-Drag).",
+      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/FCF NTM) > 1.4x (weigh Tax-Drag).",
       "yield_mechanism": "Growing dividends + ~USD 95B annual share repurchase program.",
       "sector_vertical": "TECH_CASH_COW"
     },
@@ -106,7 +106,7 @@
       "fair_price": 442.0,
       "role_description": "B2B Enterprise Monopoly, Cloud Computing (Azure) & Copilot AI Ecosystem",
       "accumulate_rule": "Consultative Benchmark (Cash Cow): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/FCF NTM) > 1.6x.",
+      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/FCF NTM) > 1.4x.",
       "yield_mechanism": "20 consecutive years of dividend growth + high-ROIC Cloud reinvestment.",
       "sector_vertical": "TECH_CASH_COW"
     },
@@ -178,7 +178,7 @@
       "fair_price": 545.0,
       "role_description": "Global Financial Tollbooth with 58% Operating Margin & Card Network Duopoly",
       "accumulate_rule": "Consultative Benchmark (Cash Cow): Enterprise PEGY (EV/FCF NTM) in Gold Range (0 to 1.2x).",
-      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/FCF NTM) > 1.6x.",
+      "sell_rule": "Consultative Prune Reference (50%): Enterprise PEGY (EV/FCF NTM) > 1.4x.",
       "yield_mechanism": ">95% cash conversion returned via massive share repurchases and dividends.",
       "sector_vertical": "FINANCIAL_TOLLBOOTH"
     },

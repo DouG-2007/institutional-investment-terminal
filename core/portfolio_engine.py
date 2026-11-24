@@ -259,13 +259,15 @@ class PortfolioEngine:
             "SELECT ticker, category, sector_vertical, accumulate_rule, sell_rule FROM portfolio_assets"
         ).fetchall()
         for tk, cat, sec, acc, sell in rows:
-            new_sec = "TECH_HIGH_GROWTH" if (tk == "NU" and sec == "FINANCIAL_BANK") else sec
+            new_sec = "TECH_HIGH_GROWTH" if (tk in ("NU", "GOOGL", "GOOG") and sec in ("FINANCIAL_BANK", "TECH_CASH_COW")) else sec
             new_acc, new_sell = acc or "", sell or ""
             if new_sec == "TECH_HIGH_GROWTH" and (
-                "Prune Reference (50%)" in new_sell or (tk == "NU" and sec == "FINANCIAL_BANK")
+                "Prune Reference (50%)" in new_sell or new_sec != sec
             ):
                 new_acc = "Consultative Benchmark (High-Growth): Enterprise PEGY (EV/EBIT NTM) in Gold Range (0 to 1.2x)."
                 new_sell = "Consultative Structural Hold (High-Growth): 0% Valuation Pruning (exit only on thesis/moat break)."
+            elif new_sec in ("TECH_CASH_COW", "FINANCIAL_TOLLBOOTH") and "> 1.6x" in new_sell:
+                new_sell = new_sell.replace("> 1.6x", "> 1.4x")
             elif cat == "Crypto Altcoin" and tk in ("ETH-USD", "SOL-USD"):
                 if "NUPL < 0.30" in new_acc or "Trailing Drawdown >= 20%" in new_sell or "MVRV Z > 3.0" in new_sell:
                     new_acc = "Consultative Benchmark (L1 Major): Accumulate at BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0)."
@@ -449,7 +451,7 @@ class PortfolioEngine:
             ),
             "TECH_CASH_COW": (
                 "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) 0–1.2x + Quality Gates (Sloan/CFO).",
-                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.6x or Gross Margin deterioration.",
+                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.4x or Gross Margin deterioration.",
             ),
             "FINANCIAL_BANK": (
                 "Advisory Reference (Banks): Financial PEGY 0 to 1.0x WITH P/B filter >= 1.0x.",
@@ -457,7 +459,7 @@ class PortfolioEngine:
             ),
             "FINANCIAL_TOLLBOOTH": (
                 "Advisory Reference (Cash Cow): Enterprise PEGY (EV/FCF NTM) 0–1.2x + Quality Gates.",
-                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.6x.",
+                "Advisory 50% Trim Reference: Enterprise PEGY (EV/FCF NTM) > 1.4x.",
             ),
             "RETAIL": (
                 "Advisory Reference (Defensives): P/E & EV/EBITDA <= 0.85x Sector + Price <= 0.85x DCF (SSS & Quality Gates).",

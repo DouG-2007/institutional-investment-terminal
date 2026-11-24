@@ -230,11 +230,11 @@ Conversational quantitative and forensic analyst built with `google-antigravity 
 
     $$\text{Enterprise PEGY (FCF)} = \frac{EV/\text{FCF}_{\text{NTM}}}{\text{FCF Growth}_{\text{NTM}} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Gold Range: } \le 1.20x)$$
 
-  * **High-Growth Tech, Semis & Fintechs (`TECH_HIGH_GROWTH`, incl. `NU`):**
+  * **High-Growth Tech, Semis & AI/Fintech Leaders (`TECH_HIGH_GROWTH`, incl. `NU`, `GOOGL`):**
 
     $$\text{Enterprise PEGY (EBIT)} = \frac{EV/\text{EBIT}_{\text{NTM}}}{\text{EBIT Growth}_{\text{NTM}} + \text{Dividend Yield} + \text{Buyback Yield}} \quad (\text{Gold Range: } \le 1.20x \text{ | } 0\% \text{ Valuation Pruning})$$
 
-  * **Asymmetric Pruning & Quality Gates:** `TECH_HIGH_GROWTH` compounders apply valuation strictly to direct inflows and cross-asset rotations (`0%` PEGY pruning). Mature `TECH_CASH_COW`, `FINANCIAL_BANK`, `CYCLICAL`, and `RETAIL` positions pair `50%` valuation trims with accounting Quality Gates (`Sloan <= +10%`, `CFO/EBITDA >= 0.70x`, Gross Margin stability).
+  * **Asymmetric Pruning & Quality Gates:** `TECH_HIGH_GROWTH` compounders apply valuation strictly to direct inflows and cross-asset rotations (`0%` PEGY pruning). Mature `TECH_CASH_COW` holdings trim `50%` at `Enterprise PEGY (EV/FCF NTM) > 1.40x`, while `FINANCIAL_BANK`, `CYCLICAL`, and `RETAIL` pair `50%` trims with accounting Quality Gates (`Sloan <= +10%`, `CFO/EBITDA >= 0.70x`, Gross Margin stability).
   * **Retail & Defensives (`RETAIL`):** Calibrated with positive Same-Store Sales (SSS) requirements.
 
 ---
@@ -272,7 +272,7 @@ The terminal initializes `portfolio_store.db` with a balanced **20-asset portfol
 | :--- | :--- | :--- | :--- | :---: | :--- |
 | **AAPL** | Apple Inc. | Global Equity | Tech Cash Cow | 5.00% | Ecosystem monopoly and aggressive share repurchase program |
 | **MSFT** | Microsoft Corp. | Global Equity | Tech Cash Cow | 5.00% | Enterprise cloud infrastructure (Azure) and enterprise AI leadership |
-| **GOOGL** | Alphabet Inc. | Global Equity | Tech Cash Cow | 5.00% | Search monopoly (Google Search), YouTube, and GCP Cloud |
+| **GOOGL** | Alphabet Inc. | Global Equity | Tech High-Growth | 5.00% | Search monopoly (Google Search), YouTube, TPU AI infrastructure, and GCP Cloud |
 | **AMZN** | Amazon.com Inc. | Global Equity | Tech Cash Cow | 5.00% | Cloud computing backbone (AWS) and global e-commerce logistics |
 | **NVDA** | NVIDIA Corp. | Global Equity | Tech High-Growth | 5.00% | Dominant accelerated computing platform and AI semiconductor hardware |
 | **META** | Meta Platforms Inc. | Global Equity | Tech Cash Cow | 5.00% | Social network graph (Instagram/WhatsApp) and AI ad monetization |

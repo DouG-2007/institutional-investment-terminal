@@ -33,6 +33,7 @@ class TestValuationBacktestEngine(unittest.TestCase):
 
     def test_fintech_and_processors_sector_mapping_aligned_with_pdf(self) -> None:
         self.assertEqual(DEFAULT_SECTOR_MAP["NU"], "TECH_HIGH_GROWTH")
+        self.assertEqual(DEFAULT_SECTOR_MAP["GOOGL"], "TECH_HIGH_GROWTH")
         self.assertEqual(DEFAULT_SECTOR_MAP["MA"], "TECH_CASH_COW")
         self.assertEqual(DEFAULT_SECTOR_MAP["V"], "TECH_CASH_COW")
         self.assertEqual(DEFAULT_SECTOR_MAP["JPM"], "FINANCIAL_BANK")

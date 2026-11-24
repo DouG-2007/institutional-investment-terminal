@@ -265,17 +265,17 @@ class RiskTimingEngine:
         # ======================================================================
         framework_rules_documentation = [
             {
-                "Asset Class / Vertical": "1. High-Growth Techs & Fintechs (e.g., NVDA, AMZN, ASML, NU)",
+                "Asset Class / Vertical": "1. High-Growth Techs & Fintechs (e.g., NVDA, AMZN, GOOGL, ASML, NU)",
                 "Primary Metric": "Enterprise PEGY (EV/EBIT NTM)",
                 "Advisory Buy Reference": "Gold Range: Enterprise PEGY (EV/EBIT NTM) between 0 and 1.20x (guides inflows & cross-asset rotation)",
                 "Advisory 50% Trim Reference": "0% Valuation Pruning (Compounder Structural Hold — exit only on thesis/moat break)",
-                "Strategic Note": "Parity backtests proved pruning secular compounders on PEGY > 1.6x destroys compounding; valuation directs buys only.",
+                "Strategic Note": "Parity backtests proved pruning secular compounders on PEGY destroys compounding; valuation directs buys only.",
             },
             {
-                "Asset Class / Vertical": "2. Cash Cows & Tollbooths (e.g., AAPL, MSFT, GOOGL, META, V, MA)",
+                "Asset Class / Vertical": "2. Cash Cows & Tollbooths (e.g., AAPL, MSFT, META, V, MA)",
                 "Primary Metric": "Enterprise PEGY (EV/FCF NTM) + Quality Gates",
                 "Advisory Buy Reference": "Gold Range: Enterprise PEGY (EV/FCF NTM) 0–1.20x + Sloan <= +10% & CFO/EBITDA >= 0.70x",
-                "Advisory 50% Trim Reference": "Enterprise PEGY (EV/FCF NTM) > 1.60x or structural Gross Margin deterioration",
+                "Advisory 50% Trim Reference": "Enterprise PEGY (EV/FCF NTM) > 1.40x or structural Gross Margin deterioration",
                 "Strategic Note": "Quality-gated 50% pruning rotates mature FCF capital into discounted Gold Range compounders or BTC capitulation.",
             },
             {
@@ -390,9 +390,9 @@ class RiskTimingEngine:
                     val = vm["enterprise_pegy_ev_fcf"]
                     ind_str = f"Ent. PEGY (EV/FCF): {val:.2f}x | Sloan: {fh.get('sloan_ratio_pct', 0.0):+.1f}% | CFO/EB: {fh.get('fco_to_ebitda', 1.0):.2f}x"
                     buy_ref = "Enterprise PEGY (EV/FCF NTM) 0–1.20x + Quality Gates"
-                    prune_ref = "Enterprise PEGY (EV/FCF NTM) > 1.60x or Margin Deterioration"
+                    prune_ref = "Enterprise PEGY (EV/FCF NTM) > 1.40x or Margin Deterioration"
                     in_buy = (val <= 1.20) and quality_ok
-                    in_prune = val > 1.60
+                    in_prune = val > 1.40
                 elif sec == "FINANCIAL_BANK":
                     val = vm["pegy_financeiro"]
                     pb = vm["pb_current"]

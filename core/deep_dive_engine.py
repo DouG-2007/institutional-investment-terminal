@@ -1295,7 +1295,7 @@ class DeepDiveEngine:
                 "prune_reference": (
                     "0% Valuation Pruning (High-Growth Tech Compounder Hold — exit only on structural thesis break)"
                     if sv == "TECH_HIGH_GROWTH"
-                    else "Consultative 50% prune only if PEGY > 1.60x (or > 1.50x for Banks) or Quality deterioration exceeding Tax-Drag Hurdle Rate"
+                    else "Consultative 50% prune only if PEGY > 1.40x (Cash Cows) / > 1.50x (Banks) or Quality deterioration exceeding Tax-Drag Hurdle Rate"
                 ),
             },
             corporate_signal_ma=corp_ma,

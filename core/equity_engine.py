@@ -213,8 +213,8 @@ EQUITY_FUNDAMENTAL_KB: Dict[str, Dict[str, Any]] = {
     },
     "GOOGL": {
         "name": "Alphabet Inc.",
-        "sector_vertical": "TECH_CASH_COW",
-        "sector_label": "Big Tech / Search Monopoly, YouTube & Cloud",
+        "sector_vertical": "TECH_HIGH_GROWTH",
+        "sector_label": "High-Growth Tech & AI Infrastructure (Search, Cloud, TPUs & Waymo)",
         "default_px": 182.00,
         "mcap_b": 2240.0,
         "ev_b": 2165.0,
@@ -1730,7 +1730,7 @@ class EquityEngine:
             else:
                 primary_pegy_val = ent_pegy_fcf
                 primary_pegy_label = f"Enterprise PEGY (EV/FCF NTM): {ent_pegy_fcf:.2f}x"
-                primary_pegy_status = "Gold Band (0 to 1.2x — Cash Cow)" if ent_pegy_fcf <= 1.2 else ("Neutral (1.2 to 1.6x)" if ent_pegy_fcf <= 1.6 else "Stretched (> 1.6x)")
+                primary_pegy_status = "Gold Band (0 to 1.2x — Cash Cow)" if ent_pegy_fcf <= 1.2 else ("Neutral (1.2 to 1.4x — Cash Cow)" if ent_pegy_fcf <= 1.4 else "Prune Band (> 1.4x — Cash Cow)")
 
             # Implied Fair Price at Gold Band PEGY (1.20x for non-financials via EV->Equity bridge, 1.00x for banks via P/E)
             target_pegy_gold = 1.00 if is_bank else 1.20
