@@ -19,7 +19,6 @@ Gracefully falls back to deterministic/static baselines per-section if
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
 import json
 import logging
 import os

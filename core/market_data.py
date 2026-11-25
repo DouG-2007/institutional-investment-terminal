@@ -8,7 +8,7 @@ de último preço negociado (regularMarketPrice / Binance Spot).
 import json
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, Sequence, Tuple
 import yfinance as yf
 
 

@@ -120,7 +120,7 @@ def render_valuation_vs_spot_svg(equities: List[Any]) -> str:
         return ""
 
     w, h = 760, max(165, 34 + len(rows) * 20)
-    ml, mr, mt, mb = 62, 74, 18, 22
+    ml, mr, mt, _mb = 62, 74, 18, 22
     cw = w - ml - mr
     max_val = max(max(r[1], r[2]) for r in rows) * 1.12 or 100.0
 

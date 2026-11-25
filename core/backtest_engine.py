@@ -16,7 +16,6 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKTEST_PARQUET_PATH = os.path.join(ROOT_DIR, "data_cache", "backtest_prices_3y.parquet")
@@ -34,7 +33,6 @@ def _load_or_fetch_price_matrix(
 ) -> pd.DataFrame:
     """Loads cached 3y Close price matrix or downloads fresh daily closes via `yfinance` + Binance fallback."""
     orig_req = list(dict.fromkeys([t.strip().upper() for t in tickers if t and t.strip()] + ["SPY", "QQQ", "BTC-USD"]))
-    col_map = {_map_yf_ticker(t): t for t in orig_req}
     req_yf = list(dict.fromkeys(_map_yf_ticker(t) for t in orig_req))
 
     if os.path.exists(BACKTEST_PARQUET_PATH) and lookback_period == "3y":

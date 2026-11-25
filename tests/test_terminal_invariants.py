@@ -392,6 +392,15 @@ class TestTerminalInvariants(unittest.TestCase):
                 self.assertEqual((aio.load_cached_ai_master_insights("NVDA|sig1") or {}).get("tag"), "SINGLE")
                 self.assertEqual((aio.load_cached_ai_master_insights() or {}).get("tag"), "FULL")
 
+        # 5) fetch_crypto_daily_history_binance works via _fetch_json without NameError
+        from core.live_quant_fetcher import fetch_crypto_daily_history_binance
+
+        sample_klines = [[1700000000000 + i * 86400000, "1", "2", "1", str(2.0 + i * 0.1)] for i in range(25)]
+        with mock.patch("core.live_quant_fetcher._fetch_json", return_value=sample_klines):
+            s_bn = fetch_crypto_daily_history_binance("SUI-USD", limit=25, max_pages=1)
+            self.assertEqual(len(s_bn), 25)
+            self.assertAlmostEqual(float(s_bn.iloc[-1]), 4.4, places=2)
+
         close_yfinance_thread_caches()
 
     def test_5_antigravity_readonly_lockdown(self) -> None:

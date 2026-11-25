@@ -341,7 +341,7 @@ def fetch_complete_equity_document_bundle(
 
     # Locate Annual (10-K / 20-F), Quarterly (10-Q / 6-K), up to 3 recent 8-Ks, Form 4 count, DEF 14A
     annual_idx: Optional[int] = None
-    for target in ("10-K", "20-F") if "10-Q" not in preferred_forms[:1] else ("10-K", "20-F"):
+    for target in ("10-K", "20-F"):
         for i, f_type in enumerate(forms):
             if str(f_type).strip().upper() == target:
                 annual_idx = i

@@ -507,7 +507,7 @@ class InstitutionalPDFExporter:
                     if priorities_li
                     else ""
                 )
-                + f'</div>'
+                + '</div>'
             )
 
         ai_header_block = f"{ai_prov_html}{ai_exec_html}"

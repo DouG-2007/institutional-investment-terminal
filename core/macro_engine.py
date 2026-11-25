@@ -10,13 +10,24 @@ Real-time ingestion via APIs (FRED St. Louis Fed + Yahoo Finance):
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import datetime
+import json
+import os
+import time
 from dataclasses import dataclass, field
 from io import StringIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 import yfinance as yf
+
+_MACRO_CACHE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data_cache",
+    "macro_fred_cache.json",
+)
+_MACRO_CACHE_TTL_SEC = 7200  # 2 hours for FRED & Yahoo macro series
 
 try:
     from curl_cffi import requests as creq
@@ -75,26 +86,91 @@ class MacroEngine:
         vals = base + jitter
         return pd.Series(vals, index=dates)
 
+    def _load_fred_batch_parallel(self) -> Dict[str, pd.Series]:
+        """Fetches all 18 FRED macro series in parallel with a 2-hour JSON disk cache."""
+        specs = [
+            ("GDP", 5, 6),
+            ("CPIAUCSL", 5, 6),
+            ("FEDFUNDS", 5, 6),
+            ("GFDEBTN", 5, 6),
+            ("UNRATE", 5, 6),
+            ("PAYEMS", 5, 6),
+            ("ICSA", 3, 6),
+            ("IURSA", 3, 6),
+            ("WALCL", 4, 6),
+            ("WM2NS", 4, 6),
+            ("DTB3", 3, 6),
+            ("DGS1", 3, 6),
+            ("DGS2", 4, 6),
+            ("DGS5", 3, 6),
+            ("DGS10", 4, 6),
+            ("DGS30", 3, 6),
+            ("IPMAN", 3, 6),
+            ("BAMLH0A0HYM2", 3, 4),
+        ]
+        if os.path.exists(_MACRO_CACHE_PATH):
+            try:
+                if (time.time() - os.path.getmtime(_MACRO_CACHE_PATH)) < _MACRO_CACHE_TTL_SEC:
+                    with open(_MACRO_CACHE_PATH, "r", encoding="utf-8") as fh:
+                        raw_map = json.load(fh)
+                    if isinstance(raw_map, dict) and raw_map:
+                        out_cached: Dict[str, pd.Series] = {}
+                        for sid, _, _ in specs:
+                            pairs = raw_map.get(sid) or []
+                            if pairs:
+                                idx = pd.to_datetime([p[0] for p in pairs])
+                                vals = [float(p[1]) for p in pairs]
+                                out_cached[sid] = pd.Series(vals, index=idx, name=sid)
+                        if len(out_cached) >= 8:
+                            return out_cached
+            except Exception:
+                pass
+
+        out: Dict[str, pd.Series] = {}
+
+        def _fetch_one(spec_tuple):
+            sid, yrs, tm = spec_tuple
+            return sid, self._fetch_fred_series(sid, yrs, timeout=tm)
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for sid, ser in pool.map(_fetch_one, specs):
+                out[sid] = ser
+
+        non_empty = {
+            sid: [[dt.strftime("%Y-%m-%d"), float(val)] for dt, val in ser.items()]
+            for sid, ser in out.items()
+            if not ser.empty
+        }
+        if len(non_empty) >= 5:
+            try:
+                os.makedirs(os.path.dirname(_MACRO_CACHE_PATH), exist_ok=True)
+                with open(_MACRO_CACHE_PATH, "w", encoding="utf-8") as fh:
+                    json.dump(non_empty, fh)
+            except Exception:
+                pass
+        return out
+
     def run_macro_aggregation(self) -> MacroDataBundle:
-        # 1. Coleta FRED em Tempo Real
-        gdp = self._fetch_fred_series("GDP", 5)
-        cpi = self._fetch_fred_series("CPIAUCSL", 5)
-        fedfunds = self._fetch_fred_series("FEDFUNDS", 5)
-        debt = self._fetch_fred_series("GFDEBTN", 5)
-        unrate = self._fetch_fred_series("UNRATE", 5)
-        payems = self._fetch_fred_series("PAYEMS", 5)
-        icsa = self._fetch_fred_series("ICSA", 3)
-        iursa = self._fetch_fred_series("IURSA", 3)
-        walcl = self._fetch_fred_series("WALCL", 4)
-        wm2 = self._fetch_fred_series("WM2NS", 4)
-        dgs3m = self._fetch_fred_series("DTB3", 3)
-        dgs1 = self._fetch_fred_series("DGS1", 3)
-        dgs2 = self._fetch_fred_series("DGS2", 4)
-        dgs5 = self._fetch_fred_series("DGS5", 3)
-        dgs10 = self._fetch_fred_series("DGS10", 4)
-        dgs30 = self._fetch_fred_series("DGS30", 3)
-        ipman = self._fetch_fred_series("IPMAN", 3)
-        hy_oas = self._fetch_fred_series("BAMLH0A0HYM2", 3, timeout=4)
+        # 1. Parallel Real-Time FRED Ingestion (w/ 2h Disk Cache)
+        fred_map = self._load_fred_batch_parallel()
+        gdp = fred_map.get("GDP", pd.Series(dtype=float))
+        cpi = fred_map.get("CPIAUCSL", pd.Series(dtype=float))
+        fedfunds = fred_map.get("FEDFUNDS", pd.Series(dtype=float))
+        debt = fred_map.get("GFDEBTN", pd.Series(dtype=float))
+        unrate = fred_map.get("UNRATE", pd.Series(dtype=float))
+        payems = fred_map.get("PAYEMS", pd.Series(dtype=float))
+        icsa = fred_map.get("ICSA", pd.Series(dtype=float))
+        iursa = fred_map.get("IURSA", pd.Series(dtype=float))
+        walcl = fred_map.get("WALCL", pd.Series(dtype=float))
+        wm2 = fred_map.get("WM2NS", pd.Series(dtype=float))
+        dgs3m = fred_map.get("DTB3", pd.Series(dtype=float))
+        dgs1 = fred_map.get("DGS1", pd.Series(dtype=float))
+        dgs2 = fred_map.get("DGS2", pd.Series(dtype=float))
+        dgs5 = fred_map.get("DGS5", pd.Series(dtype=float))
+        dgs10 = fred_map.get("DGS10", pd.Series(dtype=float))
+        dgs30 = fred_map.get("DGS30", pd.Series(dtype=float))
+        ipman = fred_map.get("IPMAN", pd.Series(dtype=float))
+        hy_oas = fred_map.get("BAMLH0A0HYM2", pd.Series(dtype=float))
 
         # Calibrated synthetic fallback if offline or rate-limited
         if gdp.empty:

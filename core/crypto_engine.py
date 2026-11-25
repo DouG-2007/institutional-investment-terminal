@@ -781,7 +781,7 @@ class CryptoEngine:
             elif unlock_pct <= 5.0:
                 unlock_verdict = f"Moderate Impact ({unlock_pct:.2f}% between 1% and 5%/mo)"
             else:
-                unlock_verdict = f"High Impact (> 5.0%/mo — Severe Dilution)"
+                unlock_verdict = "High Impact (> 5.0%/mo — Severe Dilution)"
 
                         # Funding Rate vs Liquidation Heatmap
             fr = kb["funding_rate_8h_pct"]

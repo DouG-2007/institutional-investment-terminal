@@ -20,10 +20,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-import numpy as np
-import pandas as pd
-import yfinance as yf
-from core.market_data import fetch_single_quote
 
 from core.equity_engine import (
     EquityEngine,

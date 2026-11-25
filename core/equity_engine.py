@@ -5,10 +5,9 @@ CAGRs DE TODOS OS 12 KPIs (3y, 5y, 10y), VALUATION LADO A LADO E QUALITATIVO SET
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 import numpy as np
-import pandas as pd
 import yfinance as yf
 from core.market_data import fetch_all_quotes_parallel, fetch_single_quote
 
@@ -1813,9 +1812,15 @@ class EquityEngine:
             raw_net_cash_ps = ((mcap_b - ev_b) / shares_b) if (not is_bank and shares_b > 0) else 0.0
             net_cash_per_share = max(-px * 0.25, min(px * 0.25, raw_net_cash_ps))
 
-            def _calc_dcf_scenario(g_5y: float, w_adj: float, gt: float) -> float:
+            def _calc_dcf_scenario(
+                g_5y: float,
+                w_adj: float,
+                gt: float,
+                _fcf_ps: float = fcf_per_share,
+                _nc_ps: float = net_cash_per_share,
+            ) -> float:
                 pv = 0.0
-                cf = fcf_per_share
+                cf = _fcf_ps
                 for yr in range(1, 6):
                     cf *= (1.0 + g_5y)
                     pv += cf / ((1.0 + w_adj) ** yr)
@@ -1826,7 +1831,7 @@ class EquityEngine:
                     pv += cf / ((1.0 + w_adj) ** yr)
                 tv = (cf * (1.0 + gt)) / max(0.025, (w_adj - gt))
                 pv_tv = tv / ((1.0 + w_adj) ** 10)
-                return round(max(1.0, pv + pv_tv + net_cash_per_share), 2)
+                return round(max(1.0, pv + pv_tv + _nc_ps), 2)
 
             dcf_conservador = _calc_dcf_scenario(g_cons, wacc_dec + 0.005, g_term - 0.005)
             dcf_base = _calc_dcf_scenario(g_base, wacc_dec, g_term)
@@ -2127,11 +2132,6 @@ class EquityEngine:
                     "Net Income": c.get("Net Income", c.get("Lucro Líquido", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
                     "CFO": c.get("CFO", c.get("FCO", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
                     "Dividends": c.get("Dividends", c.get("Dividendos", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
-                    "Revenue": c.get("Receita", c.get("Revenue", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
-                    "Gross Profit": c.get("Lucro Bruto", c.get("Gross Profit", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
-                    "Net Income": c.get("Lucro Líquido", c.get("Net Income", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
-                    "CFO": c.get("FCO", c.get("CFO", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
-                    "Dividends": c.get("Dividendos", c.get("Dividends", {"3y": 0.0, "5y": 0.0, "10y": 0.0})),
                 })(kb.get("cagrs", {})),
                 valuation_methods=valuation_methods,
                 qualitative_strategy=qualitative_strategy,

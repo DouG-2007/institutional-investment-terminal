@@ -27,9 +27,9 @@ from core.macro_engine import MacroEngine, MacroDataBundle
 from core.portfolio_engine import PortfolioEngine, PortfolioOverviewBundle
 from core.equity_engine import EquityEngine, EquityFullAnalysis
 from core.crypto_engine import CryptoEngine, CryptoFullProfile
-from core.filings_engine import FilingsEngine, EquityDocumentaryDossier, CryptoDocumentaryDossier
-from core.geopolitics_micro_engine import GeopoliticsMicroEngine, GeopoliticalImpactRow, MicroCorporateProtocolEvent
-from core.screener_engine import ScreenerEngine, StockScreenerRow, CryptoScreenerRow
+from core.filings_engine import FilingsEngine
+from core.geopolitics_micro_engine import GeopoliticsMicroEngine
+from core.screener_engine import ScreenerEngine
 from core.risk_timing_engine import RiskTimingEngine, RiskLeverageTimingBundle
 from core.deep_dive_engine import DeepDiveEngine, DeepDiveResultBundle
 from core.pdf_exporter import InstitutionalPDFExporter
@@ -533,7 +533,7 @@ def main() -> None:
                 st.caption(f"⚠️ Custody Auto-Sync Notice: {auto_res_sb.error_message}")
 
     st.markdown(
-        f"""
+        """
         <div class="inst-banner">
             <h1>🏛️ 360° MASTER REPORT HUB &amp; ACTIVE INTERVENTION MODULES</h1>
         </div>
@@ -1441,7 +1441,6 @@ def main() -> None:
 
         collat_stocks_usd = capital_usd * (portfolio.ltv_eligible_stocks_weight_pct / 100.0)
         collat_btc_usd = capital_usd * (portfolio.ltv_eligible_btc_weight_pct / 100.0)
-        base_collat_usd = collat_stocks_usd + collat_btc_usd
         sim_debt_usd = capital_usd * (sim_debt_pct / 100.0)
         stressed_collat_usd = (
             collat_stocks_usd * (1.0 + shock_eq_pct / 100.0)

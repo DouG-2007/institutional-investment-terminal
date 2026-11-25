@@ -17,7 +17,8 @@ Cumpre duas exigências estruturais absolutas:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+import math
+from typing import Any, Dict, List
 import plotly.graph_objects as go
 
 
@@ -94,7 +95,7 @@ def sanitize_plotly_figure_against_overlaps(
                 y_ref = getattr(trace, "yaxis", "y") or "y"
                 numeric_vals = []
                 for v in y_data:
-                    if isinstance(v, (int, float)) and v == v:  # not NaN
+                    if isinstance(v, (int, float)) and math.isfinite(float(v)):
                         numeric_vals.append(float(v))
                 if numeric_vals:
                     axis_vals.setdefault(y_ref, []).extend(numeric_vals)

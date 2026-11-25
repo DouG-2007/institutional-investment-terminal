@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-import numpy as np
 
 from core.portfolio_engine import PortfolioOverviewBundle
 from core.equity_engine import EquityFullAnalysis

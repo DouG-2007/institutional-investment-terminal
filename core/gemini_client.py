@@ -399,7 +399,6 @@ def generate_pdf_executive_synthesis(
 
         import json
 
-        chosen_model = model or get_default_model(fast=False)
         system_instruction = (
             "You are the Chief Investment Strategist for an Institutional Multi-Asset Value Investing "
             "Terminal. Synthesize ONLY the deterministic JSON metrics provided. "

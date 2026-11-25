@@ -19,7 +19,7 @@ Preserves 100% of all analytical indicators and provides deep institutional laye
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import urllib.request
 import json
 

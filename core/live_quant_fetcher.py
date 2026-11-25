@@ -742,7 +742,7 @@ def _fetch_global_crypto_macro() -> Dict[str, Any]:
     if isinstance(st, dict):
         pegged = st.get("peggedAssets") or []
         tot_stable_usd = sum(
-            float(((p.get("circulating") or {}).get("peggedUSD") or 0.0))
+            float((p.get("circulating") or {}).get("peggedUSD") or 0.0)
             for p in pegged
             if isinstance(p, dict)
         )
@@ -802,10 +802,7 @@ def fetch_crypto_daily_history_binance(symbol: str, limit: int = 1000, max_pages
             if end_ms is not None:
                 url += f"&endTime={end_ms}"
             try:
-                resp = _HTTP.get(url, timeout=8)
-                if resp.status_code != 200:
-                    break
-                batch = resp.json()
+                batch = _fetch_json(url, timeout=8.0)
                 if not isinstance(batch, list) or not batch:
                     break
                 all_rows = batch + all_rows

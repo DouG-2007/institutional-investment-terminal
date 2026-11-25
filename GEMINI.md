@@ -139,7 +139,7 @@ This file defines the architectural invariants, module responsibilities, persist
 4. **Graceful Degradation Check (Zero Key):** Verify `GEMINI_API_KEY=""` leaves PDF generation, `FilingsEngine` fallback, `BackgroundNotifierEngine`, and `InstitutionalAIAnalyst.is_available()` clean without exceptions.
 5. **Antigravity Read-Only Lockdown Check:** Verify `LocalAgentConfig` has `capabilities.enable_subagents is False` and `capabilities.enabled_tools == []`.
 6. **Streamlit Boot / UI Smoke Test:** Verify `AppTest.from_file("app.py")` / `streamlit run app.py --server.headless true` runs cleanly under `protobuf>=7` across all 5 tabs.
-7. **Git Hygiene:** Run `git status` and `git check-ignore` to confirm `.env`, `notifier_config.json`, `data_cache/ai_sessions/`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, and `data_cache/*.parquet` are untracked/ignored.
+7. **Git Hygiene:** Run `git status` and `git check-ignore` to confirm `.env`, `notifier_config.json`, `data_cache/ai_sessions/`, `data_cache/custom_filings_cache.json`, `data_cache/ai_master_insights_cache.json`, `data_cache/live_quant_cache.json`, `data_cache/macro_fred_cache.json`, and `data_cache/*.parquet` are untracked/ignored.
 
 ---
 
