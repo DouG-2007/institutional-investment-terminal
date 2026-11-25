@@ -145,6 +145,71 @@ class TestTerminalInvariants(unittest.TestCase):
         finally:
             loss_pos.pnl_pct = orig_pnl
 
+        # Financial logic invariants:
+        # 1) Bank hurdle uses pure Ke (100% Equity CAPM), never debt-tax-shield WACC
+        jpm_eq = next((e for e in self.equities if e.ticker == "JPM"), None)
+        if jpm_eq is not None:
+            self.assertEqual(jpm_eq.valuation_methods["wacc_capm_pct"], jpm_eq.valuation_methods["cost_of_equity_pct"])
+            self.assertEqual(jpm_eq.forensic_health["wacc_pct"], jpm_eq.valuation_methods["cost_of_equity_pct"])
+
+        # 2) Aave V3 stress-test scales dynamically with portfolio eligible BTC weight
+        p_20btc = mock.MagicMock()
+        p_20btc.capital_usd = 100_000.0
+        p_20btc.ltv_eligible_stocks_weight_pct = 80.0
+        p_20btc.ltv_eligible_btc_weight_pct = 20.0
+        p_20btc.positions = []
+        rt_20 = RiskTimingEngine().build_risk_and_consultative_timing(p_20btc, [], {})
+        # Base 20% LTV on $20k BTC collateral = $4k debt -> @5.15% = $206/yr
+        self.assertAlmostEqual(rt_20.aave_v3_stress_test_table[0]["Annual Interest Cost ($)"], 206.0, places=2)
+
+        # 3) DeFi re-entry at BTC <= 1.05x 200W excludes NUPL and enforces Real Earnings > 0 & P/F <= 35x
+        from types import SimpleNamespace
+
+        btc_floor_mock = SimpleNamespace(
+            onchain_metrics={
+                "mvrv_z_score": 0.4, "nupl": 0.25, "asopr": 0.99,
+                "price_to_200w_sma_x": 1.02, "pi_cycle_top_triggered": False,
+            },
+            onchain_timing={
+                "mvrv_z_score": 0.4, "nupl": 0.25, "asopr": 0.99,
+                "price_to_200w_sma_x": 1.02, "pi_cycle_top_triggered": False,
+            },
+            mining_metrics={"hash_ribbon_crossed_up": True},
+        )
+        defi_bad = SimpleNamespace(
+            tokenomics_valuation={"pf_ratio": 120.0, "protocol_real_earnings_m": -50.0, "protocol_real_earnings_positive": False}
+        )
+        defi_good = SimpleNamespace(
+            tokenomics_valuation={"pf_ratio": 14.0, "protocol_real_earnings_m": +25.0, "protocol_real_earnings_positive": True}
+        )
+        pos_bad = SimpleNamespace(ticker="BAD-USD", name="Bad DeFi", category="Crypto Altcoin", sector_vertical="OTHER", target_weight_pct=5.0, current_weight_pct=5.0, weight_drift_pp=0.0, pnl_pct=0.0, allocated_usd=5000.0)
+        pos_good = SimpleNamespace(ticker="PENDLE-USD", name="Pendle", category="Crypto Altcoin", sector_vertical="OTHER", target_weight_pct=5.0, current_weight_pct=5.0, weight_drift_pp=0.0, pnl_pct=0.0, allocated_usd=5000.0)
+        p_defi = SimpleNamespace(capital_usd=100_000.0, ltv_eligible_stocks_weight_pct=0.0, ltv_eligible_btc_weight_pct=50.0, positions=[pos_bad, pos_good])
+        rt_defi = RiskTimingEngine().build_risk_and_consultative_timing(p_defi, [], {"BTC-USD": btc_floor_mock, "BAD-USD": defi_bad, "PENDLE-USD": defi_good})
+        row_bad, row_good = rt_defi.consultative_asset_timing_table
+        self.assertFalse(row_bad.shannon_inflow_eligible)
+        self.assertIn("Blocked", row_bad.consultative_status_vs_reference)
+        self.assertTrue(row_good.shannon_inflow_eligible)
+        self.assertIn("Buy Reference", row_good.consultative_status_vs_reference)
+
+        # 4) CYCLICAL uses inverse multiple logic (pe_rel < 0.80 triggers prune, > 1.15 + low DCF buys)
+        cyc_peak = SimpleNamespace(
+            ticker="XOM",
+            sector_vertical="CYCLICAL",
+            current_price=120.0,
+            forensic_health={"sloan_ratio_pct": -2.0, "fco_to_ebitda": 1.1, "roic_goodwill_pct": 18.0},
+            valuation_methods={
+                "pe_current": 7.0, "pe_sector_avg": 12.0,
+                "ev_ebitda_current": 4.0, "ev_ebitda_sector_avg": 6.5,
+                "dcf_fair_mos10_usd": 110.0, "enterprise_pegy_ev_ebit": 1.0,
+                "reverse_dcf_g_impl_pct": 5.0, "g_fund_projected_pct": 7.0,
+            },
+        )
+        pos_cyc = SimpleNamespace(ticker="XOM", name="Exxon", category="Hard-Asset Stock", sector_vertical="CYCLICAL", target_weight_pct=10.0, current_weight_pct=10.0, weight_drift_pp=0.0, pnl_pct=10.0, allocated_usd=10000.0)
+        p_cyc = SimpleNamespace(capital_usd=100_000.0, ltv_eligible_stocks_weight_pct=10.0, ltv_eligible_btc_weight_pct=0.0, positions=[pos_cyc])
+        rt_cyc = RiskTimingEngine().build_risk_and_consultative_timing(p_cyc, [cyc_peak], {})
+        self.assertIn("Prune Ref", rt_cyc.consultative_asset_timing_table[0].consultative_status_vs_reference)
+
         # Banking calibration: FINANCIAL_BANK must use Financial PEGY and enforce P/B >= 1.0 filter
         # Disruptive Fintechs (NU) map to TECH_HIGH_GROWTH (EV/EBIT PEGY)
         banks = [e for e in self.equities if e.sector_vertical == "FINANCIAL_BANK"]

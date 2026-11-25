@@ -232,7 +232,7 @@ class RiskTimingEngine:
         }
 
         # DeFi Carry Cost Stress-Test (Aave V3 WBTC/USDC Borrow Rate Spikes)
-        base_btc_collat_usd = cap * 0.50
+        base_btc_collat_usd = cap * weight_btc_collat
         base_aave_debt_usd = base_btc_collat_usd * (ltv_btc_pct / 100.0)
         aave_stress_scenarios = [
             ("Normal Base Scenario (Stable Liquidity)", 5.15, 0.0),
@@ -251,12 +251,16 @@ class RiskTimingEngine:
                 "Borrow Rate USDC (% p.a.)": f"{rate_aa:.2f}%",
                 "Simulated BTC Collateral Shock": f"{btc_shock_pct:+.0f}%",
                 "Annual Interest Cost ($)": round(base_aave_debt_usd * (rate_aa / 100.0), 2),
-                "Resulting 1Y BTC LTV (Without Amortization)": f"{resulting_ltv_1y:.2f}%",
-                "Health Factor Aave V3 (Liq = 1.00)": f"{health_factor:.2f}",
+                "Resulting 1Y BTC LTV (Without Amortization)": f"{resulting_ltv_1y:.2f}%" if base_btc_collat_usd > 0 else "0.00% (No BTC Collat)",
+                "Health Factor Aave V3 (Liq = 1.00)": f"{health_factor:.2f}" if base_btc_collat_usd > 0 else "N/A (No BTC Collat)",
                 "Risk Assessment": (
-                    "Safe (LTV < 35% & Health Factor > 2.2)"
-                    if resulting_ltv_1y < 35.0
-                    else "Caution: Refinance to IBKR Fixed Box Spread or amortize via dividends"
+                    "No BTC collateral allocated in SQLite (Zero Aave Liquidation Exposure)"
+                    if base_btc_collat_usd <= 0
+                    else (
+                        "Safe (LTV < 35% & Health Factor > 2.2)"
+                        if resulting_ltv_1y < 35.0
+                        else "Caution: Refinance to IBKR Fixed Box Spread or amortize via dividends"
+                    )
                 ),
             })
 
@@ -308,17 +312,17 @@ class RiskTimingEngine:
             },
             {
                 "Asset Class / Vertical": "7A. Crypto L1 Majors (ETH, SOL — Core Infrastructure)",
-                "Primary Metric": "BTC 200W SMA / NUPL Cycle Floor + Network Fee Adoption",
-                "Advisory Buy Reference": "Accumulate at historical BTC floor: BTC <= 1.05x 200W SMA (confirmed w/ BTC NUPL < 0.0)",
+                "Primary Metric": "BTC 200W SMA Cycle Floor + Network Fee Adoption",
+                "Advisory Buy Reference": "Accumulate at historical BTC floor: BTC <= 1.05x 200W SMA (NUPL gate excluded)",
                 "Advisory 50% Trim Reference": "0% Cyclical Pruning (Full-Cycle Hold — avoid -20% mid-altseason whipsaws)",
                 "Strategic Note": "Major L1s accelerate after BTC Pi Cycle; parity backtests prove full-cycle hold beats partial/trailing exits.",
             },
             {
                 "Asset Class / Vertical": "7B. Altcoins DeFi & Mid-Caps (AAVE, MKR, LINK, UNI, PENDLE)",
-                "Primary Metric": "BTC 200W SMA Re-Entry + BTC Euphoria + Token Trailing DD + P/F",
-                "Advisory Buy Reference": "Strict Re-Entry Floor: BTC <= 1.05x 200W SMA (confirm w/ NUPL < 0.0) + Healthy P/F & Real Earnings > 0",
+                "Primary Metric": "BTC 200W SMA Re-Entry + BTC Euphoria + Token Trailing DD + P/F & Real Earnings",
+                "Advisory Buy Reference": "Strict Re-Entry Floor: BTC <= 1.05x 200W SMA + Healthy P/F (<= 35x) & Real Earnings > 0 (NUPL gate excluded)",
                 "Advisory 50%/100% Trim Reference": "100% Exit: (BTC NUPL > 0.60 or MVRV Z > 3.0) + (Trailing DD >= 20% or P/F > 35x)",
-                "Strategic Note": "Waiting for BTC <= 1.05x 200W SMA eliminates early bear-market entries (replacing NUPL < 0.30).",
+                "Strategic Note": "Waiting for BTC <= 1.05x 200W SMA paired with Real Earnings > 0 and P/F <= 35x avoids early or inflationary entries.",
             },
         ]
 
@@ -353,23 +357,34 @@ class RiskTimingEngine:
                 shannon_ok = not in_prune
             elif tk in cryptos:
                 c = cryptos[tk]
-                pf_val = c.tokenomics_valuation["pf_ratio"]
+                pf_val = float(c.tokenomics_valuation.get("pf_ratio", 0.0) or 0.0)
+                real_earn_m = float(c.tokenomics_valuation.get("protocol_real_earnings_m", 0.0) or 0.0)
+                real_earn_ok = bool(c.tokenomics_valuation.get("protocol_real_earnings_positive", real_earn_m > 0.0))
+                pf_healthy = (pf_val > 0.0) and (pf_val <= 35.0)
                 is_l1_major = tk in ("ETH-USD", "SOL-USD")
-                ind_str = f"BTC Px/200W: {btc_px_to_200w:.2f}x | BTC NUPL: {btc_nupl:.2f} | P/F: {pf_val:.1f}x"
-                in_buy = (btc_px_to_200w <= 1.05) and (btc_nupl < 0.0)
-                if not in_buy and btc_px_to_200w <= 1.05:
-                    in_buy = True
+                btc_floor_buy = btc_px_to_200w <= 1.05
                 if is_l1_major:
-                    buy_ref = "BTC <= 1.05x 200W SMA (confirm w/ BTC NUPL < 0.0)"
+                    ind_str = f"BTC Px/200W: {btc_px_to_200w:.2f}x | P/F: {pf_val:.1f}x"
+                    in_buy = btc_floor_buy
+                    buy_ref = "BTC <= 1.05x 200W SMA (Pure 200W Floor)"
                     prune_ref = "0% Cyclical Pruning (Full-Cycle L1 Hold)"
                     in_prune = False
                     status = "Buy Reference (Historical BTC 200W Floor)" if in_buy else "Structural Full-Cycle Hold (L1 Major — Avoid -20% Whipsaws)"
                     shannon_ok = in_buy or (btc_nupl <= 0.55)
                 else:
-                    buy_ref = "BTC <= 1.05x 200W SMA (w/ NUPL < 0.0) + Healthy P/F"
+                    ind_str = f"BTC Px/200W: {btc_px_to_200w:.2f}x | Real Earn: ${real_earn_m:+.1f}M | P/F: {pf_val:.1f}x"
+                    in_buy = btc_floor_buy and real_earn_ok and pf_healthy
+                    buy_ref = "BTC <= 1.05x 200W SMA + Healthy P/F (<= 35x) & Real Earnings > 0"
                     prune_ref = "(BTC NUPL > 0.60 or MVRV Z > 3.0) + (Trailing DD >= 20% or P/F > 35x)"
                     in_prune = (btc_nupl > 0.60 or btc_mvrv > 3.0) and (pf_val > 35.0)
-                    status = "Buy Reference (BTC 200W SMA Floor + P/F Discount)" if in_buy else ("Cyclical Exit Reference" if in_prune else "Mid-Cycle DeFi/Alt (Monitor BTC NUPL & Drawdown)")
+                    if in_buy:
+                        status = "Buy Reference (BTC 200W SMA Floor + Real Earnings & P/F Discount)"
+                    elif in_prune:
+                        status = "Cyclical Exit Reference"
+                    elif btc_floor_buy and not (real_earn_ok and pf_healthy):
+                        status = "Blocked at Floor (Requires Real Earnings > 0 & P/F <= 35x)"
+                    else:
+                        status = "Mid-Cycle DeFi/Alt (Monitor BTC 200W, P/F & Real Earnings)"
                     shannon_ok = in_buy
             elif tk in eq_map:
                 e = eq_map[tk]
@@ -401,7 +416,23 @@ class RiskTimingEngine:
                     prune_ref = "Financial PEGY > 1.50x"
                     in_buy = (val <= 1.00) and (pb >= 1.0)
                     in_prune = val > 1.50
-                else:  # RETAIL / DEFENSIVE / CYCLICAL
+                elif sec == "RETAIL":
+                    val = vm["enterprise_pegy_ev_ebit"]
+                    ind_str = f"Ent. PEGY (EV/EBIT c/ SSS): {val:.2f}x | Sloan: {fh.get('sloan_ratio_pct', 0.0):+.1f}% | CFO/EB: {fh.get('fco_to_ebitda', 1.0):.2f}x"
+                    buy_ref = "Enterprise PEGY (EV/EBIT NTM) 0–1.20x + SSS & Quality Gates"
+                    prune_ref = "Enterprise PEGY (EV/EBIT NTM) > 1.40x or Gross Margin Erosion"
+                    in_buy = (val <= 1.20) and quality_ok
+                    in_prune = val > 1.40
+                elif sec == "CYCLICAL":
+                    pe_rel = vm["pe_current"] / vm["pe_sector_avg"] if vm["pe_sector_avg"] > 0 else 1.0
+                    ev_eb_rel = vm["ev_ebitda_current"] / vm["ev_ebitda_sector_avg"] if vm["ev_ebitda_sector_avg"] > 0 else 1.0
+                    px_dcf = e.current_price / vm["dcf_fair_mos10_usd"] if vm["dcf_fair_mos10_usd"] > 0 else 1.0
+                    ind_str = f"Inverse P/E Rel: {pe_rel:.2f}x | EV/EB Rel: {ev_eb_rel:.2f}x | Px/DCF: {px_dcf:.2f}x"
+                    buy_ref = "Trough (Inverse): P/E & EV/EBITDA > 1.15x Sector + Px <= 0.85x DCF (+ Quality Gates)"
+                    prune_ref = "Peak (Inverse): P/E or EV/EBITDA < 0.80x Sector OR Px > 1.25x DCF"
+                    in_buy = (pe_rel > 1.15) and (ev_eb_rel > 1.15) and (px_dcf <= 0.85) and quality_ok
+                    in_prune = (pe_rel < 0.80) or (ev_eb_rel < 0.80) or (px_dcf > 1.25)
+                else:  # DEFENSIVE / OTHER
                     pe_rel = vm["pe_current"] / vm["pe_sector_avg"] if vm["pe_sector_avg"] > 0 else 1.0
                     px_dcf = e.current_price / vm["dcf_fair_mos10_usd"] if vm["dcf_fair_mos10_usd"] > 0 else 1.0
                     ind_str = f"P/E vs Sector: {pe_rel:.2f}x | Px/DCF: {px_dcf:.2f}x | CFO/EB: {fh.get('fco_to_ebitda', 1.0):.2f}x"

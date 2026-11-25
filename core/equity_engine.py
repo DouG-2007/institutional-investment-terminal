@@ -1732,14 +1732,18 @@ class EquityEngine:
             else:
                 nwc_context = f"Efficient Negative NWC (USD {nwc_b:+.1f}B supplier-financed, validated by ultra-consistent CFO CV={fco_cv:.2f})"
 
-            # CAPM Damodaran WACC para cruzar com ROIC
+            # CAPM Damodaran WACC (non-banks) vs Pure Cost of Equity Ke (FINANCIAL_BANK)
             beta = kb["beta"]
             crp = 0.0  # US and Singapore have CRP = 0.0% (AAA)
             ke = self.rf + beta * self.erp + crp
-            kd_after_tax = (self.rf + 0.011) * (1.0 - 0.21)
-            debt_w = min(0.35, (kb["debt_to_assets_pct"] / 100.0) * 0.5)
-            eq_w = 1.0 - debt_w
-            wacc_pct = round((eq_w * ke + debt_w * kd_after_tax) * 100.0, 2)
+            if is_bank:
+                # Deposits are operating liabilities in banking; hurdle rate is 100% Cost of Equity (Ke)
+                wacc_pct = round(ke * 100.0, 2)
+            else:
+                kd_after_tax = (self.rf + 0.011) * (1.0 - 0.21)
+                debt_w = min(0.35, (kb["debt_to_assets_pct"] / 100.0) * 0.5)
+                eq_w = 1.0 - debt_w
+                wacc_pct = round((eq_w * ke + debt_w * kd_after_tax) * 100.0, 2)
             roic_pct = kb["roic_goodwill_pct"]
             roic_wacc_spread = round(roic_pct - wacc_pct, 2)
 
@@ -1882,10 +1886,18 @@ class EquityEngine:
                 pb_curr = round(kb["pb_curr"] * scale, 2)
                 ptbv_curr = round(kb["ptbv_curr"] * scale, 2)
 
-            # 5) EVA (Economic Value Added) = NOPLAT - (Capital Investido * WACC)
-            invested_cap_b = round(kb["nopat_b"] / (roic_pct / 100.0), 2) if roic_pct > 0 else (mcap_b * 0.35)
-            capital_charge_b = round(invested_cap_b * (wacc_pct / 100.0), 2)
-            eva_usd_b = round(kb["nopat_b"] - capital_charge_b, 2)
+            # 5) EVA (Economic Value Added) = NOPLAT - (Invested Capital * WACC) | Banks: Net Income - (Equity Book * Ke)
+            if is_bank:
+                equity_book_b = round(mcap_b / pb_curr, 2) if pb_curr > 0 else (
+                    round(kb["nopat_b"] / (roic_pct / 100.0), 2) if roic_pct > 0 else (mcap_b * 0.5)
+                )
+                invested_cap_b = equity_book_b
+                capital_charge_b = round(equity_book_b * (wacc_pct / 100.0), 2)
+                eva_usd_b = round(kb["net_income_b"] - capital_charge_b, 2)
+            else:
+                invested_cap_b = round(kb["nopat_b"] / (roic_pct / 100.0), 2) if roic_pct > 0 else (mcap_b * 0.35)
+                capital_charge_b = round(invested_cap_b * (wacc_pct / 100.0), 2)
+                eva_usd_b = round(kb["nopat_b"] - capital_charge_b, 2)
             eva_pct_ic = round((eva_usd_b / invested_cap_b) * 100.0, 2) if invested_cap_b > 0 else roic_wacc_spread
 
             # 6) PEG & PEGY Ratios (PEGY Financeiro + Enterprise PEGY EV/EBIT e EV/FCF)
